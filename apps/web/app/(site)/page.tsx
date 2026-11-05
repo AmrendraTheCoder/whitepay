@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import QRCode from "qrcode"
-import { Accordion, Badge, ButtonLink, Card, CheckList, CodeBlock, Grid, Icon, Section, SectionHeader, Stat, Stats, type IconName } from "@whitepay/ui"
+import { Accordion, Badge, ButtonLink, Card, CheckList, CodeBlock, Grid, Icon, NumberTicker, Section, SectionHeader, Spotlight, Stat, Stats, Tilt, type IconName } from "@whitepay/ui"
+import { ChainScene } from "./chain-scene"
 import { OpenApp } from "./open-app"
 import { networkStats } from "@/lib/site-stats"
 
@@ -88,30 +89,32 @@ export default async function Landing() {
               <span><Icon name="check" size={16} />MetaMask supported</span>
             </div>
           </div>
-          <PhonePreview />
+          <div className="site-hero-stage"><PhonePreview /></div>
         </div>
       </section>
 
-      <Section size="sm" label="Network">
+      <Section size="sm" aria-labelledby="network">
+        <SectionHeader id="network" eyebrow="Live network" title="A new block every second." description="This is Whitechain right now. Payments flow in and settle in the next block. Move your cursor over the chain to inspect a block." split />
+        <ChainScene startBlock={s.block} />
         <Stats label="Live network numbers">
           <Stat value="~1 s" label="Settlement time" />
           <Stat value="0" label="Gas paid by users" />
-          <Stat value={fmt(s.receipts)} label="Receipts on Arkiv" />
-          <Stat value={fmt(s.block)} label="Latest Whitechain block" live />
+          <Stat value={s.receipts == null ? null : <NumberTicker value={s.receipts} />} label="Receipts on Arkiv" />
+          <Stat value={s.block == null ? null : <NumberTicker value={s.block} />} label="Latest Whitechain block" live />
         </Stats>
       </Section>
 
       <Section id="product" aria-labelledby="how">
         <SectionHeader id="how" eyebrow="How it works" title="Three taps from QR to receipt." description="No exchange account, no gas token, no 24-word phrase." />
         <Grid as="ol" cols={3} className="reset-list">
-          {STEPS.map((st, i) => <Card as="li" key={st.title} icon={st.icon} title={`${i + 1}. ${st.title}`}><p>{st.body}</p></Card>)}
+          {STEPS.map((st, i) => <li key={st.title}><Spotlight><Card icon={st.icon} title={`${i + 1}. ${st.title}`}><p>{st.body}</p></Card></Spotlight></li>)}
         </Grid>
       </Section>
 
       <Section tone="muted" id="autopay" aria-labelledby="features">
         <SectionHeader id="features" eyebrow="Why WhitePay" title="Everything a payment app should do, nothing a crypto wallet makes you learn." />
         <Grid cols={3}>
-          {FEATURES.map((f) => <Card key={f.title} icon={f.icon} title={f.title}><p>{f.body}</p></Card>)}
+          {FEATURES.map((f) => <Spotlight key={f.title}><Card icon={f.icon} title={f.title}><p>{f.body}</p></Card></Spotlight>)}
         </Grid>
       </Section>
 
@@ -130,12 +133,12 @@ export default async function Landing() {
               <ButtonLink href="https://whitepay-demo-store.vercel.app" variant="secondary">See a live store</ButtonLink>
             </div>
           </div>
-          <Card className="terminal" aria-label="Example counter QR for 2.50 USDT">
+          <Tilt max={10}><Card className="terminal" aria-label="Example counter QR for 2.50 USDT">
             <span className="wp-muted">Chai Point, Bandra</span>
             <div className="qr" dangerouslySetInnerHTML={{ __html: qr }} />
             <span className="amount">2.50 <span className="wp-muted">USDT</span></span>
             <Badge tone="success" dot>Waiting for payment</Badge>
-          </Card>
+          </Card></Tilt>
         </div>
       </Section>
 
@@ -155,9 +158,9 @@ export default async function Landing() {
       <Section aria-labelledby="security">
         <SectionHeader id="security" eyebrow="Security" title="Your money moves only when you say so." actions={<ButtonLink href="/security" variant="secondary" iconRight="arrowRight">How WhitePay is secured</ButtonLink>} />
         <Grid cols={3}>
-          <Card icon="key" title="Keys stay on your phone"><p>Encrypted with your fingerprint (passkey) or PIN, locked after five wrong tries.</p></Card>
-          <Card icon="lock" title="Every amount is signed"><p>The shop signs the price, you sign the payment, and the contract settles exactly that, once.</p></Card>
-          <Card icon="shield" title="Tested in the open"><p>Strict CSP, signed webhooks, SSRF guards and rate limits, with a public test suite anyone can run.</p></Card>
+          <Spotlight><Card icon="key" title="Keys stay on your phone"><p>Encrypted with your fingerprint (passkey) or PIN, locked after five wrong tries.</p></Card></Spotlight>
+          <Spotlight><Card icon="lock" title="Every amount is signed"><p>The shop signs the price, you sign the payment, and the contract settles exactly that, once.</p></Card></Spotlight>
+          <Spotlight><Card icon="shield" title="Tested in the open"><p>Strict CSP, signed webhooks, SSRF guards and rate limits, with a public test suite anyone can run.</p></Card></Spotlight>
         </Grid>
       </Section>
 

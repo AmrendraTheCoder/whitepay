@@ -24,8 +24,8 @@ export async function networkStats() {
   return {
     block: block ? Number(block.number) : null,
     blockAgeS: block ? Math.max(0, Math.round(Date.now() / 1000 - Number(block.timestamp))) : null,
-    receipts: (receipts as any)?.count ?? null,
-    activeAutopay: (autopay as any)?.count ?? null,
+    receipts: (receipts as any)?.count == null ? null : Number((receipts as any).count),
+    activeAutopay: (autopay as any)?.count == null ? null : Number((autopay as any).count),
   }
 }
 

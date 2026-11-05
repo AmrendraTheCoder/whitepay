@@ -26,6 +26,10 @@
 .site-hero-note span { display: inline-flex; align-items: center; gap: var(--space-2); }
 .site-hero-note .wp-icon { color: var(--c-success); }
 
+/* hero stage: the phone sits centred on its own padded panel */
+.site-hero-stage { display: grid; place-items: center; padding: var(--space-12) var(--space-8); border: 1px solid var(--c-border); border-radius: var(--radius-lg);
+  background: radial-gradient(60% 50% at 50% 40%, color-mix(in srgb, var(--c-accent) 18%, transparent), transparent 70%), var(--c-bg-muted); }
+
 /* product shot: a static rendering of the real wallet screen */
 .phone { width: min(320px, 100%); margin-inline: auto; aspect-ratio: 9 / 18.5; border-radius: 44px; padding: 10px; background: #1b1f2c; border: 1px solid var(--c-border-strong); box-shadow: var(--shadow-lg); }
 .phone-screen { height: 100%; border-radius: 34px; overflow: hidden; background: #0b0d12; padding: var(--space-10) var(--space-4) var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); font-size: var(--text-xs); }
@@ -38,6 +42,19 @@
 .phone-row { display: flex; align-items: center; gap: var(--space-3); padding-block: var(--space-2); border-bottom: 1px solid #171a22; }
 .phone-row .av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: var(--weight-bold); color: #fff; flex: none; }
 .phone-row div { flex: 1; display: grid; } .phone-row small { color: var(--c-text-subtle); } .phone-row .in { color: var(--c-success); font-weight: var(--weight-semibold); }
+
+/* live chain (three.js) */
+.chain { position: relative; height: 340px; margin-bottom: var(--space-6); border: 1px solid var(--c-border); border-radius: var(--radius-lg); overflow: hidden;
+  background: radial-gradient(70% 80% at 50% 0%, color-mix(in srgb, var(--c-accent) 14%, transparent), transparent 70%), var(--c-bg-muted); touch-action: pan-y; }
+.chain canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; opacity: 0; transition: opacity var(--dur-slow) var(--ease); }
+.chain[data-state="ready"] canvas { opacity: 1; }
+.chain-hud { position: absolute; left: var(--space-4); top: var(--space-4); z-index: 1; display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--c-border); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--c-bg) 80%, transparent); font-size: var(--text-xs); color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
+.chain-hud .wp-dot { color: var(--c-success); animation: wp-pulse 2s infinite; } .chain-hud b { color: var(--c-text); }
+.chain-tip { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; display: grid; gap: 2px; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+  background: var(--c-text); color: var(--c-bg); font-size: var(--text-xs); white-space: nowrap; box-shadow: var(--shadow-md); }
+.chain-tip span { opacity: .75; }
+.chain-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--c-text-muted); padding: var(--space-6); text-align: center; }
 
 /* two-column feature rows */
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-16); align-items: center; }
@@ -108,4 +125,4 @@
   .site-hero { padding-block: var(--space-12); }
   .site-footer-grid { grid-template-columns: 1fr 1fr; } .site-footer-brand { grid-column: 1 / -1; }
 }
-@media (max-width: 640px) { .phone { width: min(280px, 86%); } .status-list li { grid-template-columns: auto 1fr; } .status-list .ms { grid-column: 2; } }
+@media (max-width: 640px) { .site-hero-stage { padding: var(--space-8) var(--space-4); } .chain { height: 260px; } .phone { width: min(280px, 86%); } .status-list li { grid-template-columns: auto 1fr; } .status-list .ms { grid-column: 2; } }
