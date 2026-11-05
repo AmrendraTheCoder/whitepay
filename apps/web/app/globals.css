@@ -602,7 +602,6 @@ html[data-nav-dir="back"] .shell.with-nav { animation: tab-in-back .28s cubic-be
 .notice.bad { border-color: color-mix(in oklab, var(--bad) 45%, transparent); color: var(--bad); }
 .notice.ok { border-color: color-mix(in oklab, var(--ok) 45%, transparent); color: var(--ok); }
 .kv { display: grid; gap: 10px; } .kv .row { align-items: baseline; } .kv .row > :last-child { text-align: right; }
-.btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 .badge svg, .btn svg, .chip svg { flex: none; }
 .tick svg { display: block; }
 .due-card .bell { display: grid; place-items: center; color: var(--lime); }
@@ -622,6 +621,4 @@ html[data-nav-dir="back"] .shell.with-nav { animation: tab-in-back .28s cubic-be
 .sub-card-amt b { font-size: var(--t-lg); font-variant-numeric: tabular-nums; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .sub-progress { display: flex; align-items: center; gap: 12px; } .sub-progress .progress { flex: 1; }
-.chip-danger { color: var(--bad); border-color: color-mix(in oklab, var(--bad) 35%, var(--line)); }
-.chip-danger:hover:not(:disabled) { background: color-mix(in oklab, var(--bad) 10%, var(--surface-2)); }
 .chip:disabled { opacity: .5; cursor: not-allowed; }
