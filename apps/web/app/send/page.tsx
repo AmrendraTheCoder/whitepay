@@ -7,6 +7,7 @@ import { directNonce, receiveAuthTypedData, ROUTER_ADDRESS } from "@whitepay/sha
 import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, LogoLoader } from "../ui"
 import { getWallet } from "@/lib/wallet"
+import { PayeeSearch } from "./search"
 import { usdt, short, initials } from "@/lib/format"
 
 type Payee = { address: Address; name?: string; displayName?: string; kind?: string; source?: string }
@@ -126,12 +127,11 @@ function Send() {
     <main className="shell">
       <TopBar right={<a className="chip" href="/app">Cancel</a>} />
       {!payee ? (
-        <div className="card stack">
-          <h2>Pay a person</h2>
-          <input className="input" placeholder="name.whitepay.eth, handle or 0x address" value={query} onChange={(e) => setQuery(e.target.value)} autoCapitalize="none" />
-          <button className="btn btn-primary" onClick={() => lookup(query)} disabled={!query.trim()}>Find</button>
-          <div className="err">{lookupErr}</div>
-        </div>
+        <>
+          <h1 className="ps-title">Pay anyone</h1>
+          {lookupErr && <div className="err" role="alert">{lookupErr}</div>}
+          <PayeeSearch initialQuery={query} onPick={(p) => { setQuery(p.name ?? p.address); setPayee(p) }} />
+        </>
       ) : (
         <>
           <div className="card">

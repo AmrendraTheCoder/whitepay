@@ -1,0 +1,41 @@
+/* "Pay a person" search. Uses the app's existing tokens (--surface, --surface-2, --line, --text, --muted, --brand, --lime). */
+.ps { display: flex; flex-direction: column; gap: 14px; }
+.ps-field { position: relative; display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 8px 0 16px; border-radius: 18px;
+  background: var(--surface); border: 1.5px solid var(--line); transition: border-color .2s, box-shadow .2s; }
+.ps-field:focus-within { border-color: var(--brand); box-shadow: 0 0 0 4px color-mix(in oklab, var(--brand) 22%, transparent); }
+.ps-ic { flex: none; color: var(--muted); }
+.ps-field:focus-within .ps-ic { color: var(--text); }
+.ps-field input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; font-size: 17px; }
+.ps-field input::placeholder { color: var(--muted); }
+.ps-spin { width: 18px; height: 18px; flex: none; }
+.ps-clear, .ps-paste { flex: none; border: 0; cursor: pointer; font: inherit; font-weight: 700; color: var(--text); -webkit-tap-highlight-color: transparent; }
+.ps-clear { width: 36px; height: 36px; border-radius: 50%; background: var(--surface-2); font-size: 13px; }
+.ps-paste { height: 36px; padding: 0 14px; border-radius: 999px; background: var(--surface-2); font-size: 14px; }
+.ps-clear:active, .ps-paste:active { transform: scale(.94); }
+
+.ps-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ps-action { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line);
+  color: var(--text); text-decoration: none; font-weight: 600; font-size: 15px; transition: transform .12s, background .2s; }
+.ps-action span { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--brand); }
+.ps-action:active { transform: scale(.97); }
+
+.ps-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ps-head { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 14px 4px 6px; }
+.ps-row { display: flex; align-items: center; gap: 14px; padding: 10px 10px; margin: 0 -10px; border-radius: 16px; cursor: pointer; transition: background .15s; -webkit-tap-highlight-color: transparent; }
+.ps-row.on { background: var(--surface-2); }
+.ps-row:active { transform: scale(.99); }
+.ps-row .grow { flex: 1; min-width: 0; }
+.ps-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-name .badge { font-size: 11px; padding: 2px 8px; }
+.ps-sub { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ps-go { flex: none; color: var(--muted); }
+.ps-row.on .ps-go { color: var(--text); }
+.ps-skel { cursor: default; }
+.ps-msg { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px dashed var(--line); font-weight: 600; margin-top: 6px; }
+.ps-msg span { font-weight: 400; color: var(--muted); font-size: 14px; }
+.ps-msg.bad { border-color: color-mix(in oklab, #ff5a6e 50%, transparent); }
+.ps-empty { display: flex; flex-direction: column; gap: 6px; padding: 18px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); margin-top: 6px; text-align: center; }
+.ps-empty span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.ps-empty i { font-style: normal; color: var(--text); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .ps-field, .ps-row, .ps-action { transition: none; } }
+.ps-title { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin: 4px 0 0; }
