@@ -1,5 +1,6 @@
 "use client"
 import { useMemo } from "react"
+import { DueBanner } from "../due-banner"
 import { Onboard } from "../onboard"
 import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp, LogoLoader } from "../ui"
 import { usdt } from "@/lib/format"
@@ -53,6 +54,8 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
           {name === undefined ? <span className="skel" style={{ width: 120, height: 18 }} /> : account === "business" ? "Open shop terminal" : "View money"} <span className="circle">{Icon.arrow()}</span>
         </a>
       </div>
+
+      <DueBanner address={wallet.address} />
 
       <div className="tiles">
         <a className="tile" href="/scan"><div className="sq">{Icon.scan()}</div><span>Scan any QR code</span></a>

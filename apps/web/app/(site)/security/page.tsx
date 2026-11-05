@@ -9,7 +9,7 @@ const LAYERS = [
     ["No replays", "USDT authorizations carry single-use nonces; a payment can never be submitted twice."],
     ["Can't be front-run", "Payments use receiveWithAuthorization: only the WhitePay router can execute them."],
     ["Safe refunds", "Only the shop's payout wallet can refund, only to the original payer, capped at what was paid."],
-    ["Time-locked Autopay", "Each subscription payment is valid only inside its own window; cancelling burns the rest with cancelAuthorization."],
+    ["One-signature Autopay", "One permit to a contract made only for that subscription: exact shop, amount and schedule, capped at amount × payments, missed windows skipped, cancel in one tap."],
   ] },
   { t: "Your keys", items: [
     ["Never leave the phone", "AES-GCM encrypted with a passkey (fingerprint / Face ID) or a PBKDF2-hardened PIN with lockout."],

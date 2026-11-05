@@ -65,10 +65,11 @@ export default function Developers() {
         <p>Same button, <code>mode="subscribe"</code>. The shopper approves once with their fingerprint; WhitePay charges every period with zero gas and sends you a signed webhook per payment.</p>
         <Code>{`<whitepay-button mode="subscribe" order-endpoint="/api/create-subscription"\n                 label="Subscribe · 4.99 USDT / month"></whitepay-button>\n\n// server\nimport { createWhitePaySubscription } from "@whitepay/checkout/server"\napp.post("/api/create-subscription", async (_req, res) => res.json(await createWhitePaySubscription({\n  merchantKey: process.env.SHOP_PK, title: "Pro plan", amount: "4.99", period: "monthly", cycles: 12,\n  webhook: "https://shop.example/api/webhook",   // subscription.started | charged | completed | cancelled | failed\n})))`}</Code>
         <ul className="dev-list">
-          <li><b>How it runs:</b> each upcoming payment is an Arkiv entity whose expiry is its countdown. At 0 the keeper submits that cycle's pre-signed, time-locked authorization, deletes the entity and creates the next one.</li>
-          <li><b>Time-locked:</b> payment <i>n</i> is valid only from 30 s before its due time until the grace window ends (USDT EIP-3009 <code>validAfter</code> / <code>validBefore</code>), only to you, only that amount, only once.</li>
-          <li><b>Cancel = revoke:</b> cancelling submits USDT <code>cancelAuthorization</code> for every unused payment, so nobody (including WhitePay) can ever charge them.</li>
-          <li><b>Verify charges:</b> <code>verifyWhitePaySubscriptionCharge({"{ txHash, merchant, subscriber }"})</code> checks the router's <code>DirectPayment</code> event on-chain.</li>
+          <li><b>One signature:</b> the shopper signs a single EIP-2612 <code>permit</code> to a tiny contract made only for their subscription. Its address commits to every term, so one wallet prompt approves exactly that shop, amount, period and number of payments.</li>
+          <li><b>How it runs:</b> each upcoming payment is an Arkiv entity whose expiry is its countdown. At 0 the keeper calls the contract's <code>charge()</code>, deletes the entity and creates the next one.</li>
+          <li><b>Hard limits on-chain:</b> never early, never late (missed windows are skipped), never more than amount × cycles, never to anyone but you.</li>
+          <li><b>Cancel:</b> one signature switches the subscription's contract off; you can also cancel from your side.</li>
+          <li><b>Verify charges:</b> the contract emits <code>Charged(cycle, amount)</code>; the webhook carries the tx hash.</li>
         </ul>
       </section>
 

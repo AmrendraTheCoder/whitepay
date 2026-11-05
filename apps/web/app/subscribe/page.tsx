@@ -2,13 +2,15 @@
 // Approve autopay: ONE PIN / fingerprint, then the device signs one time-boxed authorization per cycle.
 import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { toHex, type Hex } from "viem"
+import { createPublicClient, http, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
-import { cycleAuthTypedData, cycleDueAt } from "@whitepay/shared/autopay"
+import { cycleDueAt, cycleAuthTypedData, termsFor, autopayPermitTypedData, AUTOPAY_FACTORY, AUTOPAY_FACTORY_ABI, USDT_PERMIT_ABI } from "@whitepay/shared/autopay"
+import { whitechainSepolia, USDT_ADDRESS } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, LogoLoader, Icon } from "../ui"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, countdown, when } from "@/lib/format"
+import { enableReminderNotifications } from "@/lib/reminders"
 
 type PlanResp = {
   state: "open" | "subscribed" | "expired"; planKey: string; title: string; merchant: string; merchantName?: string; amount: string
@@ -27,6 +29,8 @@ function Subscribe() {
   const [unlock, setUnlock] = useState(false)
   const [phase, setPhase] = useState<"idle" | "signing" | "charging" | "done" | "failed">("idle")
   const [progress, setProgress] = useState(0)
+  const [mode, setMode] = useState<"reminder" | "autopay">("reminder")
+  const [notif, setNotif] = useState("")
   const [err, setErr] = useState("")
   const [done, setDone] = useState<{ explorer: string; nextDueAt: number | null } | null>(null)
   const [now, setNow] = useState(() => Date.now() / 1000)
@@ -82,15 +86,32 @@ function Subscribe() {
     try {
       const subscriptionId = toHex(crypto.getRandomValues(new Uint8Array(32))) as Hex
       const startAt = Math.floor(Date.now() / 1000)
-      const signatures: Hex[] = []
-      for (let i = 0; i < plan.cycles; i++) {
-        // cycle i can only ever execute between (due - 30 s) and (due + grace), to this shop, for this amount
-        signatures.push(await acct.signTypedData(cycleAuthTypedData({ subscriber: acct.address, merchant: plan.merchant as Hex, amount, subscriptionId, cycle: i, startAt, period: plan.period, grace: plan.grace })))
-        setProgress(i + 1)
+      if (mode === "reminder") {
+        // sign ONLY the first payment; every later one is requested when due and approved then
+        const signature = await acct.signTypedData(cycleAuthTypedData({ subscriber: acct.address, merchant: plan.merchant as Hex, amount, subscriptionId, cycle: 0, startAt, period: plan.period, grace: plan.grace }))
+        setProgress(1); setPhase("charging")
+        const r = await fetch("/api/subscriptions", { method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ planKey, subscriber: acct.address, subscriptionId, startAt, signature }) })
+        const d = await r.json()
+        if (!r.ok) throw new Error(d.error ?? "Subscription failed")
+        setDone({ explorer: d.explorer, nextDueAt: d.nextDueAt }); setPhase("done")
+        return
       }
+      const terms = termsFor({ subscriber: acct.address, merchant: plan.merchant as Hex, amount, period: plan.period, grace: plan.grace, cycles: plan.cycles, startAt, subscriptionId })
+      // read the subscription's contract address and permit nonce straight from Whitechain, not from our server:
+      // the one signature below is only valid for the clone that encodes exactly these terms
+      const chain = createPublicClient({ chain: whitechainSepolia, transport: http() })
+      const [spender, nonce] = await Promise.all([
+        chain.readContract({ address: AUTOPAY_FACTORY, abi: AUTOPAY_FACTORY_ABI, functionName: "mandateAddress", args: [terms] }),
+        chain.readContract({ address: USDT_ADDRESS, abi: USDT_PERMIT_ABI, functionName: "nonces", args: [acct.address] }),
+      ])
+      const deadline = startAt + 1800
+      // the ONE signature (one MetaMask prompt): let this subscription's contract pull at most amount × cycles
+      const signature = await acct.signTypedData(autopayPermitTypedData({ owner: acct.address, spender, value: total, nonce, deadline: BigInt(deadline) }))
+      setProgress(1)
       setPhase("charging")
       const r = await fetch("/api/subscriptions", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ planKey, subscriber: acct.address, subscriptionId, startAt, signatures }) })
+        body: JSON.stringify({ planKey, subscriber: acct.address, subscriptionId, startAt, permit: { deadline, signature } }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error ?? "Subscription failed")
       setDone({ explorer: d.explorer, nextDueAt: d.nextDueAt }); setPhase("done")
@@ -102,11 +123,17 @@ function Subscribe() {
       <main className="shell"><TopBar />
         <div className="result">
           <SuccessCheck />
-          <h1>Autopay is on</h1>
+          <h1>{mode === "reminder" ? "Subscribed" : "Autopay is on"}</h1>
           <div className="sub">{plan.title} · {usdt(amount)} USDT {plan.periodLabel}. First payment done.</div>
-          {done.nextDueAt && <div className="timer-big"><span>Next payment in</span><b>{countdown(done.nextDueAt - now)}</b></div>}
+          {done.nextDueAt && <div className="timer-big"><span>{mode === "reminder" ? "We'll ask you to pay the next one in" : "Next payment in"}</span><b>{countdown(done.nextDueAt - now)}</b></div>}
+          {mode === "reminder" && (
+            <button className="btn btn-lime" onClick={async () => setNotif(await enableReminderNotifications())}>
+              🔔 Remind me when a payment is due
+            </button>
+          )}
+          {notif && <div className="sub">{notif}</div>}
           <a className="chip" href={done.explorer} target="_blank" rel="noreferrer">First payment on Whitechain ↗</a>
-          <a className="btn btn-primary btn-big" href="/autopay">Manage autopay</a>
+          <a className="btn btn-primary btn-big" href="/autopay">My subscriptions</a>
         </div>
       </main>
     )
@@ -136,26 +163,46 @@ function Subscribe() {
       </div>
 
       <div className="card stack">
+        <h2>How do you want to pay the next ones?</h2>
+        <label className={`mode-opt ${mode === "reminder" ? "on" : ""}`}>
+          <input type="radio" name="mode" checked={mode === "reminder"} onChange={() => setMode("reminder")} />
+          <div><b>Ask me each time</b> <span className="badge badge-ok" style={{ padding: "1px 7px" }}>Recommended</span>
+            <div className="sub">You approve only today's {usdt(amount)} USDT now. When the next payment is due you get a reminder and approve it with one tap. Nothing is pre-approved.</div></div>
+        </label>
+        <label className={`mode-opt ${mode === "autopay" ? "on" : ""}`}>
+          <input type="radio" name="mode" checked={mode === "autopay"} onChange={() => setMode("autopay")} />
+          <div><b>Autopay</b>
+            <div className="sub">Approve once now; the next payments run on schedule without asking.</div></div>
+        </label>
+      </div>
+
+      <div className="card stack">
         <h2>What you're approving</h2>
-        <div className="guard"><b>Each payment has its own time window.</b> It can't be taken early, can't be repeated, and only this shop can receive it. Your phone signs the windows; the USDT contract enforces them.</div>
-        <div className="guard"><b>Cancel anytime.</b> Cancelling revokes every remaining payment on-chain, so nobody can charge them later.</div>
-        <div className="guard"><b>One approval.</b> You confirm once now. Later payments run on schedule without asking again.</div>
+        {mode === "reminder" ? (<>
+        <div className="guard"><b>Only this payment.</b> You sign one payment of {usdt(amount)} USDT to this shop. Nothing else is approved.</div>
+        <div className="guard"><b>Each later payment asks you first.</b> When it's due, WhitePay shows a request; you approve it (one signature) within {Math.round(plan.grace / 60)} minutes{plan.grace >= 86400 ? ` (${Math.round(plan.grace / 86400)} days)` : ""}. Ignore it and it's simply skipped.</div>
+        <div className="guard"><b>Cancel anytime.</b> One signature stops all future requests.</div>
+        </>) : (<>
+        <div className="guard"><b>One approval, hard limits.</b> You sign once. A contract made only for this subscription can send exactly {usdt(amount)} USDT to this shop once per period, at most {plan.cycles} times ({usdt(total)} USDT cap). It can't be taken early, can't be repeated, and can't go anywhere else.</div>
+        <div className="guard"><b>Cancel anytime.</b> One tap (one signature) switches the contract off on-chain, so nobody can charge the remaining payments.</div>
+        <div className="guard"><b>Missed payment = skipped.</b> If a payment can't run inside its window, it is skipped, never charged late.</div>
+        </>)}
       </div>
 
       {phase === "signing" || phase === "charging" ? (
         <div className="card">
           <ul className="steps">
-            <li className={phase === "signing" ? "active" : "done"}>{phase === "signing" ? <span className="spinner" /> : <span className="tick">✓</span>} Signed {progress}/{plan.cycles} payment windows on your device</li>
+            <li className={phase === "signing" ? "active" : "done"}>{phase === "signing" ? <span className="spinner" /> : <span className="tick">✓</span>} {mode === "reminder" ? `${progress ? "Signed" : "Sign"} today's payment on your device (${usdt(amount)} USDT)` : `${progress ? "Approved once" : "Approve once"} on your device (cap ${usdt(total)} USDT)`}</li>
             <li className={phase === "charging" ? "active" : ""}>{phase === "charging" ? <span className="spinner" /> : <span className="tick" style={{ opacity: .3 }}>·</span>} First payment on Whitechain, schedule saved to Arkiv</li>
           </ul>
         </div>
       ) : (
         <button className="btn btn-primary btn-big" disabled={self} onClick={() => setUnlock(true)}>
-          {self ? "This is your own shop" : `Approve autopay · ${usdt(amount)} USDT now`}
+          {self ? "This is your own shop" : mode === "reminder" ? `Subscribe · pay ${usdt(amount)} USDT now` : `Turn on autopay · ${usdt(amount)} USDT now`}
         </button>
       )}
       {err && <div className="card stack" style={{ borderColor: "var(--bad)" }}><div className="err" style={{ textAlign: "center", fontSize: 15 }}>{err}</div><div className="sub" style={{ textAlign: "center" }}>Nothing is charged unless the first payment succeeds.</div></div>}
-      {unlock && <UnlockSheet title="Approve autopay" subtitle={`${usdt(amount)} USDT ${plan.periodLabel} · ${plan.cycles} payments`} onUnlocked={approve} onCancel={() => setUnlock(false)} />}
+      {unlock && <UnlockSheet title={mode === "reminder" ? `Pay ${usdt(amount)} USDT` : "Approve autopay"} subtitle={mode === "reminder" ? `${plan.title}: first payment only` : `${usdt(amount)} USDT ${plan.periodLabel} · ${plan.cycles} payments`} onUnlocked={approve} onCancel={() => setUnlock(false)} />}
     </main>
   )
 }

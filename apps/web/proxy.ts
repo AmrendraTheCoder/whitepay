@@ -29,6 +29,7 @@ const LIMITS: [string, string, number, number][] = [
   ["/api/merchants", "POST", 6, 60_000],
   ["/api/requests", "POST", 30, 60_000],
   ["/api/plans", "POST", 20, 60_000],
+  ["/api/subscriptions/pay", "POST", 20, 60_000],
   ["/api/subscriptions", "POST", 10, 60_000],
   ["/api/autopay/tick", "*", 20, 60_000],
   ["/api/qr", "GET", 60, 60_000],

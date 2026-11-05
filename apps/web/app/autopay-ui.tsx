@@ -3,7 +3,8 @@ import { countdown } from "@/lib/format"
 
 export type MandateRow = {
   key: string; subscriber: string; merchant: string; merchantName?: string; title: string; subscriptionId: string; amount: string
-  period: number; cycles: number; paidCycles: number; nextDueAt: number; status: string; startAt: number; updatedAt: number; lastTxUrl: string | null
+  period: number; cycles: number; paidCycles: number; nextDueAt: number; status: string; startAt: number; updatedAt: number; lastTxUrl: string | null; vault?: string
+  mode?: "reminder" | "autopay"; nextCycle?: number; grace: number; missedCycles?: number; payNow?: boolean; payBy?: number | null
 }
 export const PERIOD_LABEL = (s: number) => (s === 120 ? "every 2 min" : s === 86400 ? "daily" : s === 604800 ? "weekly" : s === 2592000 ? "every 30 days" : `every ${s}s`)
 

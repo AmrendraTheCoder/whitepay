@@ -50,13 +50,19 @@ Run the live attack suite yourself: `scripts/security-check.sh` (27 checks again
 - The demo store's webhook de-duplication is in-memory; a real shop uses a unique key in its database.
 - `style-src 'unsafe-inline'` is allowed because React style attributes need it; styles cannot execute script.
 
-## Autopay (subscriptions)
+## Autopay (subscriptions): one signature
 
-| Threat | Protection |
+The subscriber signs **one** EIP-2612 `permit`. Its spender is a per-subscription `AutopayMandate` clone
+(`AutopayFactory` `0x00F61E008AAC480f3D81F959d659c43dDe72ac66`, `contracts/src/Autopay.sol`) whose address is
+derived from every term (subscriber, merchant, amount, period, start, grace, cycles, id). One wallet prompt = consent
+to exactly those terms. The app reads the clone address from the chain itself, never from the WhitePay server.
+
+| Threat | Protection (enforced by the clone / token, tested in `contracts/test/Autopay.t.sol`) |
 |---|---|
-| Merchant / WhitePay charging early or extra | Each cycle is a separate EIP-3009 authorization with its own `validAfter`/`validBefore` window (due − 30 s … due + grace), fixed amount, fixed payee (nonce = router `directNonce(merchant, memo)`), `to` = router. The USDT contract enforces all of it. |
-| Replaying a payment | Every cycle nonce is single-use on-chain; re-posting an approval is rejected (plan already used / nonce used). |
-| "Cancel" that doesn't really cancel | Cancelling submits USDT `cancelAuthorization` for every unused cycle, burning the nonces on-chain. |
-| Stolen pre-signed authorizations (they live on Arkiv) | Useless to an attacker: `receiveWithAuthorization` requires `msg.sender == to` (the router), and the router only accepts allow-listed relayers. |
-| Forged plan | Plans are EIP-712 signed by the shop key / registered signer and re-verified against MerchantRegistry at subscribe time. |
-| Keeper downtime | Each cycle has a grace window; the keeper is idempotent and can be triggered by cron, GitHub Actions or the app; a missed window marks the mandate `failed` (no late surprise charge possible). |
+| Charging more or to someone else | Changing any term changes the clone address, which has no allowance (`NoAllowance`). The permit caps the total at amount × cycles. |
+| Charging early | `charge()` only works from 30 s before a cycle's due time (`NotDue`). |
+| Charging late / catching up | A cycle whose grace window closed is skipped forever, never charged late. |
+| Double charge | One charge per cycle (`nextCycle`), at most `cycles` times (`Finished`); restarting can't re-charge. |
+| Front-running the permit | Harmless: `start()` tolerates an already-applied permit. |
+| Cancel | One EIP-712 signature (verified by the clone), or a direct call by subscriber or merchant; `cancelled` blocks every future charge. |
+| Keeper downtime | Idempotent keeper (cron, GitHub Actions, app); anyone may call `charge()`, which can only pay the merchant on schedule. |

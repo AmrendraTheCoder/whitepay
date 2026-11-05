@@ -90,3 +90,77 @@ export const cancelAuthTypedData = (authorizer: Address, nonce: Hex) => ({
 /** pack / unpack the per-cycle 65-byte signatures stored in the mandate entity */
 export const packSigs = (sigs: Hex[]): Hex => `0x${sigs.map((s) => s.slice(2).padStart(130, "0")).join("")}` as Hex
 export const unpackSig = (packed: Hex, i: number): Hex => `0x${packed.slice(2 + i * 130, 2 + (i + 1) * 130)}` as Hex
+
+// ============================================================ v2: ONE signature per subscription
+// The subscriber signs a single EIP-2612 permit whose spender is a per-subscription clone
+// (AutopayFactory, contracts/src/Autopay.sol). The clone's address is derived from ALL the terms,
+// so that one signature = consent to exactly this merchant, amount, period, cycle count and start.
+// The clone charges each cycle only inside its window and never more than amount × cycles.
+export const AUTOPAY_FACTORY: Address = "0x00F61E008AAC480f3D81F959d659c43dDe72ac66"
+
+export type Terms = {
+  subscriber: Address; merchant: Address; amount: bigint; period: bigint; startAt: bigint; grace: bigint; cycles: number; subscriptionId: Hex
+}
+const TERMS_COMPONENTS = [
+  { name: "subscriber", type: "address" }, { name: "merchant", type: "address" }, { name: "amount", type: "uint128" },
+  { name: "period", type: "uint64" }, { name: "startAt", type: "uint64" }, { name: "grace", type: "uint64" },
+  { name: "cycles", type: "uint16" }, { name: "subscriptionId", type: "bytes32" },
+] as const
+
+export const AUTOPAY_FACTORY_ABI = [
+  { type: "function", name: "mandateAddress", stateMutability: "view", inputs: [{ name: "t", type: "tuple", components: TERMS_COMPONENTS }], outputs: [{ type: "address" }] },
+  { type: "function", name: "start", stateMutability: "nonpayable", inputs: [{ name: "t", type: "tuple", components: TERMS_COMPONENTS }, { name: "deadline", type: "uint256" }, { name: "v", type: "uint8" }, { name: "r", type: "bytes32" }, { name: "s", type: "bytes32" }], outputs: [{ type: "address" }] },
+  { type: "error", name: "BadTerms", inputs: [] },
+  { type: "error", name: "NoAllowance", inputs: [] },
+  { type: "error", name: "NotDue", inputs: [] },
+] as const
+
+export const AUTOPAY_MANDATE_ABI = [
+  { type: "function", name: "charge", stateMutability: "nonpayable", inputs: [], outputs: [{ type: "uint16" }] },
+  { type: "function", name: "cancel", stateMutability: "nonpayable", inputs: [{ name: "sig", type: "bytes" }], outputs: [] },
+  { type: "function", name: "pending", stateMutability: "view", inputs: [], outputs: [{ name: "cycle", type: "uint16" }, { name: "dueAt", type: "uint64" }, { name: "chargeable", type: "bool" }] },
+  { type: "function", name: "cancelled", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
+  { type: "function", name: "chargedCount", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] },
+  { type: "event", name: "Charged", inputs: [{ name: "cycle", type: "uint16", indexed: true }, { name: "amount", type: "uint256", indexed: false }, { name: "chargedCount", type: "uint16", indexed: false }] },
+  { type: "error", name: "Cancelled_", inputs: [] },
+  { type: "error", name: "Finished", inputs: [] },
+  { type: "error", name: "NotDue", inputs: [] },
+  { type: "error", name: "NotAuthorized", inputs: [] },
+] as const
+
+export const USDT_PERMIT_ABI = [
+  { type: "function", name: "nonces", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ type: "uint256" }] },
+] as const
+
+export const PERMIT_TYPES = {
+  Permit: [
+    { name: "owner", type: "address" }, { name: "spender", type: "address" }, { name: "value", type: "uint256" },
+    { name: "nonce", type: "uint256" }, { name: "deadline", type: "uint256" },
+  ],
+} as const
+
+/** the ONE signature a subscriber gives: allow this subscription's clone to pull at most amount × cycles */
+export const autopayPermitTypedData = (p: { owner: Address; spender: Address; value: bigint; nonce: bigint; deadline: bigint }) => ({
+  domain: USDT_DOMAIN, types: PERMIT_TYPES, primaryType: "Permit" as const, message: p,
+})
+
+export const termsFor = (p: { subscriber: Address; merchant: Address; amount: bigint; period: number; grace: number; cycles: number; startAt: number; subscriptionId: Hex }): Terms => ({
+  subscriber: p.subscriber, merchant: p.merchant, amount: p.amount, period: BigInt(p.period), startAt: BigInt(p.startAt),
+  grace: BigInt(p.grace), cycles: p.cycles, subscriptionId: p.subscriptionId,
+})
+
+/** gasless cancel: one signature, verified by the clone itself */
+export const cancelMandateTypedData = (mandate: Address, subscriptionId: Hex) => ({
+  domain: { name: "WhitePayAutopay", version: "1", chainId: 1874, verifyingContract: mandate },
+  types: { CancelAutopay: [{ name: "mandate", type: "address" }, { name: "subscriptionId", type: "bytes32" }] },
+  primaryType: "CancelAutopay" as const,
+  message: { mandate, subscriptionId },
+})
+
+// ============================================================ reminder mode (default)
+// Nothing is pre-approved. Each payment, including the first, is a single EIP-3009 authorization the
+// subscriber signs when that payment is requested (cycleAuthTypedData for that cycle only, valid only in
+// its own window). Unpaid by the end of the window = skipped, never charged later.
+export type SubscriptionMode = "reminder" | "autopay"
+/** EIP-191 message the subscriber signs to stop a reminder subscription */
+export const reminderCancelMessage = (mandateKey: Hex) => `WhitePay: cancel subscription ${mandateKey.toLowerCase()}`

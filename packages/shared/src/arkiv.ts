@@ -138,7 +138,11 @@ export const Mandate = defineSchema("whitepay.mandate", {
   paidCycles: i32().default(0),
   nextDueAt: u64().indexed(),
   status: str().indexed(), // "active" | "completed" | "cancelled" | "failed"
-  auths: bytes(), // cycles × 65-byte ReceiveWithAuthorization signatures
+  auths: bytes().optional(), // v1: cycles × 65-byte ReceiveWithAuthorization signatures
+  vault: addr().indexed().optional(), // v2: the per-subscription AutopayMandate clone (one permit signature)
+  mode: str().indexed().optional(), // "reminder" (approve each payment when asked) | "autopay" (approve once); missing = autopay
+  nextCycle: i32().optional(), // index of the payment that is requested / scheduled next
+  missedCycles: i32().optional(), // reminder mode: payments not approved inside their window (skipped)
   webhook: str().optional(),
   lastTx: str().optional(),
   updatedAt: u64().indexed(),

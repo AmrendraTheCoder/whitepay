@@ -174,9 +174,9 @@ export default function Store() {
       <section className="club">
         <div>
           <div className="eyebrow">New · Autopay</div>
-          <h2>Chai Club: a fresh blend, on autopay</h2>
-          <p>Approve once with your fingerprint. WhitePay charges <b>0.10 USDT every 2 minutes</b> (demo speed; real plans run monthly) for 3 payments. Each payment is time-locked on-chain and you can cancel anytime from WhitePay → You → Autopay.</p>
-          {sub && <p className="club-on">✓ Autopay on · watch each payment arrive in the console below</p>}
+          <h2>Chai Club: a fresh blend, every cycle</h2>
+          <p><b>0.10 USDT every 2 minutes</b> (demo speed; real plans run monthly), 3 payments. You pay the first one now; when each next one is due, WhitePay sends you a payment request to approve with one tap (or pick Autopay to approve once). Cancel anytime from WhitePay → You → Subscriptions.</p>
+          {sub && <p className="club-on">✓ Subscribed · watch each payment request and payment arrive in the console below</p>}
         </div>
         <div className="pin-wrap club-btn">
           {inspect && <a className="pin" href={gh("②")} target="_blank" rel="noopener noreferrer" title="same button, mode=subscribe">②</a>}
