@@ -6,6 +6,7 @@ import type { PrivateKeyAccount } from "viem/accounts"
 import { directNonce, receiveAuthTypedData, ROUTER_ADDRESS } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, LogoLoader, Icon } from "../ui"
+import { Processing } from "../processing"
 import { getWallet } from "@/lib/wallet"
 import { PayeeSearch } from "./search"
 import { usdt, short, initials } from "@/lib/format"
@@ -30,7 +31,7 @@ function Send() {
   const [amount, setAmount] = useState(sp.get("amount") ?? "")
   const fixedAmount = !!sp.get("amount")
   const [unlock, setUnlock] = useState(false)
-  const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "done" | "failed">("idle")
+  const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "finishing" | "done" | "failed">("idle")
   const [result, setResult] = useState<{ explorer?: string; error?: string }>({})
 
   useEffect(() => setWallet(getWallet()), [])
@@ -87,7 +88,7 @@ function Send() {
       }
       await submit(body, account.address, memo)
     } catch (e) {
-      setResult({ error: (e as Error).message })
+      setResult({ error: friendlyPayError((e as Error).message) })
       setPhase("failed")
     }
   }
@@ -99,9 +100,10 @@ function Send() {
       const out = await r.json()
       if (!r.ok) throw new Error(out.error ?? "Payment failed")
       setResult({ explorer: out.explorer })
-      setPhase("done")
+      setPhase("finishing")
+      setTimeout(() => setPhase("done"), 900)
     } catch (e) {
-      setResult({ error: (e as Error).message })
+      setResult({ error: friendlyPayError((e as Error).message) })
       setPhase("failed")
     }
   }
@@ -157,9 +159,13 @@ function Send() {
               {wallet.hasPasskey ? <>{Icon.finger(20)} Pay with fingerprint</> : "Pay with PIN"}
             </button>
           ) : (
-            <div className="card row" style={{ justifyContent: "center" }}>
-              <span className="spinner" /> {phase === "signing" ? "Signing on your device…" : "Settling on Whitechain…"}
-            </div>
+            <Processing
+              amount={`${amount} USDT`}
+              title={`Sending to ${payee?.displayName ?? payee?.name ?? short(payee?.address)}`}
+              steps={["Approve on your device", "Sending on Whitechain", "Sent"]}
+              step={phase === "signing" ? 0 : phase === "settling" ? 1 : 2}
+              done={phase === "finishing"}
+            />
           )}
           <div className="sub center">Network fee: 0. WhitePay covers the gas.</div>
         </>
@@ -169,4 +175,17 @@ function Send() {
       )}
     </main>
   )
+}
+
+/** Contract / relayer errors in words a person can act on (same wording as subscriptions). */
+function friendlyPayError(msg: string) {
+  const m = msg.toLowerCase()
+  if (/exceeds balance|insufficient|not enough usdt/.test(m)) return "Not enough USDT in this wallet. Add USDT and try again."
+  if (/authorization is used|already paid|orderalreadypaid/.test(m)) return "This payment was already made. Nothing more was charged."
+  if (/expired|orderexpired/.test(m)) return "This payment request expired. Ask for a new QR code."
+  if (/rate|too many/.test(m)) return "Too many attempts. Wait a minute and try again."
+  if (/daily limit/.test(m)) return "You've reached today's WhitePay spending limit."
+  if (/reject|denied|cancel/.test(m)) return "Cancelled. Nothing was charged."
+  if (/fetch|network/.test(m)) return "Network problem: nothing was charged. Check your connection and try again."
+  return msg
 }

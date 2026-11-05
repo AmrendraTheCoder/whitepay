@@ -6,6 +6,7 @@ import type { PrivateKeyAccount } from "viem/accounts"
 import { orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, LogoLoader, Countdown, Icon } from "../ui"
+import { Processing } from "../processing"
 import { getWallet } from "@/lib/wallet"
 import { usdt, initials, mmss } from "@/lib/format"
 
@@ -28,7 +29,7 @@ function Pay() {
   const [data, setData] = useState<ReqResp | null>(null)
   const [, refresh] = useState(0) // re-render once, exactly when the request expires
   const [unlock, setUnlock] = useState(false)
-  const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "done" | "failed">("idle")
+  const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "finishing" | "done" | "failed">("idle")
   const [result, setResult] = useState<{ explorer?: string; error?: string; code?: string }>({})
   // undefined = not read yet (server render / first paint); read localStorage only after mount
   const [wallet, setWallet] = useState<ReturnType<typeof getWallet> | undefined>(undefined)
@@ -112,7 +113,7 @@ function Pay() {
       const body = { entityKey: key, auth: { from: account.address, validAfter: "0", validBefore: order.deadline.toString(), signature } }
       await submit(body, account.address, digest)
     } catch (e) {
-      setResult({ error: (e as Error).message, code: (e as any).code })
+      setResult({ error: friendlyPayError((e as Error).message), code: (e as any).code })
       setPhase("failed")
     }
   }
@@ -128,9 +129,10 @@ function Pay() {
       const out = await r.json()
       if (!r.ok) throw Object.assign(new Error(out.error ?? "Payment failed"), { code: out.code })
       setResult({ explorer: out.explorer })
-      setPhase("done")
+      setPhase("finishing")
+      setTimeout(() => setPhase("done"), 900)
     } catch (e) {
-      setResult({ error: (e as Error).message, code: (e as any).code })
+      setResult({ error: friendlyPayError((e as Error).message), code: (e as any).code })
       setPhase("failed")
     }
   }
@@ -188,13 +190,13 @@ function Pay() {
           {wallet.hasPasskey ? <>{Icon.finger(20)} Pay with fingerprint</> : "Pay with PIN"}
         </button>
       ) : (
-        <div className="card">
-          <ul className="steps">
-            <li className="done"><span className="tick" aria-hidden>{Icon.check(14)}</span> Request verified</li>
-            <li className={phase === "signing" ? "active" : "done"}>{phase === "signing" ? <span className="spinner" /> : <span className="tick" aria-hidden>{Icon.check(14)}</span>} Signed on your device</li>
-            <li className={phase === "settling" ? "active" : ""}>{phase === "settling" ? <span className="spinner" /> : <span className="tick" style={{ opacity: 0.3 }}>·</span>} Settling on Whitechain, saving receipt to Arkiv</li>
-          </ul>
-        </div>
+        <Processing
+          amount={`${usdt(req.amount)} USDT`}
+          title={`Paying ${req.merchantName ?? "the shop"}`}
+          steps={["Approve on your device", "Paying on Whitechain", "Paid"]}
+          step={phase === "signing" ? 0 : phase === "settling" ? 1 : 2}
+          done={phase === "finishing"}
+        />
       )}
       <div className="sub center">Network fee: 0. WhitePay covers the gas.</div>
 
@@ -208,4 +210,17 @@ function Pay() {
       )}
     </main>
   )
+}
+
+/** Contract / relayer errors in words a person can act on (same wording as subscriptions). */
+function friendlyPayError(msg: string) {
+  const m = msg.toLowerCase()
+  if (/exceeds balance|insufficient|not enough usdt/.test(m)) return "Not enough USDT in this wallet. Add USDT and try again."
+  if (/authorization is used|already paid|orderalreadypaid/.test(m)) return "This payment was already made. Nothing more was charged."
+  if (/expired|orderexpired/.test(m)) return "This payment request expired. Ask for a new QR code."
+  if (/rate|too many/.test(m)) return "Too many attempts. Wait a minute and try again."
+  if (/daily limit/.test(m)) return "You've reached today's WhitePay spending limit."
+  if (/reject|denied|cancel/.test(m)) return "Cancelled. Nothing was charged."
+  if (/fetch|network/.test(m)) return "Network problem: nothing was charged. Check your connection and try again."
+  return msg
 }
