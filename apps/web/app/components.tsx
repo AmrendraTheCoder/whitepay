@@ -3,13 +3,18 @@ import { useEffect, useState } from "react"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout } from "@/lib/wallet"
 
-export function TopBar({ right }: { right?: React.ReactNode }) {
+export function TopBar({ right, back = "/" }: { right?: React.ReactNode; back?: string | null }) {
   return (
     <div className="topbar">
-      <a className="brand" href="/">
+      <div className="brand">
+        {back !== null && (
+          <a href={back} aria-label="Back" style={{ display: "grid", placeItems: "center", width: 40, height: 40, borderRadius: "50%", background: "var(--surface-2)" }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
+          </a>
+        )}
         <img src="/icon.svg" alt="" />
         WhitePay
-      </a>
+      </div>
       {right}
     </div>
   )
@@ -104,7 +109,7 @@ export function UnlockSheet({
         {subtitle && <div className="sub" style={{ textAlign: "center" }}>{subtitle}</div>}
         {mode === "passkey" ? (
           <button className="btn btn-primary btn-big" onClick={tryPasskey} disabled={busy}>
-            {busy ? <span className="spinner" /> : "☝︎"} Confirm with fingerprint
+            {busy ? <span className="spinner" /> : null} Confirm with fingerprint
           </button>
         ) : (
           <>

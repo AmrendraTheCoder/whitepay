@@ -5,6 +5,7 @@ import { parseUnits, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { merchantSignupMessage, orderTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
+import { BottomNav } from "../ui"
 import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, ago, mmss } from "@/lib/format"
@@ -27,14 +28,14 @@ export default function MerchantPage() {
   useEffect(() => { if (wallet) void loadMerchant(wallet.address) }, [wallet, loadMerchant])
 
   if (wallet === undefined || (wallet && merchant === undefined))
-    return <main className="shell"><TopBar /><div className="card row"><span className="spinner" /> Loading merchant profile…</div></main>
+    return <main className="shell with-nav"><TopBar /><div className="card row"><span className="spinner" /> Loading merchant profile…</div><BottomNav /></main>
   if (!wallet)
     return (
-      <main className="shell">
+      <main className="shell with-nav">
         <TopBar />
         <div className="card stack"><h2>Merchant mode</h2><div className="sub">Create a WhitePay wallet first. It becomes your shop's payout and signing key.</div></div>
         <a className="btn btn-primary" href="/">Create wallet</a>
-      </main>
+      <BottomNav /></main>
     )
   if (!merchant) return <Signup address={wallet.address} account={account} setAccount={setAccount} onDone={() => loadMerchant(wallet.address)} />
   return <Dashboard merchant={merchant} account={account} setAccount={setAccount} onChange={() => loadMerchant(wallet.address)} />
@@ -76,8 +77,8 @@ function Signup({ address, account, setAccount, onDone }: {
 
   const ok = displayName.trim().length > 1 && avail?.available
   return (
-    <main className="shell">
-      <TopBar right={<a className="chip" href="/">Customer mode</a>} />
+    <main className="shell with-nav">
+      <TopBar back={null} right={<a className="chip" href="/">Customer mode</a>} />
       <div className="card stack">
         <div style={{ fontSize: 22, fontWeight: 800 }}>Accept USDT payments</div>
         <div className="sub">Your shop gets a WhitePay name and a QR. Customers pay with no gas; money lands in this wallet ({short(address)}) instantly.</div>
@@ -103,7 +104,7 @@ function Signup({ address, account, setAccount, onDone }: {
       <div className="err">{err}</div>
       <div className="sub" style={{ textAlign: "center" }}>New shops start unverified. Verify with World ID to get the ✓ badge.</div>
       {unlock && <UnlockSheet title="Sign shop registration" subtitle={`${label}.whitepay.eth`} onUnlocked={submit} onCancel={() => setUnlock(false)} />}
-    </main>
+    <BottomNav /></main>
   )
 }
 
@@ -166,8 +167,8 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
   const left = req ? Number(req.deadline) - now : 0
 
   return (
-    <main className="shell">
-      <TopBar right={<a className="chip" href="/">Customer mode</a>} />
+    <main className="shell with-nav">
+      <TopBar back={null} right={<a className="chip" href="/">Customer mode</a>} />
       <div className="card row">
         <div>
           <div style={{ fontWeight: 700 }}>{merchant.displayName}</div>
@@ -245,6 +246,6 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
         </div>
       </div>
       {unlock && <UnlockSheet title="Unlock terminal" subtitle={`${amount} USDT request`} onUnlocked={create} onCancel={() => setUnlock(false)} />}
-    </main>
+    <BottomNav /></main>
   )
 }

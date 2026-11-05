@@ -1,26 +1,95 @@
 "use client"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { isHex, type Hex } from "viem"
-import { TopBar, PinPad, UnlockSheet } from "./components"
-import { WorldVerify } from "./world"
-import { nameClaimMessage, LABEL_RE } from "@whitepay/shared"
-import type { PrivateKeyAccount } from "viem/accounts"
-import { createWallet, enablePasskey, getWallet, passkeySupported, removeWallet } from "@/lib/wallet"
-import { usdt, short, ago } from "@/lib/format"
-
-type Receipt = { key: string; merchantName?: string; merchant: string; payer: string; amount: string; paidAt: number; explorer: string; kind: string }
+import { PinPad } from "./components"
+import { BottomNav, ScanFab, Icon, avatarColor, initial, prettyName, useWalletData } from "./ui"
+import { createWallet, enablePasskey, passkeySupported } from "@/lib/wallet"
+import { usdt } from "@/lib/format"
 
 export default function Home() {
-  const [wallet, setWallet] = useState<ReturnType<typeof getWallet>>(null)
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
-    setWallet(getWallet())
-    setReady(true)
-  }, [])
-  if (!ready) return <main className="shell"><TopBar /></main>
-  return wallet ? <Wallet wallet={wallet} onChange={() => setWallet(getWallet())} /> : <Onboard onDone={() => setWallet(getWallet())} />
+  const data = useWalletData()
+  if (data.wallet === undefined) return <main className="shell" />
+  if (!data.wallet) return <Onboard onDone={() => location.reload()} />
+  return <WalletHome {...data} wallet={data.wallet} />
 }
 
+// ------------------------------------------------------------ home (GPay)
+function WalletHome({ wallet, bal, rows, name }: ReturnType<typeof useWalletData> & { wallet: NonNullable<ReturnType<typeof useWalletData>["wallet"]> }) {
+  const me = wallet.address.toLowerCase()
+  const people = useMemo(() => {
+    const seen = new Map<string, { address: string; name?: string }>()
+    for (const r of rows ?? []) {
+      const incoming = r.merchant.toLowerCase() === me
+      const other = incoming ? r.payer : r.merchant
+      if (!seen.has(other.toLowerCase())) seen.set(other.toLowerCase(), { address: other, name: incoming ? undefined : r.merchantName })
+    }
+    return [...seen.values()].slice(0, 7)
+  }, [rows, me])
+
+  return (
+    <main className="shell with-nav">
+      <div className="searchbar">
+        <a className="search" href="/send">{Icon.search()} Pay friends and merchants</a>
+        <a className="avatar-btn" href="/you" aria-label="Your profile">{initial(name ?? undefined, "W")}</a>
+      </div>
+
+      <a className="hero" href={name ? "/money" : "/you#claim"}>
+        <div className="label">USDT balance · Whitechain</div>
+        <div className="big">{bal ? usdt(bal.usdt) : "…"}<small>USDT</small></div>
+        <div className="meta">
+          <span className="pill-lime">0 gas</span>
+          <span>{name ?? "No WhitePay name yet"}</span>
+        </div>
+        <div className="cta">
+          {name ? "View money" : "Claim your name"} <span className="circle">{Icon.arrow()}</span>
+        </div>
+      </a>
+
+      <div className="tiles">
+        <a className="tile" href="/scan"><div className="sq">{Icon.scan()}</div><span>Scan any QR code</span></a>
+        <a className="tile" href="/send"><div className="sq">{Icon.pay()}</div><span>Pay anyone</span></a>
+        <a className="tile" href="/receive"><div className="sq">{Icon.receive()}</div><span>Receive money</span></a>
+        <a className="tile" href="/merchant"><div className="sq">{Icon.shop()}</div><span>Shop QR</span></a>
+      </div>
+
+      <div className="chips">
+        <a className="chip-card" href="/money"><span className="ic">{Icon.balance()}</span><div><div className="t1">USDT balance</div><div className="t2">Check</div></div></a>
+        <a className="chip-card" href="/transactions"><span className="ic">{Icon.history()}</span><div><div className="t1">Transactions</div><div className="t2">See all</div></div></a>
+        <a className="chip-card" href="/you"><span className="ic">{Icon.id()}</span><div><div className="t1">WhitePay ID</div><div className="t2 link">{name ? "View" : "Claim"}</div></div></a>
+      </div>
+
+      <div className="section-title">Pay again</div>
+      <div className="people">
+        {rows === null && <div className="empty" style={{ gridColumn: "1 / -1" }}>Loading from Arkiv…</div>}
+        {rows?.length === 0 && <div className="empty" style={{ gridColumn: "1 / -1" }}>People and shops you pay show up here.</div>}
+        {people.map((p) => (
+          <a key={p.address} className="person" href={`/send?to=${p.address}${p.name ? `&name=${p.name}` : ""}`}>
+            <span className="pic" style={{ background: avatarColor(p.name ?? p.address) }}>{initial(p.name ?? p.address.slice(2))}</span>
+            <span className="nm">{prettyName(p.name, p.address)}</span>
+          </a>
+        ))}
+        {!!rows?.length && (
+          <a className="person" href="/transactions">
+            <span className="pic more">{Icon.chev(26)}</span>
+            <span className="nm">More</span>
+          </a>
+        )}
+      </div>
+
+      <div className="section-title">Manage your money</div>
+      <div className="menu-list">
+        <a className="menu-row" href="/transactions"><span className="ic">{Icon.history()}</span>See transaction history<span className="chev">{Icon.chev()}</span></a>
+        <a className="menu-row" href="/money"><span className="ic">{Icon.balance()}</span>Check USDT balance<span className="chev">{Icon.chev()}</span></a>
+        <a className="menu-row" href="/receive"><span className="ic">{Icon.receive(24)}</span>Your QR code<span className="chev">{Icon.chev()}</span></a>
+      </div>
+
+      <ScanFab />
+      <BottomNav />
+    </main>
+  )
+}
+
+// -------------------------------------------------------------- onboarding
 function Onboard({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio">("intro")
   const [first, setFirst] = useState("")
@@ -51,15 +120,16 @@ function Onboard({ onDone }: { onDone: () => void }) {
 
   return (
     <main className="shell">
-      <TopBar />
+      <div className="topbar"><span className="brand"><img src="/icon.svg" alt="" />WhitePay</span></div>
       {step === "intro" && (
         <>
-          <div className="card stack" style={{ padding: 24 }}>
-            <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.15 }}>Scan. Verify. Pay.</div>
-            <div className="sub" style={{ fontSize: 15 }}>
-              UPI-style payments in USDT on Whitechain. No gas fees, no seed phrase. Your key stays on this phone,
-              locked by your fingerprint or PIN.
-            </div>
+          <div className="hero" style={{ minHeight: 260 }}>
+            <div className="label">USDT payments on Whitechain</div>
+            <div className="big" style={{ fontSize: 44, marginTop: 14 }}>Scan.<br />Verify.<br />Pay.</div>
+            <div className="meta"><span className="pill-lime">0 gas</span><span>No seed phrase. Fingerprint or PIN.</span></div>
+          </div>
+          <div className="sub" style={{ fontSize: 15, padding: "0 4px" }}>
+            Your key stays on this phone, encrypted and unlocked only by your fingerprint or a 6-digit PIN, just like UPI.
           </div>
           <button className="btn btn-primary btn-big" onClick={() => setStep("pin")}>Create my wallet</button>
           <button className="chip" style={{ alignSelf: "center" }} onClick={() => setShowImport((s) => !s)}>
@@ -74,22 +144,20 @@ function Onboard({ onDone }: { onDone: () => void }) {
         </>
       )}
       {(step === "pin" || step === "confirm") && (
-        <div className="card stack">
-          <h2 style={{ textAlign: "center", color: "var(--text)", fontSize: 18 }}>
-            {step === "pin" ? "Set a 6-digit PIN" : "Confirm your PIN"}
-          </h2>
-          <div className="sub" style={{ textAlign: "center" }}>Like your UPI PIN. Used when fingerprint isn't available.</div>
+        <div className="stack" style={{ marginTop: 24 }}>
+          <div style={{ textAlign: "center", fontSize: 24, fontWeight: 700 }}>{step === "pin" ? "Set your WhitePay PIN" : "Confirm your PIN"}</div>
+          <div className="sub" style={{ textAlign: "center" }}>6 digits, like your UPI PIN. Used when fingerprint isn't available.</div>
           <PinPad key={step} onComplete={step === "pin" ? onFirst : onConfirm} />
           <div className="err">{err}</div>
         </div>
       )}
       {step === "bio" && (
-        <div className="card stack" style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 48 }}>☝︎</div>
-          <h2 style={{ color: "var(--text)", fontSize: 18 }}>Unlock payments with your fingerprint?</h2>
-          <div className="sub">Your phone's fingerprint or Face ID will encrypt your wallet key. You can always use your PIN.</div>
+        <div className="stack" style={{ textAlign: "center", marginTop: 30 }}>
+          <div style={{ margin: "0 auto", width: 96, height: 96, borderRadius: "50%", display: "grid", placeItems: "center", background: "var(--brand)", color: "#fff" }}>{Icon.finger(48)}</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>Pay with your fingerprint?</div>
+          <div className="sub">Your phone's fingerprint or Face ID encrypts your wallet key. You can always use your PIN.</div>
           {bioOk ? (
-            <button className="btn btn-primary" onClick={enableBio} disabled={busy}>
+            <button className="btn btn-primary btn-big" onClick={enableBio} disabled={busy}>
               {busy ? <span className="spinner" /> : null} Enable fingerprint
             </button>
           ) : (
@@ -103,134 +171,3 @@ function Onboard({ onDone }: { onDone: () => void }) {
   )
 }
 
-function Wallet({ wallet, onChange }: { wallet: NonNullable<ReturnType<typeof getWallet>>; onChange: () => void }) {
-  const [bal, setBal] = useState<{ usdt: string; wbt: string } | null>(null)
-  const [rows, setRows] = useState<Receipt[] | null>(null)
-  const [copied, setCopied] = useState(false)
-
-  const [myName, setMyName] = useState<string | null | undefined>(undefined)
-  const loadName = useCallback(() =>
-    fetch(`/api/resolve?q=${wallet.address}`).then((r) => r.json()).then((d) => setMyName(d.name ?? null)).catch(() => setMyName(null)), [wallet.address])
-  useEffect(() => { void loadName() }, [loadName])
-  useEffect(() => {
-    fetch(`/api/balance?address=${wallet.address}`).then((r) => r.json()).then((b) => !b.error && setBal(b))
-    fetch(`/api/receipts?account=${wallet.address}`).then((r) => r.json()).then((d) => setRows(d.rows ?? []))
-  }, [wallet.address])
-
-  return (
-    <main className="shell">
-      <TopBar right={<a className="chip" href="/merchant">Merchant mode</a>} />
-      <div className="card">
-        <div className="row">
-          <h2>Balance</h2>
-          <span className="badge badge-ok">0 gas needed</span>
-        </div>
-        <div className="balance">{bal ? usdt(bal.usdt) : "…"}<small>USDT</small></div>
-        {myName && <div style={{ fontWeight: 650, marginTop: 6 }}>{myName}</div>}
-        <button
-          className="sub mono"
-          style={{ background: "none", border: 0, padding: 0, marginTop: 8, cursor: "pointer", textAlign: "left" }}
-          onClick={() => { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
-        >
-          {copied ? "Copied ✓" : `${short(wallet.address)} · tap to copy`}
-        </button>
-      </div>
-
-      {myName === null && <ClaimName address={wallet.address} onClaimed={loadName} />}
-
-      <a className="btn btn-primary btn-big" href="/scan">⌗ Scan & Pay</a>
-      <div className="actions">
-        <a className="btn btn-ghost" href="/receive">↓ Receive</a>
-        <a className="btn btn-ghost" href="/send">↑ Pay a person</a>
-      </div>
-
-      <div className="card">
-        <h2>Recent activity</h2>
-        <div className="list">
-          {rows === null && <div className="empty">Loading from Arkiv…</div>}
-          {rows?.length === 0 && <div className="empty">No payments yet. Scan a merchant QR to pay.</div>}
-          {rows?.map((r) => {
-            const incoming = r.merchant.toLowerCase() === wallet.address.toLowerCase()
-            return (
-              <a key={r.key} className="item" href={r.explorer} target="_blank" rel="noreferrer">
-                <div>
-                  <div className="t">{incoming ? `From ${short(r.payer)}` : r.merchantName ?? short(r.merchant)}</div>
-                  <div className="sub">{ago(r.paidAt)} · {r.kind === "p2p" ? "person" : "merchant QR"} · receipt on Arkiv</div>
-                </div>
-                <div className="amt" style={incoming ? { color: "var(--ok)" } : undefined}>{incoming ? "+" : "−"}{usdt(r.amount)}</div>
-              </a>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="row" style={{ justifyContent: "center", gap: 8 }}>
-        <span className="sub">{wallet.hasPasskey ? "☝︎ Fingerprint on" : "PIN only"}</span>
-        <button
-          className="chip"
-          onClick={() => { if (confirm("Remove this wallet from the device? Funds are lost unless you have the key.")) { removeWallet(); onChange() } }}
-        >
-          Reset wallet
-        </button>
-      </div>
-    </main>
-  )
-}
-
-/** UPI VPA, on ENS: claim <name>.whitepay.eth. One per human (World ID), proven wallet control (signature). */
-function ClaimName({ address, onClaimed }: { address: `0x${string}`; onClaimed: () => void }) {
-  const [label, setLabel] = useState("")
-  const [avail, setAvail] = useState<{ available: boolean; reason?: string | null } | null>(null)
-  const [unlock, setUnlock] = useState(false)
-  const [signed, setSigned] = useState<{ issuedAt: number; signature: string } | null>(null)
-  const [msg, setMsg] = useState("")
-
-  useEffect(() => {
-    setAvail(null); setSigned(null)
-    if (!label) return
-    if (!LABEL_RE.test(label)) { setAvail({ available: false, reason: "3-32 chars: a-z, 0-9, hyphen" }); return }
-    const t = setTimeout(() => fetch(`/api/names?label=${label}`).then((r) => r.json()).then(setAvail).catch(() => {}), 350)
-    return () => clearTimeout(t)
-  }, [label])
-
-  const sign = async (acct: PrivateKeyAccount) => {
-    setUnlock(false)
-    const issuedAt = Math.floor(Date.now() / 1000)
-    const signature = await acct.signMessage({ message: nameClaimMessage({ label, address: acct.address, issuedAt }) })
-    setSigned({ issuedAt, signature })
-  }
-
-  return (
-    <div className="card stack">
-      <h2>Claim your WhitePay name</h2>
-      <div className="sub">Friends pay <b>you.whitepay.eth</b> instead of a long address. One name per person, verified with World ID.</div>
-      <div className="row" style={{ gap: 6 }}>
-        <input className="input" placeholder="ravi" value={label} autoCapitalize="none" onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
-        <span className="sub" style={{ whiteSpace: "nowrap" }}>.whitepay.eth</span>
-      </div>
-      <div className="sub" style={{ minHeight: 18 }}>
-        {avail === null ? "" : avail.available ? <span style={{ color: "var(--ok)" }}>✓ available</span> : <span style={{ color: "var(--bad)" }}>{avail.reason}</span>}
-      </div>
-      {!signed ? (
-        <button className="btn btn-ghost" disabled={!avail?.available} onClick={() => setUnlock(true)}>1. Sign with fingerprint / PIN</button>
-      ) : (
-        <WorldVerify
-          action="ens-claim"
-          signal={address}
-          label="2. Verify with World ID & claim"
-          verify={async (proof) => {
-            const r = await fetch("/api/names", { method: "POST", headers: { "content-type": "application/json" },
-              body: JSON.stringify({ label, address, issuedAt: signed.issuedAt, signature: signed.signature, result: proof }) })
-            const d = await r.json()
-            if (!r.ok) throw new Error(d.error)
-            return d
-          }}
-          onVerified={(d) => { setMsg(`You are ${d?.name ?? label + ".whitepay.eth"} ✓`); onClaimed() }}
-          onDenied={(reason) => setMsg(`Name not claimed: ${reason}`)}
-        />
-      )}
-      {msg && <div className="sub" style={{ textAlign: "center" }}>{msg}</div>}
-      {unlock && <UnlockSheet title="Sign name claim" subtitle={`${label}.whitepay.eth`} onUnlocked={sign} onCancel={() => setUnlock(false)} />}
-    </div>
-  )
-}
