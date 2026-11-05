@@ -1,8 +1,9 @@
 "use client"
 // Shared GPay-style building blocks: icons, avatar colors, bottom nav, Scan QR pill, data hook.
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { getWallet } from "@/lib/wallet"
+import { usdt } from "@/lib/format"
 
 const P = { width: 28, height: 28, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const
 export const Icon = {
@@ -70,10 +71,23 @@ export const ScanFab = () => (
 )
 
 export type Activity = {
-  key: string; merchant: string; merchantName?: string; payer: string; amount: string; paidAt: number; explorer: string; kind: string
+  key: string
+  direction: "in" | "out"
+  counterparty: string
+  counterpartyName?: string
+  amount: string
+  at: number
+  kind: "p2m" | "p2p" | "transfer" | "whitepay"
+  txHash: string
+  explorer: string
+  source: "arkiv" | "chain"
 }
 
-/** Wallet + live data: balance (Whitechain), ENS name, activity (Arkiv). */
+export const activityLabel = (r: Activity) =>
+  r.kind === "p2m" ? "Shop QR" : r.kind === "p2p" ? "Person" : r.kind === "whitepay" ? "WhitePay" : "Transfer"
+
+/** Wallet + live data for the ACTIVE wallet (any kind): balance (Whitechain), name, unified activity
+ *  (Arkiv receipts + every on-chain USDT transfer). Polls the balance and auto-detects incoming money. */
 export function useWalletData() {
   const [wallet, setWallet] = useState<ReturnType<typeof getWallet> | undefined>(undefined)
   const [bal, setBal] = useState<{ usdt: string; wbt: string } | null>(null)
@@ -82,21 +96,58 @@ export function useWalletData() {
   /** personal = has a personal WhitePay name; business = registered shop; new = neither yet */
   const [account, setAccount] = useState<"personal" | "business" | "new" | undefined>(undefined)
   const [displayName, setDisplayName] = useState<string | undefined>(undefined)
+  const [toast, setToast] = useState<string | null>(null)
+  const last = useRef<bigint | null>(null)
+
   useEffect(() => setWallet(getWallet()), [])
+
+  const loadActivity = useCallback((addr: string) =>
+    fetch(`/api/activity?address=${addr}`).then((r) => r.json()).then((d) => setRows(d.rows ?? [])).catch(() => setRows((r) => r ?? [])), [])
+
+  const loadBalance = useCallback(async (addr: string, detect: boolean) => {
+    const b = await fetch(`/api/balance?address=${addr}`).then((r) => r.json()).catch(() => null)
+    if (!b || b.error) return
+    const now = BigInt(b.usdt)
+    if (detect && last.current !== null && now !== last.current) {
+      const diff = now - last.current
+      if (diff > 0n) setToast(`Received ${usdt(diff)} USDT`)
+      void loadActivity(addr) // something moved: refresh history
+    }
+    last.current = now
+    setBal(b)
+  }, [loadActivity])
+
   const reload = useCallback(() => {
     const w = getWallet()
     if (!w) return
-    fetch(`/api/balance?address=${w.address}`).then((r) => r.json()).then((b) => !b.error && setBal(b)).catch(() => {})
-    fetch(`/api/receipts?account=${w.address}`).then((r) => r.json()).then((d) => setRows(d.rows ?? [])).catch(() => setRows([]))
+    void loadBalance(w.address, false)
+    void loadActivity(w.address)
     fetch(`/api/resolve?q=${w.address}`).then((r) => r.json()).then((d) => {
       setName(d.name ?? null)
       setDisplayName(d.displayName)
       setAccount(d.kind === "merchant" ? "business" : d.name ? "personal" : "new")
     }).catch(() => { setName(null); setAccount("new") })
-  }, [])
-  useEffect(() => { if (wallet) reload() }, [wallet, reload])
-  return { wallet, setWallet, bal, rows, name, account, displayName, reload }
+  }, [loadBalance, loadActivity])
+
+  useEffect(() => {
+    if (!wallet) return
+    reload()
+    // auto-detect: poll the chain while the app is open and visible
+    const t = setInterval(() => { if (document.visibilityState === "visible") void loadBalance(wallet.address, true) }, 8000)
+    return () => clearInterval(t)
+  }, [wallet, reload, loadBalance])
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4500)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  return { wallet, setWallet, bal, rows, name, account, displayName, reload, toast }
 }
+
+export const Toast = ({ text }: { text: string | null }) =>
+  text ? <div className="toast" role="status">{Icon.bolt(18)} {text}</div> : null
 
 export const AccountBadge = ({ account }: { account?: "personal" | "business" | "new" }) =>
   account === undefined ? <span className="skel" style={{ width: 70, height: 20 }} />

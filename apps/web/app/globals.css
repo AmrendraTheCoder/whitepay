@@ -260,3 +260,6 @@ button { font: inherit; color: inherit; }
 .wallet-row .radio.on { border-color: var(--brand); box-shadow: inset 0 0 0 5px var(--brand); }
 .actions .btn { font-size: 15px; padding: 14px 10px; white-space: nowrap; }
 .badge-lime { background: var(--lime); color: var(--lime-ink); }
+.toast { position: fixed; top: calc(14px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 90; display: inline-flex; align-items: center; gap: 8px;
+  background: var(--lime); color: var(--lime-ink); font-weight: 800; padding: 12px 20px; border-radius: 999px; box-shadow: 0 10px 30px rgba(0,0,0,.35); animation: drop .25s ease-out; }
+@keyframes drop { from { transform: translate(-50%, -20px); opacity: 0 } to { transform: translate(-50%, 0); opacity: 1 } }

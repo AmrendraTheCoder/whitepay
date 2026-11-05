@@ -1,22 +1,22 @@
 "use client"
 import { useState } from "react"
-import { BottomNav, Icon, useWalletData } from "../ui"
+import { BottomNav, Icon, useWalletData, Toast } from "../ui"
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 import { USDT_ADDRESS, EXPLORER_URL } from "@whitepay/shared"
 
 /** GPay "Money": accounts (USDT on Whitechain instead of a bank), with a link to history. */
 export default function Money() {
-  const { wallet, bal, rows } = useWalletData()
+  const { wallet, bal, rows, toast } = useWalletData()
   const { hidden, toggle } = useHideBalance()
   const [copied, setCopied] = useState(false)
   const show = (v: bigint | string) => (hidden ? "••••" : usdt(v))
-  const me = wallet?.address.toLowerCase() ?? ""
-  const spent = (rows ?? []).filter((r) => r.merchant.toLowerCase() !== me).reduce((a, r) => a + BigInt(r.amount), 0n)
-  const received = (rows ?? []).filter((r) => r.merchant.toLowerCase() === me).reduce((a, r) => a + BigInt(r.amount), 0n)
+  const spent = (rows ?? []).filter((r) => r.direction === "out").reduce((a, r) => a + BigInt(r.amount), 0n)
+  const received = (rows ?? []).filter((r) => r.direction === "in").reduce((a, r) => a + BigInt(r.amount), 0n)
 
   return (
     <main className="shell with-nav">
+      <Toast text={toast} />
       <div className="profile-hero" style={{ paddingTop: 56, paddingBottom: 30 }}>
         <div className="row" style={{ alignItems: "center" }}>
           <div className="nm">Money</div>

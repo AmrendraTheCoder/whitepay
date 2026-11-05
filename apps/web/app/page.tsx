@@ -1,7 +1,7 @@
 "use client"
 import { useMemo } from "react"
 import { Onboard } from "./onboard"
-import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge } from "./ui"
+import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast } from "./ui"
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 
@@ -13,21 +13,21 @@ export default function Home() {
 }
 
 // ------------------------------------------------------------ home (GPay)
-function WalletHome({ wallet, bal, rows, name, account, displayName }: ReturnType<typeof useWalletData> & { wallet: NonNullable<ReturnType<typeof useWalletData>["wallet"]> }) {
+function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: ReturnType<typeof useWalletData> & { wallet: NonNullable<ReturnType<typeof useWalletData>["wallet"]> }) {
   const { hidden, toggle } = useHideBalance()
-  const me = wallet.address.toLowerCase()
   const people = useMemo(() => {
     const seen = new Map<string, { address: string; name?: string }>()
     for (const r of rows ?? []) {
-      const incoming = r.merchant.toLowerCase() === me
-      const other = incoming ? r.payer : r.merchant
-      if (!seen.has(other.toLowerCase())) seen.set(other.toLowerCase(), { address: other, name: incoming ? undefined : r.merchantName })
+      if (r.kind === "whitepay") continue // router hop, not a person
+      const k = r.counterparty.toLowerCase()
+      if (!seen.has(k)) seen.set(k, { address: r.counterparty, name: r.counterpartyName })
     }
     return [...seen.values()].slice(0, 7)
-  }, [rows, me])
+  }, [rows])
 
   return (
     <main className="shell with-nav">
+      <Toast text={toast} />
       <div className="searchbar">
         <a className="search" href="/send">{Icon.search()} Pay friends and merchants</a>
         {name === undefined
