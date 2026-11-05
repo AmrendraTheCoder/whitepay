@@ -3,7 +3,11 @@
 import { isHex, type Hex } from "viem"
 import { fetchRequest, verifyRequest, getReceipt, getMerchantByAddress, arkiv } from "@whitepay/server"
 import { EXPLORER_URL } from "@whitepay/shared"
-import { json, errorMessage } from "@/lib/json"
+import { json as rawJson, errorMessage, CORS, preflight } from "@/lib/json"
+
+// the checkout button polls this from merchants' sites
+const json = (d: unknown, init?: ResponseInit) => rawJson(d, { ...init, headers: { ...CORS, ...(init?.headers ?? {}) } })
+export const OPTIONS = preflight
 
 export const runtime = "nodejs"
 

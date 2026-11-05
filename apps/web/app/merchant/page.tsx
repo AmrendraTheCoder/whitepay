@@ -1,9 +1,9 @@
 "use client"
 import { useCallback, useEffect, useRef, useState } from "react"
 import QRCode from "qrcode"
-import { parseUnits, toHex, type Hex } from "viem"
+import { formatUnits, parseUnits, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
-import { merchantSignupMessage, orderTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
+import { merchantSignupMessage, orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
 import { BottomNav, SuccessCheck, MiniLogo } from "../ui"
 import { WorldVerify } from "../world"
@@ -12,7 +12,7 @@ import { usdt, short, ago, mmss } from "@/lib/format"
 
 type Merchant = { address: string; label: string; ensName: string; displayName: string; category?: string; verified: boolean; active: boolean }
 type Created = { entityKey: string; payUrl: string; amount: string; deadline: string }
-type Row = { key: string; payer: string; amount: string; paidAt: number; explorer: string; kind: string }
+type Row = { key: string; payer: string; amount: string; paidAt: number; explorer: string; kind: string; status?: string; paymentId?: string; refunded?: string; txHash?: string }
 
 export default function MerchantPage() {
   const [wallet, setWallet] = useState<ReturnType<typeof getWallet> | undefined>(undefined)
@@ -164,6 +164,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
   const [rows, setRows] = useState<Row[] | null>(null)
   const [total, setTotal] = useState("0")
   const [unlock, setUnlock] = useState(false)
+  const [refundRow, setRefundRow] = useState<Row | null>(null)
   const poll = useRef<ReturnType<typeof setInterval>>(undefined)
 
   const loadReceipts = useCallback(() =>
@@ -276,21 +277,113 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
       )}
 
       <div className="card">
-        <div className="row"><h2>Received (from Arkiv)</h2><span className="sub">{total} total</span></div>
+        <div className="row">
+          <h2>Received (from Arkiv)</h2>
+          <span className="row" style={{ gap: 8 }}>
+            <span className="sub">{total} total</span>
+            <button className="chip" onClick={() => exportCsv(merchant)} aria-label="Download payments as CSV">CSV ↓</button>
+          </span>
+        </div>
         <div className="list">
           {rows === null && <div className="empty">Loading…</div>}
           {rows?.length === 0 && <div className="empty">No payments yet.</div>}
-          {rows?.map((r) => (
-            <a key={r.key} className="item" href={r.explorer} target="_blank" rel="noreferrer">
-              <div><div className="t">{short(r.payer)}</div><div className="sub">{ago(r.paidAt)} · {r.kind === "p2p" ? "direct" : "QR"}</div></div>
-              <div className="amt" style={{ color: "var(--ok)" }}>+{usdt(r.amount)}</div>
-            </a>
-          ))}
+          {rows?.map((r) => {
+            const refunded = BigInt(r.refunded ?? "0")
+            const canRefund = r.kind !== "p2p" && !!r.paymentId && refunded < BigInt(r.amount)
+            return (
+              <div key={r.key} className="item">
+                <a href={r.explorer} target="_blank" rel="noreferrer" style={{ flex: 1, color: "inherit", textDecoration: "none" }}>
+                  <div className="t">{short(r.payer)}</div>
+                  <div className="sub">{ago(r.paidAt)} · {r.kind === "p2p" ? "direct" : "QR"}{refunded > 0n ? ` · refunded ${usdt(refunded.toString())}` : ""}</div>
+                </a>
+                <div style={{ textAlign: "right" }}>
+                  <div className="amt" style={{ color: refunded >= BigInt(r.amount) ? "var(--muted)" : "var(--ok)", textDecoration: refunded >= BigInt(r.amount) ? "line-through" : undefined }}>+{usdt(r.amount)}</div>
+                  {canRefund && <button className="chip" style={{ marginTop: 4, fontSize: 12 }} onClick={() => setRefundRow(r)}>Refund</button>}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
       {unlock && <UnlockSheet title="Unlock terminal" subtitle={`${amount} USDT request`} onUnlocked={create} onCancel={() => setUnlock(false)} />}
+      {refundRow && <RefundSheet row={refundRow} account={account} setAccount={setAccount} onClose={(done) => { setRefundRow(null); if (done) void loadReceipts() }} />}
     <BottomNav /></main>
   )
+}
+
+/** Refund a QR payment back to the customer who paid it. The shop signs on this device; WhitePay pays the gas. */
+function RefundSheet({ row, account, setAccount, onClose }: {
+  row: Row; account: PrivateKeyAccount | null; setAccount: (a: PrivateKeyAccount) => void; onClose: (done: boolean) => void
+}) {
+  const remaining = BigInt(row.amount) - BigInt(row.refunded ?? "0")
+  const [amt, setAmt] = useState(formatUnits(remaining, 6))
+  const [unlock, setUnlock] = useState(false)
+  const [phase, setPhase] = useState<"form" | "busy" | "done">("form")
+  const [err, setErr] = useState("")
+  const [tx, setTx] = useState("")
+  const valid = /^\d+(\.\d{1,6})?$/.test(amt) && Number(amt) > 0 && parseUnits(amt, 6) <= remaining
+
+  const run = async (acct: PrivateKeyAccount) => {
+    setUnlock(false); setAccount(acct); setPhase("busy"); setErr("")
+    try {
+      const info = await fetch(`/api/refund?paymentId=${row.paymentId}`).then((r) => r.json())
+      if (info.error) throw new Error(info.error)
+      const value = parseUnits(amt, 6)
+      if (value > BigInt(info.refundable)) throw new Error("More than what can still be refunded")
+      const validBefore = BigInt(Math.floor(Date.now() / 1000) + 600)
+      const signature = await acct.signTypedData(receiveAuthTypedData({ from: acct.address, to: ROUTER_ADDRESS, value, validAfter: 0n, validBefore, nonce: info.nonce }))
+      const r = await fetch("/api/refund", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paymentId: row.paymentId, amount: value.toString(), auth: { from: acct.address, validAfter: "0", validBefore: validBefore.toString(), signature } }) })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error === "NotMerchantPayout" ? "Only this shop's payout wallet can refund" : d.error === "RefundExceedsPaid" ? "Already refunded" : d.error)
+      setTx(d.explorer); setPhase("done")
+    } catch (e) { setErr((e as Error).message); setPhase("form") }
+  }
+
+  return (
+    <div className="sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget && phase !== "busy") onClose(phase === "done") }}>
+      <div className="sheet stack">
+        {phase === "done" ? (
+          <div className="result" style={{ padding: "8px 0" }}>
+            <SuccessCheck />
+            <h1>Refunded {amt} USDT</h1>
+            <div className="sub">Sent back to {short(row.payer)}. Receipt updated on Arkiv.</div>
+            <a className="chip" href={tx} target="_blank" rel="noreferrer">View on Whitechain ↗</a>
+            <button className="btn btn-primary" onClick={() => onClose(true)}>Done</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 20, fontWeight: 800 }}>Refund payment</div>
+            <div className="sub">Goes back to the customer who paid ({short(row.payer)}), never anywhere else. Up to {usdt(remaining.toString())} USDT. No gas.</div>
+            <input className="amount-input" inputMode="decimal" value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d.]/g, ""))} />
+            <button className="btn btn-primary btn-big" disabled={!valid || phase === "busy"} onClick={() => (account ? run(account) : setUnlock(true))}>
+              {phase === "busy" ? <><span className="spinner" /> Refunding on Whitechain…</> : `Refund ${amt || "0"} USDT`}
+            </button>
+            <div className="err">{err}</div>
+            <button className="btn btn-ghost" disabled={phase === "busy"} onClick={() => onClose(false)}>Cancel</button>
+          </>
+        )}
+      </div>
+      {unlock && <UnlockSheet title={`Refund ${amt} USDT`} subtitle={`to ${short(row.payer)}`} onUnlocked={run} onCancel={() => setUnlock(false)} />}
+    </div>
+  )
+}
+
+/** Accountant export: every receipt (up to 200) with the on-chain tx for each line. */
+async function exportCsv(merchant: Merchant) {
+  const d = await fetch(`/api/receipts?merchant=${merchant.address}&limit=200`).then((r) => r.json())
+  const head = ["paid_at_utc", "type", "payer", "amount_usdt", "refunded_usdt", "net_usdt", "status", "payment_id", "tx_hash", "explorer"]
+  const lines = (d.rows ?? []).map((r: any) => {
+    const amt = BigInt(r.amount), ref = BigInt(r.refunded ?? 0)
+    return [new Date(r.paidAt * 1000).toISOString(), r.kind === "p2p" ? "direct" : "qr", r.payer, formatUnits(amt, 6), formatUnits(ref, 6),
+      formatUnits(amt - ref, 6), r.status, r.paymentId ?? "", r.txHash, r.explorer].join(",")
+  })
+  const blob = new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv" })
+  const a = document.createElement("a")
+  a.href = URL.createObjectURL(blob)
+  a.download = `${merchant.label}-whitepay-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000)
 }
 
 /** First-visit loading state: the real dashboard's shape, with the brand mark animating in the header. */

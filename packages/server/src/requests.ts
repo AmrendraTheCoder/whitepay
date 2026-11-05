@@ -39,6 +39,8 @@ export async function createPaymentRequest(p: {
   note?: string
   /** Order already signed on the merchant's own device (non-custodial). Verified against the registry. */
   signed?: { order: Order; merchantSig: Hex }
+  /** https URL the WhitePay server POSTs to when this request is paid */
+  webhook?: string
 }): Promise<CreatedRequest> {
   const kind = p.kind ?? "p2m_qr"
   let ttl = Math.min(Math.max(p.ttlSeconds ?? REQUEST_TTL.p2mQr, REQUEST_TTL.min), REQUEST_TTL.invoiceMax)
@@ -73,6 +75,7 @@ export async function createPaymentRequest(p: {
       ...(p.merchantName ? { merchantName: p.merchantName } : {}),
       ...(p.payer ? { payer: addr(p.payer) } : {}),
       ...(p.note ? { note: p.note.slice(0, 120) } : {}),
+      ...(p.webhook ? { webhook: p.webhook } : {}),
     },
     { expiration: ttlToExpiration(ttl) },
     { gas: 1_500_000n },
@@ -94,6 +97,7 @@ export type RequestView = {
   merchantSig: Hex
   payer?: Address
   receiptRef?: Hex
+  webhook?: string
   expiresAtBlock: bigint
 }
 
@@ -120,6 +124,7 @@ export async function fetchRequest(entityKey: Hex): Promise<RequestView | null> 
       merchantSig: typeof sig === "string" ? (sig as Hex) : bytesToHex(sig),
       payer: v(e.payer) ? getAddress(v(e.payer)) : undefined,
       receiptRef: v(e.receiptRef) || undefined,
+      webhook: v(e.webhook) || undefined,
       expiresAtBlock: BigInt(e.$expiresAt),
     }
   } catch (err) {
@@ -235,7 +240,7 @@ export async function listReceipts(p: { merchant?: Address; payer?: Address; par
     ...(p.sinceSeconds ? [gte("paidAt", u64(BigInt(now() - p.sinceSeconds)))] : []),
   ]
   const q = a.pub
-    .select({ $key: true, merchant: true, payer: true, amount: true, status: true, paidAt: true, wcTxHash: true, merchantName: true, kind: true })
+    .select({ $key: true, merchant: true, payer: true, amount: true, status: true, paidAt: true, wcTxHash: true, merchantName: true, kind: true, paymentId: true, refunded: true })
     .from(Receipt)
     .ownedBy(a.owner)
   return (conds.length ? q.where(and(...conds)) : q).orderBy(desc("paidAt")).limit(p.limit ?? 20).withCount().fetch()

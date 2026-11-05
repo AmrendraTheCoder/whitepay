@@ -42,6 +42,7 @@ export const PayRequest = defineSchema("whitepay.request", {
   payer: addr().indexed().optional(), // set for invoices; unknown for a dynamic QR until paid
   receiptRef: key().optional(),
   note: str().optional(), // <=128 bytes, public
+  webhook: str().optional(), // merchant server URL notified when paid (<=128 bytes)
 })
 
 export const Dispute = defineSchema("whitepay.dispute", {

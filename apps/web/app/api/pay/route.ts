@@ -2,6 +2,7 @@
 // the relayer settles on Whitechain (paying the gas), then the receipt is written to Arkiv.
 import { isAddress, isHex, type Address, type Hex } from "viem"
 import { fetchRequest, verifyRequest, relayOrderPayment, settleOnArkiv, PolicyError, checkStepUpToken } from "@whitepay/server"
+import { after } from "next/server"
 import { json, errorMessage } from "@/lib/json"
 
 export const runtime = "nodejs"
@@ -59,6 +60,15 @@ export async function POST(req: Request) {
       console.error("arkiv settle failed", errorMessage(e))
     }
 
+    // notify the merchant's server (it should still verify on-chain with the tx hash)
+    if (view!.webhook) {
+      const payload = {
+        event: "payment.settled", entityKey, orderId: v.order.orderId, merchant: v.order.merchant, payer: auth.from,
+        amount: v.order.amount.toString(), txHash: paid.txHash, explorer: paid.explorer, receiptKey, paidAt: Math.floor(Date.now() / 1000),
+      }
+      after(() => fetch(view!.webhook!, { method: "POST", headers: { "content-type": "application/json", "user-agent": "WhitePay-Webhook/1" }, body: JSON.stringify(payload) })
+        .then((r) => console.log("[webhook]", view!.webhook, r.status)).catch((e) => console.error("[webhook] failed", errorMessage(e))))
+    }
     return json({ txHash: paid.txHash, explorer: paid.explorer, gasUsed: paid.gasUsed, receiptKey, amount: v.order.amount })
   } catch (e) {
     if (e instanceof PolicyError) return json({ error: e.message, code: e.code }, { status: 403 })

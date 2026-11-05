@@ -28,8 +28,14 @@ function checkPolicy(payer: Address, amount: bigint, stepUpVerified: boolean) {
   const spent = d && d.day === day ? d.total : 0n
   if (spent + amount > LIMITS.dailyPerPayer) throw new PolicyError("daily_limit", "daily limit reached")
 
-  if (amount > LIMITS.stepUpThreshold && !stepUpVerified)
-    throw new PolicyError("step_up_required", "amount above limit: World ID verification required")
+  if (amount > stepUpThreshold() && !stepUpVerified)
+    throw new PolicyError("step_up_required", `payments above ${Number(stepUpThreshold()) / 1e6} USDT need a World ID check`)
+}
+
+/** Step-up limit: LIMITS.stepUpThreshold (100 USDT) unless STEP_UP_USDT overrides it (e.g. "1" for demos). */
+export const stepUpThreshold = () => {
+  const v = process.env.STEP_UP_USDT
+  return v && /^\d+(\.\d{1,6})?$/.test(v) ? BigInt(Math.round(Number(v) * 1e6)) : LIMITS.stepUpThreshold
 }
 
 function recordSpend(payer: Address, amount: bigint) {

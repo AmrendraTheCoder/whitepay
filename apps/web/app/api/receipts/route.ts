@@ -18,7 +18,7 @@ export async function GET(req: Request) {
       merchant: merchant && isAddress(merchant) ? (merchant as Address) : undefined,
       payer: payer && isAddress(payer) ? (payer as Address) : undefined,
       party: account && isAddress(account) ? (account as Address) : undefined,
-      limit: 20,
+      limit: Math.min(Math.max(Number(u.searchParams.get("limit") ?? 20) || 20, 1), 200),
     })
     const rows = (page.entities as any[]).map((r) => ({
       key: r.$key,
@@ -28,6 +28,8 @@ export async function GET(req: Request) {
       amount: BigInt(r.amount.value),
       status: r.status.value,
       kind: r.kind?.value ?? "p2m",
+      paymentId: r.paymentId?.value,
+      refunded: BigInt(r.refunded?.value ?? 0),
       paidAt: Number(r.paidAt.value),
       txHash: r.wcTxHash.value,
       explorer: `${EXPLORER_URL}/tx/${r.wcTxHash.value}`,
