@@ -183,3 +183,14 @@ export const formatUsdt = (v: bigint) => {
   const frac = (v % 10n ** 6n).toString().padStart(6, "0").replace(/0+$/, "")
   return frac ? `${whole}.${frac}` : whole.toString()
 }
+
+// ------------------------------------------------- deployed (chain 1874)
+// Source of truth: deployments/1874.json. Duplicated here so browser code needs no fs.
+export const ROUTER_ADDRESS: Address = "0x9f38d33010345dcd62e26640b539263fa139026e"
+export const REGISTRY_ADDRESS: Address = "0xe063c2fb8f80c20ff699f9f211be300f58781f68"
+export const DEMO_MERCHANT = {
+  address: "0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10" as Address,
+  name: "chai-shop.whitepay.eth",
+  displayName: "Chai Shop",
+} as const
+export const EXPLORER_URL = "https://explorer.testnet.whitechain.io"

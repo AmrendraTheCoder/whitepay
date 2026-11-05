@@ -14,3 +14,4 @@ contracts/broadcast/*/31337/
 .vercel
 .claude/.cc-writes/
 *.recovery.lock
+*.tsbuildinfo

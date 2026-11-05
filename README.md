@@ -60,6 +60,25 @@ Before paying, the payer's app trusts the entity only if all four checks pass:
 arkiv.schema = str('whitepay.receipt') AND $owner = addr(0x4D5910272479420d1383100b3986d5fc9d5D658F) AND merchant = addr(0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10) ORDER BY paidAt:u64 DESC
 ```
 
+## The app (`apps/web`, mobile-first PWA)
+```bash
+npm install && npm run dev        # http://localhost:3000 (reads the root .env)
+```
+| Screen | What it does |
+|---|---|
+| `/` customer | Create a device wallet: a 6-digit PIN plus optional fingerprint/Face ID (WebAuthn passkey with PRF). The key is encrypted on the device; no seed phrase. Shows USDT balance and payment history **read from Arkiv** |
+| `/scan` | Camera QR scanner, or paste a payment link |
+| `/pay?req=<entityKey>` | Fetches the request from Arkiv and shows the 4 verification checks, merchant badge and expiry countdown. Fingerprint or PIN unlocks the key, the device re-hashes the order and signs EIP-3009, then the relayer settles. Expired or already-paid requests are refused |
+| `/merchant` | Enter an amount and get a QR valid for 5 min. The screen flips to "Received" by itself when paid, and lists receipts **from Arkiv** |
+
+Tested end to end in the browser:
+- The merchant created a 0.50 USDT QR.
+- The customer wallet (0 WBT) paid it with the PIN.
+- The merchant screen updated live.
+- Re-opening the QR shows "Already paid".
+
+`scripts/p2p-send.ts` sends a gasless person-to-person payment (`payDirect`) to any address.
+
 ## Repo layout
 ```
 contracts/          Foundry: PaymentRouter, MerchantRegistry, tests, deploy script

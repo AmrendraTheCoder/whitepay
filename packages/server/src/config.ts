@@ -1,8 +1,7 @@
-// Server-only configuration. Reads process.env (load .env before importing, e.g. `node --env-file=.env`).
+// Server-only configuration. Reads process.env (load .env before importing, e.g. `tsx --env-file=.env`).
 // Never log private keys or the keyed Arkiv RPC URL.
-import { readFileSync } from "node:fs"
-import { fileURLToPath } from "node:url"
-import type { Address, Hex } from "viem"
+import type { Hex } from "viem"
+import { ROUTER_ADDRESS, REGISTRY_ADDRESS, USDT_ADDRESS, EXPLORER_URL } from "@whitepay/shared"
 
 const need = (name: string): string => {
   const v = process.env[name]
@@ -11,18 +10,11 @@ const need = (name: string): string => {
 }
 const pk = (name: string) => need(name).split(",")[0].trim() as Hex
 
-const deployments = JSON.parse(
-  readFileSync(fileURLToPath(new URL("../../../deployments/1874.json", import.meta.url)), "utf8"),
-) as {
-  contracts: { PaymentRouter: { address: Address }; MerchantRegistry: { address: Address } }
-  token: { USDT: Address }
-}
-
 export const config = {
   wcRpc: process.env.WC_RPC_URL || "https://rpc.testnet.whitechain.io",
-  router: (process.env.ROUTER_ADDRESS || deployments.contracts.PaymentRouter.address) as Address,
-  registry: (process.env.REGISTRY_ADDRESS || deployments.contracts.MerchantRegistry.address) as Address,
-  usdt: deployments.token.USDT,
+  router: ROUTER_ADDRESS,
+  registry: REGISTRY_ADDRESS,
+  usdt: USDT_ADDRESS,
   arkivAccessKey: process.env.ARKIV_ACCESS_KEY ?? "",
   keys: {
     relayer: () => pk("RELAYER_PKS"),
@@ -31,6 +23,6 @@ export const config = {
   },
   /** max gas price the relayer will pay (anti-drain), wei */
   maxGasPrice: 50_000_000_000n, // 50 gwei; Whitechain min base fee is 5 gwei
-  explorer: "https://explorer.testnet.whitechain.io",
+  explorer: EXPLORER_URL,
   arkivExplorer: "https://rabdi.explorer.arkiv.network",
 }

@@ -78,6 +78,7 @@ export type RequestView = {
   digest: Hex
   merchantSig: Hex
   payer?: Address
+  receiptRef?: Hex
   expiresAtBlock: bigint
 }
 
@@ -103,6 +104,7 @@ export async function fetchRequest(entityKey: Hex): Promise<RequestView | null> 
       digest: v(e.digest),
       merchantSig: typeof sig === "string" ? (sig as Hex) : bytesToHex(sig),
       payer: v(e.payer) ? getAddress(v(e.payer)) : undefined,
+      receiptRef: v(e.receiptRef) || undefined,
       expiresAtBlock: BigInt(e.$expiresAt),
     }
   } catch (err) {
@@ -231,4 +233,25 @@ export async function listPendingRequests(merchant: Address) {
     .orderBy(desc("requestedAt"))
     .limit(50)
     .fetch()
+}
+
+/** Fetch a receipt (e.g. to show the Whitechain tx once a request is paid). */
+export async function getReceipt(receiptKey: Hex) {
+  try {
+    const e = (await arkiv().pub.getEntity(receiptKey, Receipt)) as any
+    const v = (x: any) => (x && typeof x === "object" && "value" in x ? x.value : x)
+    if (getAddress(e.$owner) !== getAddress(arkiv().owner)) return null
+    return {
+      key: receiptKey,
+      txHash: v(e.wcTxHash) as Hex,
+      payer: getAddress(v(e.payer)),
+      merchant: getAddress(v(e.merchant)),
+      amount: BigInt(v(e.amount)),
+      paidAt: Number(v(e.paidAt)),
+      status: v(e.status) as string,
+    }
+  } catch (err) {
+    if (err instanceof NoEntityFoundError) return null
+    throw err
+  }
 }

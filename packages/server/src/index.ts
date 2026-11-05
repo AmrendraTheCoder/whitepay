@@ -8,6 +8,7 @@ export {
   settleOnArkiv,
   listReceipts,
   listPendingRequests,
+  getReceipt,
   type CreatedRequest,
   type RequestView,
   type Verified,
