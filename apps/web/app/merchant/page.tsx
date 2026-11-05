@@ -5,6 +5,7 @@ import { parseUnits, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { merchantSignupMessage, orderTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
+import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, ago, mmss } from "@/lib/format"
 
@@ -36,7 +37,7 @@ export default function MerchantPage() {
       </main>
     )
   if (!merchant) return <Signup address={wallet.address} account={account} setAccount={setAccount} onDone={() => loadMerchant(wallet.address)} />
-  return <Dashboard merchant={merchant} account={account} setAccount={setAccount} />
+  return <Dashboard merchant={merchant} account={account} setAccount={setAccount} onChange={() => loadMerchant(wallet.address)} />
 }
 
 function Signup({ address, account, setAccount, onDone }: {
@@ -106,7 +107,8 @@ function Signup({ address, account, setAccount, onDone }: {
   )
 }
 
-function Dashboard({ merchant, account, setAccount }: { merchant: Merchant; account: PrivateKeyAccount | null; setAccount: (a: PrivateKeyAccount | null) => void }) {
+function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merchant; account: PrivateKeyAccount | null; setAccount: (a: PrivateKeyAccount | null) => void; onChange: () => void }) {
+  const [worldMsg, setWorldMsg] = useState("")
   const [amount, setAmount] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState("")
@@ -173,6 +175,28 @@ function Dashboard({ merchant, account, setAccount }: { merchant: Merchant; acco
         </div>
         {merchant.verified ? <span className="badge badge-ok">✓ Verified</span> : <span className="badge badge-warn">Unverified</span>}
       </div>
+      {!merchant.verified && (
+        <div className="card stack">
+          <div style={{ fontWeight: 700 }}>Get the ✓ Verified badge</div>
+          <div className="sub">Prove a real, unique person runs this shop with World ID (one verified shop per human). Customers see the badge before they pay.</div>
+          <WorldVerify
+            action="ens-claim"
+            signal={merchant.address}
+            label="Verify with World ID"
+            className="btn btn-ghost"
+            verify={async (proof) => {
+              const r = await fetch("/api/world/verify", { method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ purpose: "merchant", address: merchant.address, result: proof }) })
+              const d = await r.json()
+              if (!r.ok) throw new Error(d.error)
+              return d
+            }}
+            onVerified={() => { setWorldMsg("Verified ✓"); onChange() }}
+            onDenied={(reason) => setWorldMsg(`Not verified: ${reason}`)}
+          />
+          {worldMsg && <div className="sub" style={{ textAlign: "center" }}>{worldMsg}</div>}
+        </div>
+      )}
 
       {!req || status !== "pending" ? (
         <div className="card stack">

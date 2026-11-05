@@ -1,4 +1,4 @@
-import { defineChain, keccak256, encodeAbiParameters, toBytes, type Address, type Hex } from "viem"
+import { defineChain, keccak256, encodeAbiParameters, toBytes, getAddress, type Address, type Hex } from "viem"
 
 // ---------------------------------------------------------------- chains
 // Verified 2026-11-05: docs.whitechain.io/learn/network/testnet.md
@@ -224,3 +224,10 @@ export const merchantSignupMessage = (p: { label: string; displayName: string; a
   `WhitePay merchant sign-up\nhandle: ${p.label}\nname: ${p.displayName}\naddress: ${p.address}\nissued: ${p.issuedAt}`
 
 export const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$/
+
+/** World ID step-up signal: binds the human check to ONE payment (digest for QR orders, memo for P2P). */
+export const stepUpSignal = (payer: Address, paymentRef: Hex) => `step-up:${getAddress(payer)}:${paymentRef.toLowerCase()}`
+
+/** Personal name claim message the user's device signs (proves control of the wallet). */
+export const nameClaimMessage = (p: { label: string; address: Address; issuedAt: number }) =>
+  `WhitePay name claim\nname: ${p.label}\naddress: ${p.address}\nissued: ${p.issuedAt}`

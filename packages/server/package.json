@@ -15,7 +15,8 @@
   "dependencies": {
     "@arkiv-network/sdk": "^1.0.1",
     "@whitepay/shared": "*",
-    "viem": "^2.35.0"
+    "viem": "^2.35.0",
+    "@worldcoin/idkit": "^4.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

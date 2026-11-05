@@ -1,7 +1,10 @@
 "use client"
 import { useCallback, useEffect, useState } from "react"
 import { isHex, type Hex } from "viem"
-import { TopBar, PinPad } from "./components"
+import { TopBar, PinPad, UnlockSheet } from "./components"
+import { WorldVerify } from "./world"
+import { nameClaimMessage, LABEL_RE } from "@whitepay/shared"
+import type { PrivateKeyAccount } from "viem/accounts"
 import { createWallet, enablePasskey, getWallet, passkeySupported, removeWallet } from "@/lib/wallet"
 import { usdt, short, ago } from "@/lib/format"
 
@@ -105,6 +108,10 @@ function Wallet({ wallet, onChange }: { wallet: NonNullable<ReturnType<typeof ge
   const [rows, setRows] = useState<Receipt[] | null>(null)
   const [copied, setCopied] = useState(false)
 
+  const [myName, setMyName] = useState<string | null | undefined>(undefined)
+  const loadName = useCallback(() =>
+    fetch(`/api/resolve?q=${wallet.address}`).then((r) => r.json()).then((d) => setMyName(d.name ?? null)).catch(() => setMyName(null)), [wallet.address])
+  useEffect(() => { void loadName() }, [loadName])
   useEffect(() => {
     fetch(`/api/balance?address=${wallet.address}`).then((r) => r.json()).then((b) => !b.error && setBal(b))
     fetch(`/api/receipts?account=${wallet.address}`).then((r) => r.json()).then((d) => setRows(d.rows ?? []))
@@ -119,6 +126,7 @@ function Wallet({ wallet, onChange }: { wallet: NonNullable<ReturnType<typeof ge
           <span className="badge badge-ok">0 gas needed</span>
         </div>
         <div className="balance">{bal ? usdt(bal.usdt) : "…"}<small>USDT</small></div>
+        {myName && <div style={{ fontWeight: 650, marginTop: 6 }}>{myName}</div>}
         <button
           className="sub mono"
           style={{ background: "none", border: 0, padding: 0, marginTop: 8, cursor: "pointer", textAlign: "left" }}
@@ -127,6 +135,8 @@ function Wallet({ wallet, onChange }: { wallet: NonNullable<ReturnType<typeof ge
           {copied ? "Copied ✓" : `${short(wallet.address)} · tap to copy`}
         </button>
       </div>
+
+      {myName === null && <ClaimName address={wallet.address} onClaimed={loadName} />}
 
       <a className="btn btn-primary btn-big" href="/scan">⌗ Scan & Pay</a>
       <div className="actions">
@@ -164,5 +174,63 @@ function Wallet({ wallet, onChange }: { wallet: NonNullable<ReturnType<typeof ge
         </button>
       </div>
     </main>
+  )
+}
+
+/** UPI VPA, on ENS: claim <name>.whitepay.eth. One per human (World ID), proven wallet control (signature). */
+function ClaimName({ address, onClaimed }: { address: `0x${string}`; onClaimed: () => void }) {
+  const [label, setLabel] = useState("")
+  const [avail, setAvail] = useState<{ available: boolean; reason?: string | null } | null>(null)
+  const [unlock, setUnlock] = useState(false)
+  const [signed, setSigned] = useState<{ issuedAt: number; signature: string } | null>(null)
+  const [msg, setMsg] = useState("")
+
+  useEffect(() => {
+    setAvail(null); setSigned(null)
+    if (!label) return
+    if (!LABEL_RE.test(label)) { setAvail({ available: false, reason: "3-32 chars: a-z, 0-9, hyphen" }); return }
+    const t = setTimeout(() => fetch(`/api/names?label=${label}`).then((r) => r.json()).then(setAvail).catch(() => {}), 350)
+    return () => clearTimeout(t)
+  }, [label])
+
+  const sign = async (acct: PrivateKeyAccount) => {
+    setUnlock(false)
+    const issuedAt = Math.floor(Date.now() / 1000)
+    const signature = await acct.signMessage({ message: nameClaimMessage({ label, address: acct.address, issuedAt }) })
+    setSigned({ issuedAt, signature })
+  }
+
+  return (
+    <div className="card stack">
+      <h2>Claim your WhitePay name</h2>
+      <div className="sub">Friends pay <b>you.whitepay.eth</b> instead of a long address. One name per person, verified with World ID.</div>
+      <div className="row" style={{ gap: 6 }}>
+        <input className="input" placeholder="ravi" value={label} autoCapitalize="none" onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
+        <span className="sub" style={{ whiteSpace: "nowrap" }}>.whitepay.eth</span>
+      </div>
+      <div className="sub" style={{ minHeight: 18 }}>
+        {avail === null ? "" : avail.available ? <span style={{ color: "var(--ok)" }}>✓ available</span> : <span style={{ color: "var(--bad)" }}>{avail.reason}</span>}
+      </div>
+      {!signed ? (
+        <button className="btn btn-ghost" disabled={!avail?.available} onClick={() => setUnlock(true)}>1. Sign with fingerprint / PIN</button>
+      ) : (
+        <WorldVerify
+          action="ens-claim"
+          signal={address}
+          label="2. Verify with World ID & claim"
+          verify={async (proof) => {
+            const r = await fetch("/api/names", { method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ label, address, issuedAt: signed.issuedAt, signature: signed.signature, result: proof }) })
+            const d = await r.json()
+            if (!r.ok) throw new Error(d.error)
+            return d
+          }}
+          onVerified={(d) => { setMsg(`You are ${d?.name ?? label + ".whitepay.eth"} ✓`); onClaimed() }}
+          onDenied={(reason) => setMsg(`Name not claimed: ${reason}`)}
+        />
+      )}
+      {msg && <div className="sub" style={{ textAlign: "center" }}>{msg}</div>}
+      {unlock && <UnlockSheet title="Sign name claim" subtitle={`${label}.whitepay.eth`} onUnlocked={sign} onCancel={() => setUnlock(false)} />}
+    </div>
   )
 }

@@ -78,6 +78,16 @@ export const MerchantProfile = defineSchema("whitepay.merchant", {
   registryTx: str().optional(),
 })
 
+/** World ID uniqueness claims: one human -> one claim per action. The nullifier is RP-scoped and
+ *  reveals no identity; storing it publicly is what lets anyone audit "one shop per human". */
+export const WorldClaim = defineSchema("whitepay.worldclaim", {
+  action: str().indexed(), // "ens-claim"
+  nullifier: str().indexed(), // decimal string from the proof
+  address: addr().indexed(), // wallet the proof was bound to (signal)
+  purpose: str().indexed(), // "merchant-verify" | "name-claim"
+  verifiedAt: u64().indexed(),
+})
+
 export const ARKIV_CHAIN_ID = 7794095
 export const ARKIV_RPC = "https://rpc.rabdi.db-chain.testnet.arkiv.network"
 export const ARKIV_EXPLORER = "https://rabdi.explorer.arkiv.network"

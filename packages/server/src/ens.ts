@@ -325,3 +325,18 @@ export async function getTexts(name: string, keys: readonly string[] = DEFAULT_T
   const vals = await Promise.all(keys.map((key) => pub.getEnsText({ name: n, key }).catch(() => null)))
   return Object.fromEntries(keys.map((k, i) => [k, vals[i]]))
 }
+
+/** Update one text record on a WhitePay name (e.g. verified=true after World ID). Admin-only. */
+export async function setText(name: string, key: string, value: string): Promise<Hash> {
+  const c = requireDeployed()
+  const { wallet } = ensAdmin()
+  const hash = await wallet.writeContract({
+    address: c.resolver,
+    abi: permissionedResolverAbi,
+    functionName: "setText",
+    args: [dnsEncode(normalize(name)), key, value],
+  })
+  const r = await ensPublic().waitForTransactionReceipt({ hash })
+  if (r.status !== "success") throw new Error(`setText reverted: ${hash}`)
+  return hash
+}

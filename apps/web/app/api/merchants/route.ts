@@ -15,7 +15,12 @@ export async function GET(req: Request) {
     if (label) {
       const bad = validateLabel(label.toLowerCase())
       const existing = bad ? null : await getMerchantByLabel(label)
-      return json({ available: !bad && !existing, reason: bad ?? (existing ? "taken" : null), merchant: existing })
+      let ensTaken = false
+      if (!bad && !existing && process.env.ENS_USER_REGISTRY) {
+        const ens: any = await import("@whitepay/server/ens").catch(() => null)
+        ensTaken = ens ? !(await ens.isLabelAvailable(label).catch(() => ({ available: true }))).available : false
+      }
+      return json({ available: !bad && !existing && !ensTaken, reason: bad ?? (existing || ensTaken ? "taken" : null), merchant: existing })
     }
     if (!address || !isAddress(address)) return json({ error: "pass ?address= or ?label=" }, { status: 400 })
     const [profile, onchain] = await Promise.all([

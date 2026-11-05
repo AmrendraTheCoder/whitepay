@@ -86,6 +86,19 @@ Earlier test with the demo merchant:
 
 `scripts/p2p-send.ts` sends a gasless person-to-person payment (`payDirect`) to any address.
 
+## Names on ENSv2 (Ethereum Sepolia)
+`whitepay.eth` is registered on ENSv2 Sepolia with its own **UserRegistry** (`0x7dF61f730b8f90668aD10363e9E086131422264d`) and **PermissionedResolver** (`0xc10Ffe23aada8a5cb09DDbe09259e251971844ea`). Each name stores the holder's **Whitechain address under coinType 2147485522** (ENSIP-11 for chain 1874), plus `display`, `kind` and `verified` text records.
+- **Shops** get `<handle>.whitepay.eth` automatically at sign-up. Live examples: `chai-shop.whitepay.eth`, `masala-corner.whitepay.eth`.
+- **People** claim `<name>.whitepay.eth` from the home screen: a wallet signature plus World ID, one name per human.
+- **Paying** a name resolves it live through ENS (`/api/resolve`, `getEnsAddress` with coinType 1874).
+- Scripts: `scripts/ens-setup.ts` (one-time setup), `scripts/ens-issue.ts`, `scripts/ens-check.ts <name>`.
+
+## World ID (IDKit 4, verified on our backend)
+- **Verified merchant badge:** the shop owner proves unique humanity (action `ens-claim`, signal = shop wallet). The backend verifies with the Developer Portal, records the nullifier on Arkiv (`whitepay.worldclaim`, one shop per human), then sets `verified` in `MerchantRegistry`, Arkiv and the ENS text record.
+- **Personal name:** same action, at most one name per human.
+- **Step-up:** payments above 100 USDT are refused by the relayer until the payer passes a fresh World ID check bound to that exact payment (signal = payer + order digest or P2P memo). It is exchanged for a 5-minute HMAC token.
+- **Denied, cancelled or expired:** the action does not happen.
+
 ## Repo layout
 ```
 contracts/          Foundry: PaymentRouter, MerchantRegistry, tests, deploy script

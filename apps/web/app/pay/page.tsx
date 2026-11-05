@@ -3,8 +3,9 @@ import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { hashTypedData, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
-import { orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, type Order } from "@whitepay/shared"
+import { orderTypedData, receiveAuthTypedData, stepUpSignal, ROUTER_ADDRESS, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
+import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, initials, mmss } from "@/lib/format"
 
@@ -29,6 +30,8 @@ function Pay() {
   const [unlock, setUnlock] = useState(false)
   const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "done" | "failed">("idle")
   const [result, setResult] = useState<{ explorer?: string; error?: string; code?: string }>({})
+  // signed payment held while the payer completes a World ID step-up (amount above limit)
+  const [stepUp, setStepUp] = useState<{ body: any; payer: string; ref: Hex } | null>(null)
   // undefined = not read yet (server render / first paint); read localStorage only after mount
   const [wallet, setWallet] = useState<ReturnType<typeof getWallet> | undefined>(undefined)
   useEffect(() => setWallet(getWallet()), [])
@@ -96,17 +99,30 @@ function Pay() {
 
       const auth = { from: account.address, to: ROUTER_ADDRESS, value: order.amount, validAfter: 0n, validBefore: order.deadline, nonce: digest }
       const signature = await account.signTypedData(receiveAuthTypedData(auth))
-      setPhase("settling")
+      const body = { entityKey: key, auth: { from: account.address, validAfter: "0", validBefore: order.deadline.toString(), signature } }
+      await submit(body, account.address, digest)
+    } catch (e) {
+      setResult({ error: (e as Error).message, code: (e as any).code })
+      setPhase("failed")
+    }
+  }
+
+  async function submit(body: any, payer: string, ref: Hex, stepUpToken?: string) {
+    setPhase("settling")
+    try {
       const r = await fetch("/api/pay", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          entityKey: key,
-          auth: { from: account.address, validAfter: "0", validBefore: order.deadline.toString(), signature },
-        }),
+        body: JSON.stringify({ ...body, stepUpToken }),
       })
       const out = await r.json()
+      if (r.status === 403 && out.code === "step_up_required") {
+        setStepUp({ body, payer, ref })
+        setPhase("idle")
+        return
+      }
       if (!r.ok) throw Object.assign(new Error(out.error ?? "Payment failed"), { code: out.code })
+      setStepUp(null)
       setResult({ explorer: out.explorer })
       setPhase("done")
     } catch (e) {
@@ -125,9 +141,7 @@ function Pay() {
           <div className="sub">
             {phase === "done"
               ? `to ${req.merchantName}. Settled on Whitechain, receipt saved on Arkiv. You paid no gas.`
-              : result.code === "step_up_required"
-                ? "This amount needs a World ID check. Coming soon."
-                : result.error}
+              : result.error}
           </div>
           {result.explorer && <a className="chip" href={result.explorer} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
         </div>
@@ -165,7 +179,26 @@ function Pay() {
         </div>
       )}
 
-      {phase === "idle" ? (
+      {stepUp ? (
+        <div className="card stack" style={{ textAlign: "center" }}>
+          <div style={{ fontWeight: 700 }}>Large payment: confirm you're human</div>
+          <div className="sub">Payments above 100 USDT need a fresh World ID check, bound to this exact payment.</div>
+          <WorldVerify
+            action="step-up"
+            signal={stepUpSignal(stepUp.payer as Hex, stepUp.ref)}
+            label="Verify with World ID"
+            verify={async (proof) => {
+              const r = await fetch("/api/world/verify", { method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ purpose: "step-up", address: stepUp.payer, paymentRef: stepUp.ref, result: proof }) })
+              const d = await r.json()
+              if (!r.ok) throw new Error(d.error)
+              return d
+            }}
+            onVerified={(d) => submit(stepUp.body, stepUp.payer, stepUp.ref, d.token)}
+            onDenied={(reason) => { setStepUp(null); setResult({ error: `Not sent: ${reason}` }); setPhase("failed") }}
+          />
+        </div>
+      ) : phase === "idle" ? (
         <button className="btn btn-primary btn-big" disabled={expired} onClick={() => setUnlock(true)}>
           {wallet.hasPasskey ? "☝︎ Pay with fingerprint" : "Pay with PIN"}
         </button>
