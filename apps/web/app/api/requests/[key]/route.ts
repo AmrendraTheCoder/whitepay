@@ -16,7 +16,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string }>
   if (!isHex(key) || key.length !== 66) return json({ state: "invalid", reason: "not a WhitePay request key" }, { status: 400 })
   try {
     const view = await fetchRequest(key as Hex)
-    if (!view) return json({ state: "depleted", reason: "This request expired or never existed" })
+    // instant QRs are addressed by the order digest and appear on Arkiv a few seconds after the QR is shown:
+    // "publishing" = keep polling. Callers stop on their own deadline (the QR's countdown).
+    if (!view) return json({ state: "publishing", reason: "This request is being published, or it expired" })
 
     if (view.status === "paid") {
       const receipt = view.receiptRef ? await getReceipt(view.receiptRef as Hex) : null

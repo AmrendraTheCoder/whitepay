@@ -1,6 +1,7 @@
 // Merchant publishes a signed subscription plan (from the shop dashboard or a shop's server via the SDK).
 import { isAddress, isHex, type Address, type Hex } from "viem"
 import { createPlan } from "@whitepay/server"
+import { after } from "next/server"
 import { json, errorMessage, CORS, preflight } from "@/lib/json"
 
 export const runtime = "nodejs"
@@ -19,8 +20,9 @@ export async function POST(req: Request) {
       plan: { merchant: p.merchant as Address, amount: BigInt(p.amount), period: Number(p.period), cycles: Number(p.cycles), planId: p.planId as Hex, expiresAt: BigInt(p.expiresAt) },
       merchantSig: b.merchantSig as Hex, title: b.title, periodKey: String(b.periodKey), single: !!b.single, webhook: b.webhook,
     })
+    after(async () => { await r.publish().catch(() => {}) }) // Arkiv write after the response: the QR shows at once
     const origin = process.env.NEXT_PUBLIC_APP_URL?.startsWith("https") ? process.env.NEXT_PUBLIC_APP_URL : new URL(req.url).origin
-    return json({ ...r, subscribeUrl: `${origin}/subscribe?plan=${r.planKey}` }, { headers: CORS })
+    return json({ planKey: r.planKey, publishing: true, subscribeUrl: `${origin}/subscribe?plan=${r.planKey}` }, { headers: CORS })
   } catch (e) {
     return json({ error: errorMessage(e) }, { status: 400, headers: CORS })
   }

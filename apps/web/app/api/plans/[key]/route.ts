@@ -12,7 +12,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string }>
   if (!isHex(key) || key.length !== 66) return json({ error: "bad plan key" }, { status: 400, headers: CORS })
   try {
     const p = await getPlan(key as Hex)
-    if (!p) return json({ state: "expired" }, { status: 404, headers: CORS })
+    // instant subscribe QRs exist a few seconds before their Arkiv write lands: "publishing" = keep polling
+    if (!p) return json({ state: "publishing" }, { headers: CORS })
     const m = p.mandateRef ? await getMandate(p.mandateRef) : null
     return json({
       state: p.status, planKey: key, title: p.title, merchant: p.plan.merchant, merchantName: p.merchantName, amount: p.plan.amount,

@@ -44,19 +44,32 @@ export async function createPlan(p: { plan: Plan; merchantSig: Hex; title: strin
   if (![m.signer, plan.merchant].some((x) => x.toLowerCase() === signer.toLowerCase())) throw new Error("plan not signed by the merchant")
   const profile = await getMerchantByAddress(plan.merchant)
 
-  const r = await arkiv().writer.createEntity(SubPlan, {
+  const values = {
     merchant: addr(plan.merchant), merchantName: profile?.ensName ?? undefined, title, amount: plan.amount,
     period: u64(BigInt(plan.period)), periodKey: p.periodKey, cycles: plan.cycles, planId: plan.planId.toLowerCase(),
     expiresAt: u64(plan.expiresAt), merchantSig: hexToBytes(p.merchantSig), single: !!p.single, status: "open",
     webhook: p.webhook, createdAt: u64(BigInt(now())),
-  } as any, { expiration: expiry(ttl) }, { gas: 1_500_000n })
-  return { planKey: r.entityKey, arkivTx: r.txHash }
+  } as any
+  // the plan's public id is its planId (fixed by the merchant's signature), so the subscribe QR can be shown
+  // before the Arkiv write lands; publishPlan does the write (call it after responding)
+  return { planKey: plan.planId.toLowerCase() as Hex, publish: () => publishPlan(values, ttl) }
+}
+
+async function publishPlan(values: any, ttl: number) {
+  for (let i = 0; i < 3; i++) {
+    try { return await arkiv().writer.createEntity(SubPlan, values, { expiration: expiry(ttl) }, { gas: 1_500_000n }) }
+    catch (e) { console.error(`[plans] publish attempt ${i + 1} failed`, (e as Error).message.split("\n")[0]); if (i === 2) throw e }
+    await new Promise((r) => setTimeout(r, 700 + Math.random() * 1300))
+  }
 }
 
 export type PlanView = Awaited<ReturnType<typeof getPlan>>
-export async function getPlan(planKey: Hex) {
+export async function getPlan(ref: Hex) {
   try {
-    const e = (await arkiv().pub.getEntity(planKey, SubPlan)) as any
+    const a = arkiv()
+    const byId = await a.pub.select({ $key: true }).from(SubPlan).ownedBy(a.owner).where(eq("planId", ref.toLowerCase())).limit(1).fetch().catch(() => null)
+    const planKey = ((byId?.entities as any[] | undefined)?.[0]?.$key as Hex | undefined) ?? ref
+    const e = (await a.pub.getEntity(planKey, SubPlan)) as any
     if (!owned(e)) return null
     const plan: Plan = {
       merchant: getAddress(val(e.merchant)), amount: BigInt(val(e.amount)), period: Number(val(e.period)),
@@ -127,7 +140,7 @@ export async function subscribe(p: { planKey: Hex; subscriber: Address; subscrip
   const res = await a.writer.executeBatch({
     creates: [
       { schema: Mandate, salt: mk.salt, expiration: expiry(Math.max(endsAt - now(), 3600) + 7 * 86_400), values: {
-        subscriber: addr(subscriber), merchant: addr(plan.merchant), merchantName: pv.merchantName, title: pv.title, planRef: key(p.planKey),
+        subscriber: addr(subscriber), merchant: addr(plan.merchant), merchantName: pv.merchantName, title: pv.title, planRef: key(pv.planKey),
         subscriptionId: p.subscriptionId.toLowerCase(), amount: plan.amount, period: u64(BigInt(plan.period)), grace: u64(BigInt(grace)),
         cycles: plan.cycles, startAt: u64(BigInt(p.startAt)), paidCycles: 1, nextDueAt: u64(BigInt(last ? 0 : nextDue)),
         status: last ? "completed" : "active", vault: addr(vault), webhook: pv.webhook, lastTx: txHash, updatedAt: u64(BigInt(now())),
@@ -137,7 +150,7 @@ export async function subscribe(p: { planKey: Hex; subscriber: Address; subscrip
         dueAt: u64(BigInt(nextDue)), status: "scheduled", attempts: 0,
       } as any }]),
     ],
-    patches: pv.single ? [{ schema: SubPlan, entityKey: p.planKey, set: { status: "subscribed", mandateRef: key(mk.key) } }] : [],
+    patches: pv.single ? [{ schema: SubPlan, entityKey: pv.planKey, set: { status: "subscribed", mandateRef: key(mk.key) } }] : [],
   } as any, { gas: 4_000_000n })
 
   notify(pv.webhook, `${p.subscriptionId}:0`, { event: "subscription.started", mandateKey: mk.key, planKey: p.planKey, subscriptionId: p.subscriptionId, vault,
@@ -187,14 +200,14 @@ export async function subscribeReminder(p: { planKey: Hex; subscriber: Address; 
   await a.writer.executeBatch({
     creates: [
       { schema: Mandate, salt: mk.salt, expiration: expiry(Math.max(endsAt - now(), 3600) + 7 * 86_400), values: {
-        subscriber: addr(subscriber), merchant: addr(plan.merchant), merchantName: pv.merchantName, title: pv.title, planRef: key(p.planKey),
+        subscriber: addr(subscriber), merchant: addr(plan.merchant), merchantName: pv.merchantName, title: pv.title, planRef: key(pv.planKey),
         subscriptionId: p.subscriptionId.toLowerCase(), amount: plan.amount, period: u64(BigInt(plan.period)), grace: u64(BigInt(grace)),
         cycles: plan.cycles, startAt: u64(BigInt(p.startAt)), paidCycles: 1, nextDueAt: u64(BigInt(last ? 0 : nextDue)), nextCycle: last ? plan.cycles : 1,
         missedCycles: 0, mode: "reminder", status: last ? "completed" : "active", webhook: pv.webhook, lastTx: first.txHash, updatedAt: u64(BigInt(now())),
       } as any },
       ...(last ? [] : [dueCreate(mk.key, subscriber, plan.merchant, plan.amount, 1, nextDue, nextDue + grace + REMINDER_TAIL - now())]),
     ],
-    patches: pv.single ? [{ schema: SubPlan, entityKey: p.planKey, set: { status: "subscribed", mandateRef: key(mk.key) } }] : [],
+    patches: pv.single ? [{ schema: SubPlan, entityKey: pv.planKey, set: { status: "subscribed", mandateRef: key(mk.key) } }] : [],
   } as any, { gas: 4_000_000n })
   notify(pv.webhook, `${p.subscriptionId}:0`, { event: "subscription.started", mode: "reminder", mandateKey: mk.key, planKey: p.planKey, subscriptionId: p.subscriptionId,
     merchant: plan.merchant, subscriber, amount: plan.amount.toString(), cycle: 1, cycles: plan.cycles, txHash: first.txHash, explorer: first.explorer, nextDueAt: last ? null : nextDue })

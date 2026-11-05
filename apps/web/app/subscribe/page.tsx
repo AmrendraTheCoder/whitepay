@@ -41,13 +41,17 @@ function Subscribe() {
     const t = setInterval(() => setNow(Date.now() / 1000), 500)
     if (!planKey) { setLoadErr("This subscription link has no plan id. Scan the shop's QR again."); return () => clearInterval(t) }
     if (!/^0x[0-9a-fA-F]{64}$/.test(planKey)) { setLoadErr("This subscription link is damaged (the plan id isn't valid). Ask the shop for a new QR."); return () => clearInterval(t) }
-    fetch(`/api/plans/${planKey}`).then(async (r) => {
+    let tries = 0
+    const load = () => fetch(`/api/plans/${planKey}`).then(async (r) => {
       const p = (await r.json().catch(() => ({}))) as PlanResp
+      // scanned before the plan's Arkiv write landed (a few seconds): keep checking for up to 45 s
+      if ((p.state as string) === "publishing") { if (tries++ < 30) { setTimeout(load, 1500); return } return setPlan({ state: "expired" } as PlanResp) }
       if (r.status === 404 || p.state === "expired") return setPlan({ state: "expired" } as PlanResp)
       if (!r.ok || !p.state) return setLoadErr(`WhitePay couldn't load this plan${p.error ? `: ${p.error}` : ` (HTTP ${r.status})`}. Try again in a moment.`)
       setPlan(p)
       if (p.merchant) fetch(`/api/merchants?address=${p.merchant}`).then((r) => r.json()).then((d) => setVerified(!!d.merchant?.verified)).catch(() => {})
     }).catch(() => setLoadErr("You're offline or WhitePay is unreachable. Check your connection and try again."))
+    void load()
     return () => clearInterval(t)
   }, [planKey])
 

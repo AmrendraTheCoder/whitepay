@@ -105,7 +105,12 @@ export async function relayDirectPayment(p: { to: Address; amount: bigint; memo:
 }
 
 export const shortErr = (err: unknown) => {
-  const e = err as { shortMessage?: string; message?: string; cause?: { data?: { errorName?: string } } }
+  const e = err as { shortMessage?: string; message?: string; cause?: { data?: { errorName?: string; args?: unknown[] }; reason?: string } }
   const name = e?.cause?.data?.errorName
+  // require("…") reverts surface as errorName "Error": report the reason string instead (e.g. "transfer amount exceeds balance")
+  if (name === "Error" || !name) {
+    const reason = (e?.cause?.data?.args?.[0] as string | undefined) ?? e?.cause?.reason
+    if (reason) return reason
+  }
   return name ?? e?.shortMessage ?? e?.message?.split("\n")[0] ?? String(err)
 }

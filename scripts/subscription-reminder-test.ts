@@ -17,7 +17,8 @@ const row = async (key: string) => { const d = await fetch(`${WP}/api/subscripti
 
 async function main() {
   const plan = await fetch(`${STORE}/api/create-subscription`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).then((r) => r.json())
-  const pv = await fetch(`${WP}/api/plans/${plan.planKey}`).then((r) => r.json())
+  let pv = await fetch(`${WP}/api/plans/${plan.planKey}`).then((r) => r.json())
+  for (let i = 0; pv.state === "publishing" && i < 20; i++) { await sleep(1000); pv = await fetch(`${WP}/api/plans/${plan.planKey}`).then((r) => r.json()) }
   console.log(ts(), "1. store plan", plan.planKey.slice(0, 12), `${pv.cycles} × ${Number(pv.amount) / 1e6} USDT ${pv.periodLabel}`)
 
   const subscriptionId = toHex(crypto.getRandomValues(new Uint8Array(32))) as Hex

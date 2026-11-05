@@ -234,7 +234,8 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
         const s = await fetch(`/api/requests/${d.entityKey}`).then((x) => x.json()).catch(() => null)
         if (!s) return
         if (s.state === "paid") { setStatus("paid"); setPaidTx(s.receipt?.explorer ?? ""); clearInterval(poll.current); void loadReceipts() }
-        if (s.state === "depleted") { setStatus("depleted"); clearInterval(poll.current) }
+        // instant QRs report "publishing" until Arkiv has them; past the deadline (+30 s grace) the QR is expired
+        if (s.state === "depleted" || (s.state === "publishing" && Date.now() / 1000 > Number(d.deadline) + 30)) { setStatus("depleted"); clearInterval(poll.current) }
       }, 2000)
     } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }

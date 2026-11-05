@@ -28,8 +28,7 @@ export type CreatedRequest = {
   arkivTx: Hex
 }
 
-/** Merchant backend: sign the order and publish it as a pending request that lives for `ttlSeconds`. */
-export async function createPaymentRequest(p: {
+export type CreatePaymentRequestParams = {
   merchant: Address
   amount: bigint
   merchantName?: string
@@ -41,7 +40,21 @@ export async function createPaymentRequest(p: {
   signed?: { order: Order; merchantSig: Hex }
   /** https URL the WhitePay server POSTs to when this request is paid */
   webhook?: string
-}): Promise<CreatedRequest> {
+}
+
+/** Merchant backend: sign the order and publish it as a pending request that lives for `ttlSeconds`. */
+export async function createPaymentRequest(p: CreatePaymentRequestParams): Promise<CreatedRequest> {
+  return publishPaymentRequest(await preparePaymentRequest(p))
+}
+
+export type PreparedRequest = Awaited<ReturnType<typeof preparePaymentRequest>>
+
+/**
+ * Fast part (~0.5 s): check the merchant's signature against the on-chain registry and build the entity.
+ * The QR can be shown as soon as this returns: it is addressed by the order DIGEST, which the signature
+ * already fixes, so it does not have to wait for the Arkiv write (publishPaymentRequest, ~5-7 s).
+ */
+export async function preparePaymentRequest(p: CreatePaymentRequestParams) {
   const kind = p.kind ?? "p2m_qr"
   let ttl = Math.min(Math.max(p.ttlSeconds ?? REQUEST_TTL.p2mQr, REQUEST_TTL.min), REQUEST_TTL.invoiceMax)
   let order: Order, digest: Hex, merchantSig: Hex
@@ -59,9 +72,7 @@ export async function createPaymentRequest(p: {
     ;({ order, digest, merchantSig } = await signOrder({ merchant: p.merchant, amount: p.amount, ttlSeconds: ttl }))
   }
 
-  const { entityKey, txHash, expiresAt } = await arkiv().writer.createEntity(
-    PayRequest,
-    {
+  const values = {
       kind,
       merchant: addr(order.merchant),
       amount: order.amount,
@@ -76,11 +87,15 @@ export async function createPaymentRequest(p: {
       ...(p.payer ? { payer: addr(p.payer) } : {}),
       ...(p.note ? { note: p.note.slice(0, 120) } : {}),
       ...(p.webhook ? { webhook: p.webhook } : {}),
-    },
-    { expiration: ttlToExpiration(ttl) },
-    { gas: 1_500_000n },
-  )
-  return { entityKey, uri: requestUri(entityKey), digest, order, expiresAtBlock: expiresAt, arkivTx: txHash }
+  }
+  return { values, ttl, digest, order }
+}
+
+/** Slow part: write the request to Arkiv (waits for the Arkiv transaction). Safe to run after responding. */
+export async function publishPaymentRequest(prep: PreparedRequest): Promise<CreatedRequest> {
+  const ttl = Math.max(REQUEST_TTL.min, Number(prep.order.deadline) - now())
+  const { entityKey, txHash, expiresAt } = await arkiv().writer.createEntity(PayRequest, prep.values, { expiration: ttlToExpiration(ttl) }, { gas: 1_500_000n })
+  return { entityKey, uri: requestUri(entityKey), digest: prep.digest, order: prep.order, expiresAtBlock: expiresAt, arkivTx: txHash }
 }
 
 export type RequestView = {
@@ -105,7 +120,19 @@ export type Verified = { ok: true; order: Order; digest: Hex; merchantSig: Hex; 
 export type Rejected = { ok: false; reason: string; view?: RequestView }
 
 /** Fetch a request by entity key (what the payer's app does after scanning the QR). */
-export async function fetchRequest(entityKey: Hex): Promise<RequestView | null> {
+/** A QR/link may carry the Arkiv entity key (older) or the order digest (instant QRs). Resolve to the entity key. */
+export async function resolveRequestRef(ref: Hex): Promise<Hex | null> {
+  const a = arkiv()
+  const r = await a.pub.select({ $key: true }).from(PayRequest).ownedBy(a.owner).where(eq("digest", ref.toLowerCase())).limit(1).fetch()
+  return ((r.entities as any[])[0]?.$key as Hex | undefined) ?? null
+}
+
+export async function fetchRequest(ref: Hex): Promise<RequestView | null> {
+  const byDigest = await resolveRequestRef(ref).catch(() => null)
+  return fetchRequestByKey(byDigest ?? ref)
+}
+
+async function fetchRequestByKey(entityKey: Hex): Promise<RequestView | null> {
   try {
     const e = (await arkiv().pub.getEntity(entityKey, PayRequest)) as any
     const v = (x: any) => (x && typeof x === "object" && "value" in x ? x.value : x)

@@ -2,7 +2,7 @@ export { config } from "./config"
 export { wc, arkiv } from "./clients"
 export { signOrder, orderDigest, newOrderId, type SignedOrder } from "./orders"
 export {
-  createPaymentRequest,
+  createPaymentRequest, preparePaymentRequest, publishPaymentRequest, resolveRequestRef,
   fetchRequest,
   verifyRequest,
   settleOnArkiv,

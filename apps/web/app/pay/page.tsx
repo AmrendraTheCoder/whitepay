@@ -13,7 +13,7 @@ type Check = { label: string; detail: string }
 type ReqResp =
   | { state: "pending"; verifiedMerchant: boolean; merchantDisplayName?: string; checks: Check[]; request: any; order: Record<keyof Order, string>; digest: Hex }
   | { state: "paid"; request: any; receipt?: { explorer: string } }
-  | { state: "depleted" | "invalid" | "error"; reason: string; request?: any }
+  | { state: "depleted" | "invalid" | "error" | "publishing"; reason: string; request?: any }
 
 export default function PayPage() {
   return (
@@ -35,7 +35,16 @@ function Pay() {
   useEffect(() => setWallet(getWallet()), [])
 
   useEffect(() => {
-    fetch(`/api/requests/${key}`).then((r) => r.json()).then(setData).catch((e) => setData({ state: "error", reason: String(e) }))
+    // an instant QR may be scanned before its Arkiv write lands (a few seconds): keep checking for up to 45 s
+    let stop = false, tries = 0
+    const load = async () => {
+      const d: ReqResp = await fetch(`/api/requests/${key}`).then((r) => r.json()).catch((e) => ({ state: "error", reason: String(e) }))
+      if (stop) return
+      if (d.state === "publishing" && tries++ < 30) { setData(d); setTimeout(load, 1500); return }
+      setData(d.state === "publishing" ? { state: "depleted", reason: "This payment request expired or doesn't exist. Ask the shop to show the QR again." } : d)
+    }
+    void load()
+    return () => { stop = true }
   }, [key])
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now() / 1000), 500)
@@ -56,6 +65,7 @@ function Pay() {
     )
 
   if (!data) return <main className="shell"><LogoLoader label="Verifying payment request…" /></main>
+  if (data.state === "publishing") return <main className="shell"><LogoLoader label="Getting the order ready… (saving to Arkiv)" /></main>
 
   if (data.state !== "pending" && phase === "idle") {
     const paid = data.state === "paid"

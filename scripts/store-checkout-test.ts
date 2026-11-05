@@ -15,13 +15,17 @@ async function main() {
 const order = await fetch(`${STORE}/api/create-order`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: { sku: SKU } }) }).then((r) => r.json())
 console.log("1. store created order", order.orderId, "amount", order.amount, "->", order.payUrl)
 
-const v = await verifyRequest(await fetchRequest(order.entityKey))
+// instant QR: the order lands on Arkiv a few seconds after the QR is shown
+let view = await fetchRequest(order.entityKey)
+for (let i = 0; !view && i < 20; i++) { await new Promise((r) => setTimeout(r, 1000)); view = await fetchRequest(order.entityKey) }
+console.log("   order visible on Arkiv as", view?.entityKey)
+const v = await verifyRequest(view)
 if (!v.ok) throw new Error(v.reason)
 const validBefore = BigInt(Math.floor(Date.now() / 1000) + 900)
 const signature = await payer.signTypedData(receiveAuthTypedData({ from: payer.address, to: config.router, value: v.order.amount, validAfter: 0n, validBefore, nonce: v.digest }))
 const paid = await fetch(`${WP}/api/pay`, { method: "POST", headers: { "content-type": "application/json" },
   body: JSON.stringify({ entityKey: order.entityKey, auth: { from: payer.address, validAfter: "0", validBefore: validBefore.toString(), signature } }) }).then((r) => r.json())
-if (paid.error) throw new Error(paid.error)
+if (paid.error) throw new Error(JSON.stringify(paid))
 console.log("2. paid gaslessly", paid.explorer ?? paid.txHash)
 
 const s = await fetch(`${WP}/api/requests/${order.entityKey}`).then((r) => r.json())

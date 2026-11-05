@@ -1,7 +1,8 @@
 // Merchant: publish a payment request. The order is signed on the merchant's OWN device;
 // the server only checks the signature against MerchantRegistry and writes the Arkiv entity.
 import { isAddress, isHex, type Address, type Hex } from "viem"
-import { createPaymentRequest, getMerchantByAddress, assertSafeWebhookUrl } from "@whitepay/server"
+import { preparePaymentRequest, publishPaymentRequest, getMerchantByAddress, assertSafeWebhookUrl } from "@whitepay/server"
+import { after } from "next/server"
 import { REQUEST_TTL } from "@whitepay/shared"
 import { json, errorMessage, CORS, preflight } from "@/lib/json"
 
@@ -28,32 +29,34 @@ export async function POST(req: Request) {
 
     const webhook = b.webhook ? String(b.webhook) : undefined
     if (webhook && webhook.length > 128) return json({ error: "webhook must be at most 128 characters" }, { status: 400, headers: CORS })
-    if (webhook) {
-      try { await assertSafeWebhookUrl(webhook) } catch (e) { return json({ error: errorMessage(e) }, { status: 400, headers: CORS }) }
-    }
-
-    const profile = await getMerchantByAddress(o.merchant as Address)
-    if (!profile) return json({ error: "Sign up as a merchant first" }, { status: 403 })
-
     const order = { merchant: o.merchant as Address, amount, orderId: o.orderId as Hex, deadline: BigInt(o.deadline) }
     const ttl = Number(order.deadline) - Math.floor(Date.now() / 1000)
-    const created = await createPaymentRequest({
-      merchant: order.merchant,
-      merchantName: profile.ensName,
-      amount,
-      kind: ttl > REQUEST_TTL.p2mQr + 30 ? "invoice" : "p2m_qr",
-      note: b.note,
-      webhook,
-      signed: { order, merchantSig: b.merchantSig as Hex },
+    // fast path (~0.5 s, all in parallel): webhook SSRF check, merchant profile, signature vs on-chain registry
+    const [hookErr, profile, prepared] = await Promise.all([
+      webhook ? assertSafeWebhookUrl(webhook).then(() => null, (e) => errorMessage(e)) : Promise.resolve(null),
+      getMerchantByAddress(o.merchant as Address),
+      preparePaymentRequest({ merchant: order.merchant, amount, kind: ttl > REQUEST_TTL.p2mQr + 30 ? "invoice" : "p2m_qr", note: b.note, webhook, signed: { order, merchantSig: b.merchantSig as Hex } }),
+    ])
+    if (hookErr) return json({ error: hookErr }, { status: 400, headers: CORS })
+    if (!profile) return json({ error: "Sign up as a merchant first" }, { status: 403, headers: CORS })
+    ;(prepared.values as Record<string, unknown>).merchantName = profile.ensName
+    // slow: the Arkiv write (~5-7 s) happens after the response; one retry if the first attempt fails
+    after(async () => {
+      // concurrent writes from the one Arkiv writer can collide on its nonce: retry with a little jitter
+      for (let i = 0; i < 3; i++) {
+        try { await publishPaymentRequest(prepared); return } catch (e) { console.error(`[requests] publish attempt ${i + 1} failed`, errorMessage(e)) }
+        await new Promise((r) => setTimeout(r, 700 + Math.random() * 1300))
+      }
     })
     const origin = process.env.NEXT_PUBLIC_APP_URL?.startsWith("https") ? process.env.NEXT_PUBLIC_APP_URL : new URL(req.url).origin
+    const ref = prepared.digest // the QR's id: fixed by the merchant's signature, known before the Arkiv write
     return json({
-      entityKey: created.entityKey,
-      payUrl: `${origin}/pay?req=${created.entityKey}`,
-      amount: created.order.amount,
-      deadline: created.order.deadline,
-      arkivTx: created.arkivTx,
-      orderId: created.order.orderId,
+      entityKey: ref,
+      payUrl: `${origin}/pay?req=${ref}`,
+      amount: prepared.order.amount,
+      deadline: prepared.order.deadline,
+      orderId: prepared.order.orderId,
+      publishing: true,
     }, { headers: CORS })
   } catch (e) {
     return json({ error: errorMessage(e) }, { status: 400, headers: CORS })
