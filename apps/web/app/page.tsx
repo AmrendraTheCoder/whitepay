@@ -1,7 +1,7 @@
 "use client"
 import { useMemo } from "react"
 import { Onboard } from "./onboard"
-import { BottomNav, ScanFab, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge } from "./ui"
+import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge } from "./ui"
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 
@@ -94,7 +94,6 @@ function WalletHome({ wallet, bal, rows, name, account, displayName }: ReturnTyp
         <a className="menu-row" href="/receive"><span className="ic">{Icon.receive(24)}</span>Your QR code<span className="chev">{Icon.chev()}</span></a>
       </div>
 
-      <ScanFab />
       <BottomNav />
     </main>
   )

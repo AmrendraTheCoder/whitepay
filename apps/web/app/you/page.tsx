@@ -4,7 +4,7 @@ import { BottomNav, Icon, avatarColor, prettyName, useWalletData, AccountBadge }
 import { ClaimName } from "../claim-name"
 import { PinPad } from "../components"
 import {
-  enablePasskey, passkeySupported, removeWallet, listWallets, setActiveWallet, connectInjectedWallet, hasInjectedWallet, type WalletInfo,
+  enablePasskey, passkeySupported, removeWallet, listWallets, setActiveWallet, connectInjectedWallet, hasInjectedWallet, metamaskDeepLink, type WalletInfo,
 } from "@/lib/wallet"
 import { useTheme, type Theme } from "@/lib/prefs"
 import { short } from "@/lib/format"
@@ -33,6 +33,7 @@ export default function You() {
 
   const switchTo = (a: string) => { setActiveWallet(a); location.reload() }
   const connect = async () => {
+    if (!hasInjectedWallet()) { location.href = metamaskDeepLink("/you"); return }
     try { await connectInjectedWallet(); location.reload() } catch (e) { setMsg((e as Error).message.split("\n")[0]) }
   }
 
@@ -81,7 +82,7 @@ export default function You() {
       </div>
       <div className="actions">
         <a className="btn btn-ghost" href="/add">+ Add wallet</a>
-        <button className="btn btn-ghost" onClick={connect} disabled={!hasInjectedWallet()} title={hasInjectedWallet() ? "" : "Open in MetaMask's browser to connect"}>Connect MetaMask</button>
+        <button className="btn btn-ghost" onClick={connect}>Connect MetaMask</button>
       </div>
 
       <div className="section-title">Appearance</div>

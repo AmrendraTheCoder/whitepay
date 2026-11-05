@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react"
 import { isHex, type Hex } from "viem"
 import { PinPad } from "./components"
 import { Icon } from "./ui"
-import { createWallet, enablePasskey, passkeySupported, connectInjectedWallet, hasInjectedWallet } from "@/lib/wallet"
+import { createWallet, enablePasskey, passkeySupported, connectInjectedWallet, hasInjectedWallet, metamaskDeepLink } from "@/lib/wallet"
 
 // -------------------------------------------------------------- onboarding
 export function Onboard({ onDone, adding = false }: { onDone: () => void; adding?: boolean }) {
@@ -19,6 +19,8 @@ export function Onboard({ onDone, adding = false }: { onDone: () => void; adding
   useEffect(() => { passkeySupported().then(setBioOk); setInjected(hasInjectedWallet()) }, [])
 
   const connect = async () => {
+    // no wallet in this browser (e.g. Safari/Chrome on a phone): reopen this page inside MetaMask
+    if (!hasInjectedWallet()) { location.href = metamaskDeepLink(location.pathname + location.search); return }
     setBusy(true); setErr("")
     try { await connectInjectedWallet(); onDone() } catch (e) { setErr((e as Error).message.split("\n")[0]) } finally { setBusy(false) }
   }
@@ -55,9 +57,9 @@ export function Onboard({ onDone, adding = false }: { onDone: () => void; adding
           </div>
           <button className="btn btn-primary btn-big" onClick={() => setStep("pin")}>{adding ? "Create another wallet" : "Create my wallet"}</button>
           <button className="btn btn-ghost" onClick={connect} disabled={busy}>
-            {busy ? <span className="spinner" /> : null} Connect existing wallet (MetaMask…)
+            {busy ? <span className="spinner" /> : null} {injected ? "Connect existing wallet (MetaMask…)" : "Open in MetaMask app to connect"}
           </button>
-          {!injected && <div className="sub" style={{ textAlign: "center" }}>To connect MetaMask on a phone, open this site inside the MetaMask app's browser.</div>}
+          {!injected && <div className="sub" style={{ textAlign: "center" }}>This opens WhitePay inside the MetaMask app. Tap Connect there; your MetaMask address is added as a WhitePay wallet.</div>}
           {err && step === "intro" && <div className="err">{err}</div>}
           <button className="chip" style={{ alignSelf: "center" }} onClick={() => setShowImport((s) => !s)}>
             {showImport ? "Hide" : "Use an existing test key"}

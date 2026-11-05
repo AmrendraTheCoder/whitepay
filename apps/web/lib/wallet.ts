@@ -228,6 +228,12 @@ const provider = (): Eip1193 => {
 }
 export const hasInjectedWallet = () => typeof window !== "undefined" && !!(window as any).ethereum
 
+/** Phone browsers (Safari/Chrome) can't see MetaMask. This link reopens the same page INSIDE the
+ *  MetaMask app's browser, where window.ethereum exists and connecting works. */
+export const metamaskDeepLink = (path = "/add") =>
+  `https://metamask.app.link/dapp/${location.host}${path}`
+export const isMobile = () => typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
 /** Connect MetaMask/Rabby/... and add it as a wallet (address only; keys stay in that wallet). */
 export async function connectInjectedWallet() {
   const accounts = (await provider().request({ method: "eth_requestAccounts" })) as string[]
