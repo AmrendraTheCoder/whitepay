@@ -49,8 +49,8 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
           <span className="pill-lime">0 gas</span>
           {name === undefined ? <span className="skel" style={{ width: 170, height: 16 }} /> : <span>{account === "business" && displayName ? `${displayName} · ${name}` : name ?? "No WhitePay name yet"}</span>}
         </div>
-        <a className="cta" href={account === "business" ? "/merchant" : name ? "/money" : "/you#claim"}>
-          {name === undefined ? <span className="skel" style={{ width: 120, height: 18 }} /> : account === "business" ? "Open shop terminal" : name ? "View money" : "Claim your name"} <span className="circle">{Icon.arrow()}</span>
+        <a className="cta" href={account === "business" ? "/merchant" : "/money"}>
+          {name === undefined ? <span className="skel" style={{ width: 120, height: 18 }} /> : account === "business" ? "Open shop terminal" : "View money"} <span className="circle">{Icon.arrow()}</span>
         </a>
       </div>
 

@@ -5,7 +5,6 @@
 |---|---|---|---|---|
 | Claim a personal name `you.whitepay.eth` | `whitepay-name` | wallet address | ENSv2 subname issued; nullifier stored on Arkiv (`whitepay.worldclaim`), so **one name per human** | No name is issued; the claim card stays |
 | Verified-shop badge | `whitepay-shop` | shop wallet | `MerchantRegistry.setStatus(verified)` on Whitechain, Arkiv profile `verified=true`, ENS text `verified=true`; **one verified shop per human** | Badge stays "Unverified" |
-| Payment over 100 USDT | `whitepay-pay` | `step-up:<payer>:<order digest or P2P memo>` | Backend issues a 5-min HMAC token; the relayer settles only with it | The relayer refuses (`step_up_required`); no money moves |
 | Same human, new wallet | `whitepay-name` | new wallet | Same nullifier recognised, so the name **moves** to the new wallet (ENS addr records re-pointed) | n/a |
 
 **Why Proof of Human:** these are uniqueness problems (one name, one shop, one person approving a large transfer). They need "a unique human", not identity attributes, so Passport/Selfie would ask for more than we need.

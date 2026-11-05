@@ -3,13 +3,14 @@ import { useCallback, useEffect, useState } from "react"
 import { isHex, type Hex } from "viem"
 import { PinPad } from "./components"
 import { Icon } from "./ui"
-import { createWallet, enablePasskey, passkeySupported, connectInjectedWallet, hasInjectedWallet, connectWalletConnect, setExternalPin, enableExternalPasskey } from "@/lib/wallet"
+import { ClaimName } from "./claim-name"
+import { getWallet, createWallet, enablePasskey, passkeySupported, connectInjectedWallet, hasInjectedWallet, connectWalletConnect, setExternalPin, enableExternalPasskey } from "@/lib/wallet"
 import { wcConfigured } from "@/lib/walletconnect"
 
 // -------------------------------------------------------------- onboarding
-export function Onboard({ onDone, adding = false }: { onDone: () => void; adding?: boolean }) {
+export function Onboard({ onDone, adding = false, business = false }: { onDone: () => void; adding?: boolean; business?: boolean }) {
   // ext* steps: an external wallet was just connected and gets its own WhitePay PIN / fingerprint
-  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio">("intro")
+  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio" | "name">("intro")
   const [extAddr, setExtAddr] = useState("")
   const [first, setFirst] = useState("")
   const [pin, setPin] = useState("")
@@ -20,6 +21,9 @@ export function Onboard({ onDone, adding = false }: { onDone: () => void; adding
   const [busy, setBusy] = useState(false)
   const [injected, setInjected] = useState(false)
   useEffect(() => { passkeySupported().then(setBioOk); setInjected(hasInjectedWallet()) }, [])
+  // World ID happens once, here at account creation: personal wallets claim their name now
+  // (shops verify in shop signup). Payments never ask for World ID.
+  const finish = () => (business ? onDone() : setStep("name"))
 
   /** Connect MetaMask without leaving Chrome: extension if present (desktop), otherwise WalletConnect. */
   const connect = async (via: "extension" | "walletconnect") => {
@@ -40,7 +44,7 @@ export function Onboard({ onDone, adding = false }: { onDone: () => void; adding
   }, [first, extAddr])
   const enableExtBio = async () => {
     setBusy(true); setErr("")
-    try { await enableExternalPasskey(extAddr, pin); onDone() } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
+    try { await enableExternalPasskey(extAddr, pin); finish() } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
 
   const onFirst = useCallback((p: string) => { setFirst(p); setStep("confirm"); setErr("") }, [])
@@ -57,7 +61,7 @@ export function Onboard({ onDone, adding = false }: { onDone: () => void; adding
 
   const enableBio = async () => {
     setBusy(true); setErr("")
-    try { await enablePasskey(pin); onDone() } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
+    try { await enablePasskey(pin); finish() } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
 
   return (
@@ -119,7 +123,7 @@ export function Onboard({ onDone, adding = false }: { onDone: () => void; adding
           ) : (
             <div className="sub">This browser doesn't support biometric key protection. PIN only.</div>
           )}
-          <button className="btn btn-ghost" onClick={onDone}>{bioOk ? "Skip for now" : "Continue"}</button>
+          <button className="btn btn-ghost" onClick={finish}>{bioOk ? "Skip for now" : "Continue"}</button>
           <div className="err">{err}</div>
         </div>
       )}
@@ -137,8 +141,16 @@ export function Onboard({ onDone, adding = false }: { onDone: () => void; adding
           <div style={{ fontSize: 22, fontWeight: 700 }}>Confirm payments with your fingerprint?</div>
           <div className="sub">Before MetaMask is asked to sign, WhitePay checks your fingerprint or Face ID. Your PIN always works too.</div>
           {bioOk && <button className="btn btn-primary btn-big" onClick={enableExtBio} disabled={busy}>{busy ? <span className="spinner" /> : null} Enable fingerprint</button>}
-          <button className="btn btn-ghost" onClick={onDone}>{bioOk ? "Skip for now" : "Continue"}</button>
+          <button className="btn btn-ghost" onClick={finish}>{bioOk ? "Skip for now" : "Continue"}</button>
           <div className="err">{err}</div>
+        </div>
+      )}
+      {step === "name" && (
+        <div className="stack" style={{ marginTop: 18 }}>
+          <div style={{ textAlign: "center", fontSize: 22, fontWeight: 700 }}>Last step: your WhitePay name</div>
+          <div className="sub" style={{ textAlign: "center" }}>Verify you're a real person with World ID once, now. Payments never ask for it.</div>
+          <ClaimName address={getWallet()!.address as `0x${string}`} onClaimed={() => setTimeout(onDone, 1200)} />
+          <button className="btn btn-ghost" onClick={onDone}>Skip, use my address only</button>
         </div>
       )}
     </main>

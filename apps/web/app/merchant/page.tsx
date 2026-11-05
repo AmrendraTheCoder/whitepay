@@ -8,6 +8,7 @@ import { TopBar, UnlockSheet } from "../components"
 import { BottomNav, SuccessCheck, MiniLogo } from "../ui"
 import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
+import { endSession } from "@/lib/session"
 import { usdt, short, ago, mmss } from "@/lib/format"
 
 type Merchant = { address: string; label: string; ensName: string; displayName: string; category?: string; verified: boolean; active: boolean }
@@ -94,6 +95,8 @@ function Signup({ address, account, setAccount, onDone }: {
   const [unlock, setUnlock] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState("")
+  const [verifyStep, setVerifyStep] = useState(false)
+  const [worldMsg, setWorldMsg] = useState("")
 
   useEffect(() => {
     setAvail(null)
@@ -114,9 +117,38 @@ function Signup({ address, account, setAccount, onDone }: {
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
-      onDone()
+      setVerifyStep(true) // World ID happens once, right here at shop creation
     } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
+
+  if (verifyStep)
+    return (
+      <main className="shell with-nav">
+        <TopBar back={null} />
+        <div className="card stack" style={{ textAlign: "center" }}>
+          <SuccessCheck />
+          <div style={{ fontSize: 22, fontWeight: 800 }}>{label}.whitepay.eth is yours</div>
+          <div className="sub">Last step: prove a real, unique person runs this shop with World ID (one verified shop per human). Customers see the ✓ badge before they pay. You only do this once; payments never ask for it.</div>
+          <WorldVerify
+            purpose="shop"
+            signal={address}
+            label="Verify with World ID"
+            verify={async (proof) => {
+              const r = await fetch("/api/world/verify", { method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ purpose: "merchant", address, result: proof }) })
+              const d = await r.json()
+              if (!r.ok) throw new Error(d.error)
+              return d
+            }}
+            onVerified={() => { setWorldMsg("Verified ✓"); setTimeout(onDone, 900) }}
+            onDenied={(reason) => setWorldMsg(`Not verified: ${reason}`)}
+          />
+          {worldMsg && <div className="sub">{worldMsg}</div>}
+          <button className="btn btn-ghost" onClick={onDone}>Skip, open my shop unverified</button>
+        </div>
+        <BottomNav />
+      </main>
+    )
 
   const ok = displayName.trim().length > 1 && avail?.available
   return (
@@ -152,7 +184,6 @@ function Signup({ address, account, setAccount, onDone }: {
 }
 
 function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merchant; account: PrivateKeyAccount | null; setAccount: (a: PrivateKeyAccount | null) => void; onChange: () => void }) {
-  const [worldMsg, setWorldMsg] = useState("")
   const [amount, setAmount] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState("")
@@ -220,28 +251,6 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
         </div>
         {merchant.verified ? <span className="badge badge-ok">✓ Verified</span> : <span className="badge badge-warn">Unverified</span>}
       </div>
-      {!merchant.verified && (
-        <div className="card stack">
-          <div style={{ fontWeight: 700 }}>Get the ✓ Verified badge</div>
-          <div className="sub">Prove a real, unique person runs this shop with World ID (one verified shop per human). Customers see the badge before they pay.</div>
-          <WorldVerify
-            purpose="shop"
-            signal={merchant.address}
-            label="Verify with World ID"
-            className="btn btn-ghost"
-            verify={async (proof) => {
-              const r = await fetch("/api/world/verify", { method: "POST", headers: { "content-type": "application/json" },
-                body: JSON.stringify({ purpose: "merchant", address: merchant.address, result: proof }) })
-              const d = await r.json()
-              if (!r.ok) throw new Error(d.error)
-              return d
-            }}
-            onVerified={() => { setWorldMsg("Verified ✓"); onChange() }}
-            onDenied={(reason) => setWorldMsg(`Not verified: ${reason}`)}
-          />
-          {worldMsg && <div className="sub" style={{ textAlign: "center" }}>{worldMsg}</div>}
-        </div>
-      )}
 
       {!req || status !== "pending" ? (
         <div className="card stack">
@@ -260,7 +269,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
             {busy ? <><span className="spinner" /> Signing order & writing to Arkiv…</> : account ? "Show QR" : "Unlock & show QR"}
           </button>
           <div className="err">{err}</div>
-          {account && <button className="chip" style={{ alignSelf: "center" }} onClick={() => setAccount(null)}>Lock terminal</button>}
+          {account && <button className="chip" style={{ alignSelf: "center" }} onClick={() => { endSession(); setAccount(null) }}>Lock terminal</button>}
         </div>
       ) : (
         <div className="card stack" style={{ textAlign: "center" }}>

@@ -98,7 +98,7 @@ Earlier test with the demo merchant:
 ## World ID (IDKit 4, verified on our backend)
 - **Verified merchant badge:** the shop owner proves unique humanity (action `ens-claim`, signal = shop wallet). The backend verifies with the Developer Portal, records the nullifier on Arkiv (`whitepay.worldclaim`, one shop per human), then sets `verified` in `MerchantRegistry`, Arkiv and the ENS text record.
 - **Personal name:** same action, at most one name per human.
-- **Step-up:** payments above 100 USDT are refused by the relayer until the payer passes a fresh World ID check bound to that exact payment (signal = payer + order digest or P2P memo). It is exchanged for a 5-minute HMAC token.
+- **Only at account creation:** World ID runs once, when a personal wallet claims its name or a shop signs up. Payments never ask for World ID; they need only the device PIN / fingerprint (asked once per session, 15 idle minutes).
 - **Denied, cancelled or expired:** the action does not happen.
 
 ## Repo layout

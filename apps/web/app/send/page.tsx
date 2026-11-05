@@ -3,10 +3,9 @@ import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { isAddress, keccak256, parseUnits, toHex, type Address, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
-import { directNonce, receiveAuthTypedData, stepUpSignal, ROUTER_ADDRESS } from "@whitepay/shared"
+import { directNonce, receiveAuthTypedData, ROUTER_ADDRESS } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, LogoLoader } from "../ui"
-import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, initials } from "@/lib/format"
 
@@ -32,7 +31,6 @@ function Send() {
   const [unlock, setUnlock] = useState(false)
   const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "done" | "failed">("idle")
   const [result, setResult] = useState<{ explorer?: string; error?: string }>({})
-  const [stepUp, setStepUp] = useState<{ body: any; payer: Address; ref: Hex } | null>(null)
 
   useEffect(() => setWallet(getWallet()), [])
 
@@ -93,14 +91,12 @@ function Send() {
     }
   }
 
-  async function submit(body: any, payer: Address, ref: Hex, stepUpToken?: string) {
+  async function submit(body: any, payer: Address, ref: Hex) {
     setPhase("settling")
     try {
-      const r = await fetch("/api/send", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, stepUpToken }) })
+      const r = await fetch("/api/send", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
       const out = await r.json()
-      if (r.status === 403 && out.code === "step_up_required") { setStepUp({ body, payer, ref }); setPhase("idle"); return }
       if (!r.ok) throw new Error(out.error ?? "Payment failed")
-      setStepUp(null)
       setResult({ explorer: out.explorer })
       setPhase("done")
     } catch (e) {
@@ -156,27 +152,7 @@ function Send() {
             <div className="sub" style={{ textAlign: "center" }}>USDT</div>
           </div>
           {self && <div className="err">That's your own wallet.</div>}
-          {stepUp ? (
-            <div className="card stack" style={{ textAlign: "center" }}>
-              <div style={{ fontWeight: 700 }}>Large payment: confirm you're human</div>
-              <div className="sub">Payments above 100 USDT need a fresh World ID check, bound to this exact payment.</div>
-              <WorldVerify
-                purpose="pay"
-            paymentRef={stepUp.ref}
-                signal={stepUpSignal(stepUp.payer, stepUp.ref)}
-                label="Verify with World ID"
-                verify={async (proof) => {
-                  const r = await fetch("/api/world/verify", { method: "POST", headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ purpose: "step-up", address: stepUp.payer, paymentRef: stepUp.ref, result: proof }) })
-                  const d = await r.json()
-                  if (!r.ok) throw new Error(d.error)
-                  return d
-                }}
-                onVerified={(d) => submit(stepUp.body, stepUp.payer, stepUp.ref, d.token)}
-                onDenied={(reason) => { setStepUp(null); setResult({ error: `Not sent: ${reason}` }); setPhase("failed") }}
-              />
-            </div>
-          ) : phase === "idle" ? (
+          {phase === "idle" ? (
             <button className="btn btn-primary btn-big" disabled={!validAmount || !!self} onClick={() => setUnlock(true)}>
               {wallet.hasPasskey ? "☝︎ Pay with fingerprint" : "Pay with PIN"}
             </button>

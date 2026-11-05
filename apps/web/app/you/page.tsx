@@ -1,7 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
 import { BottomNav, Icon, avatarColor, prettyName, useWalletData, AccountBadge, LogoLoader } from "../ui"
-import { ClaimName } from "../claim-name"
 import { PinPad } from "../components"
 import {
   enablePasskey, passkeySupported, removeWallet, listWallets, setActiveWallet, type WalletInfo,
@@ -58,13 +57,12 @@ export default function You() {
 
       {account === "new" && (
         <>
-          <div id="claim"><ClaimName address={wallet.address} onClaimed={reload} /></div>
           <div className="sub" style={{ textAlign: "center" }}>Running a shop? Use a <a href="/add?type=business" style={{ color: "var(--brand-soft)", fontWeight: 700 }}>separate business wallet</a>, like GPay for Business.</div>
         </>
       )}
       {account === "business" && (
         <a className="card row" href="/merchant">
-          <div><div style={{ fontWeight: 700 }}>Business account</div><div className="sub">Show QR, see payments, verify your shop with World ID</div></div>
+          <div><div style={{ fontWeight: 700 }}>Business account</div><div className="sub">Show QR, see payments, refunds and CSV export</div></div>
           <span className="chev">{Icon.chev()}</span>
         </a>
       )}

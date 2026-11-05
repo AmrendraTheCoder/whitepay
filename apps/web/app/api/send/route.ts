@@ -1,7 +1,7 @@
 // Person-to-person push (UPI "send money"): payer signs an EIP-3009 authorization whose nonce
 // binds recipient + memo; the relayer settles via PaymentRouter.payDirect; receipt goes to Arkiv.
 import { isAddress, isHex, type Address, type Hex } from "viem"
-import { relayDirectPayment, settleOnArkiv, PolicyError, checkStepUpToken } from "@whitepay/server"
+import { relayDirectPayment, settleOnArkiv, PolicyError } from "@whitepay/server"
 import { json, errorMessage } from "@/lib/json"
 
 export const runtime = "nodejs"
@@ -13,7 +13,6 @@ type Body = {
   amount: string
   memo: string
   auth: { from: string; validAfter: string; validBefore: string; signature: string }
-  stepUpToken?: string
 }
 
 export async function POST(req: Request) {
@@ -36,7 +35,7 @@ export async function POST(req: Request) {
       validBefore: BigInt(b.auth.validBefore),
       signature: b.auth.signature as Hex,
     }
-    const paid = await relayDirectPayment({ to: b.to as Address, amount, memo: b.memo as Hex, auth, stepUpVerified: checkStepUpToken(b.stepUpToken, auth.from, b.memo as Hex) })
+    const paid = await relayDirectPayment({ to: b.to as Address, amount, memo: b.memo as Hex, auth })
     let receiptKey: Hex | null = null
     try {
       const s = await settleOnArkiv({

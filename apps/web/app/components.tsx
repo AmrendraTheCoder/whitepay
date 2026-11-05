@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
-import type { PrivateKeyAccount } from "viem/accounts"
+import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
+import { sessionFor } from "@/lib/session"
 import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout, isExternal, externalSigner, verifyExternalPin, verifyExternalPasskey, setExternalPin } from "@/lib/wallet"
 
 export function TopBar({ right, back = "/" }: { right?: React.ReactNode; back?: string | null }) {
@@ -71,8 +72,10 @@ export function UnlockSheet({
 }) {
   const w = getWallet()
   const external = isExternal(w)
+  // already unlocked this session? then don't ask for the PIN / fingerprint again
+  const [session] = useState(() => (w ? sessionFor(w.address) : null))
   type Mode = "passkey" | "pin" | "setpin" | "confirmpin" | "wallet"
-  const [mode, setMode] = useState<Mode>(external && !w?.hasPin ? "setpin" : w?.hasPasskey ? "passkey" : "pin")
+  const [mode, setMode] = useState<Mode>(external && session ? "wallet" : external && !w?.hasPin ? "setpin" : w?.hasPasskey ? "passkey" : "pin")
   const [firstPin, setFirstPin] = useState("")
   const [err, setErr] = useState("")
   const [busy, setBusy] = useState(false)
@@ -108,6 +111,8 @@ export function UnlockSheet({
   }
 
   useEffect(() => {
+    if (session?.pk && !external) return onUnlocked(privateKeyToAccount(session.pk))
+    if (session && external) return void tryWallet()
     if (mode === "passkey") void tryPasskey()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -136,6 +141,7 @@ export function UnlockSheet({
   }
 
   const locked = pinLockout() > 0
+  if (session && !external) return null
   return (
     <div className="sheet-backdrop" onClick={onCancel}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>

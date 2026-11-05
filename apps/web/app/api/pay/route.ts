@@ -1,7 +1,7 @@
 // Payer submits their signed EIP-3009 authorization. The server re-verifies the request,
 // the relayer settles on Whitechain (paying the gas), then the receipt is written to Arkiv.
 import { isAddress, isHex, type Address, type Hex } from "viem"
-import { fetchRequest, verifyRequest, relayOrderPayment, settleOnArkiv, PolicyError, checkStepUpToken } from "@whitepay/server"
+import { fetchRequest, verifyRequest, relayOrderPayment, settleOnArkiv, PolicyError } from "@whitepay/server"
 import { after } from "next/server"
 import { json, errorMessage } from "@/lib/json"
 
@@ -11,7 +11,6 @@ export const maxDuration = 60
 type Body = {
   entityKey: string
   auth: { from: string; validAfter: string; validBefore: string; signature: string }
-  stepUpToken?: string
 }
 
 export async function POST(req: Request) {
@@ -39,7 +38,6 @@ export async function POST(req: Request) {
         validBefore: BigInt(auth.validBefore),
         signature: auth.signature as Hex,
       },
-      stepUpVerified: checkStepUpToken(body.stepUpToken, auth.from as Address, v.digest),
     })
 
     let receiptKey: Hex | null = null

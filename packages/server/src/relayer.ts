@@ -7,7 +7,7 @@ import { config } from "./config"
 export type PayerAuth = { from: Address; validAfter: bigint; validBefore: bigint; signature: Hex }
 
 export class PolicyError extends Error {
-  constructor(public code: "rate_limited" | "daily_limit" | "step_up_required" | "gas_price_too_high" | "simulation_failed", msg: string) {
+  constructor(public code: "rate_limited" | "daily_limit" | "gas_price_too_high" | "simulation_failed", msg: string) {
     super(msg)
   }
 }
@@ -17,7 +17,7 @@ const recent = new Map<string, number[]>() // payer -> timestamps (ms)
 const daily = new Map<string, { day: number; total: bigint }>()
 const RATE = { windowMs: 60_000, max: 5 }
 
-function checkPolicy(payer: Address, amount: bigint, stepUpVerified: boolean) {
+function checkPolicy(payer: Address, amount: bigint) {
   const k = payer.toLowerCase()
   const t = Date.now()
   const hits = (recent.get(k) ?? []).filter((x) => t - x < RATE.windowMs)
@@ -27,15 +27,6 @@ function checkPolicy(payer: Address, amount: bigint, stepUpVerified: boolean) {
   const d = daily.get(k)
   const spent = d && d.day === day ? d.total : 0n
   if (spent + amount > LIMITS.dailyPerPayer) throw new PolicyError("daily_limit", "daily limit reached")
-
-  if (amount > stepUpThreshold() && !stepUpVerified)
-    throw new PolicyError("step_up_required", `payments above ${Number(stepUpThreshold()) / 1e6} USDT need a World ID check`)
-}
-
-/** Step-up limit: LIMITS.stepUpThreshold (100 USDT) unless STEP_UP_USDT overrides it (e.g. "1" for demos). */
-export const stepUpThreshold = () => {
-  const v = process.env.STEP_UP_USDT
-  return v && /^\d+(\.\d{1,6})?$/.test(v) ? BigInt(Math.round(Number(v) * 1e6)) : LIMITS.stepUpThreshold
 }
 
 function recordSpend(payer: Address, amount: bigint) {
@@ -64,9 +55,8 @@ export async function relayOrderPayment(p: {
   order: Order
   merchantSig: Hex
   auth: PayerAuth
-  stepUpVerified?: boolean
 }): Promise<RelayResult> {
-  checkPolicy(p.auth.from, p.order.amount, !!p.stepUpVerified)
+  checkPolicy(p.auth.from, p.order.amount)
   await guardGas()
   const { pub, relayer } = wc()
   const args = [p.order, p.merchantSig, toAuthTuple(p.auth)] as const
@@ -94,8 +84,8 @@ export async function relayOrderPayment(p: {
 }
 
 /** P2P: gasless push to a person (recipient resolved from their ENS name by the caller). */
-export async function relayDirectPayment(p: { to: Address; amount: bigint; memo: Hex; auth: PayerAuth; stepUpVerified?: boolean }) {
-  checkPolicy(p.auth.from, p.amount, !!p.stepUpVerified)
+export async function relayDirectPayment(p: { to: Address; amount: bigint; memo: Hex; auth: PayerAuth}) {
+  checkPolicy(p.auth.from, p.amount)
   await guardGas()
   const { pub, relayer } = wc()
   let request

@@ -7,6 +7,7 @@
 //  - "injected": an existing browser wallet (MetaMask, Rabby, ...). We store only its address; it signs
 //      the same gasless EIP-712 messages, so it still needs no WBT.
 // Several wallets can live on one device; one is active.
+import { rememberSession, endSession } from "./session"
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
 import { createWalletClient, custom, getAddress, isHex, numberToHex, type Hex } from "viem"
 import { whitechainSepolia } from "@whitepay/shared"
@@ -139,6 +140,7 @@ export async function createWallet(pin: string, importPk?: Hex) {
   s.list.push({ kind: "device", address: account.address, pin: { salt: b64(salt), ...sealed }, createdAt: Date.now() })
   s.active = account.address
   save(s)
+  rememberSession(account.address, pk) // just set the PIN: don't ask for it again this session
   return account.address
 }
 
@@ -165,6 +167,7 @@ export async function unlockWithPin(pin: string): Promise<PrivateKeyAccount> {
   try {
     const pk = await open(await pinKey(pin, unb64(w.pin.salt)), w.pin.iv, w.pin.ct)
     localStorage.removeItem(LOCK(w.address))
+    rememberSession(w.address, pk)
     return privateKeyToAccount(pk)
   } catch {
     const l = JSON.parse(localStorage.getItem(LOCK(w.address)) ?? "{}") as { tries?: number }
@@ -234,7 +237,9 @@ export async function unlockWithPasskey(): Promise<PrivateKeyAccount> {
   const w = activeDevice()
   if (!w.passkey) throw new Error("Fingerprint not set up")
   const secret = await prfSecret(unb64(w.passkey.credId), unb64(w.passkey.prfSalt))
-  return privateKeyToAccount(await open(await prfKey(secret), w.passkey.iv, w.passkey.ct))
+  const pk = await open(await prfKey(secret), w.passkey.iv, w.passkey.ct)
+  rememberSession(w.address, pk)
+  return privateKeyToAccount(pk)
 }
 
 // --------------------------------------------------- browser wallet (EIP-1193)
@@ -338,6 +343,7 @@ export async function setExternalPin(address: string, pin: string) {
   const w = extEntry(address)
   const salt = rand(16)
   replace({ ...w, pinCheck: { salt: b64(salt), hash: await pinHash(pin, salt) } })
+  rememberSession(w.address)
 }
 /** Check the WhitePay PIN (same 5-tries lockout as device wallets). */
 export async function verifyExternalPin(address: string, pin: string) {
@@ -345,7 +351,7 @@ export async function verifyExternalPin(address: string, pin: string) {
   if (!w.pinCheck) throw new Error("Set a WhitePay PIN for this wallet first")
   const wait = pinLockout(w.address)
   if (wait) throw new Error(`Too many wrong PINs. Try again in ${Math.ceil(wait / 60000)} min`)
-  if ((await pinHash(pin, unb64(w.pinCheck.salt))) === w.pinCheck.hash) { localStorage.removeItem(LOCK(w.address)); return }
+  if ((await pinHash(pin, unb64(w.pinCheck.salt))) === w.pinCheck.hash) { localStorage.removeItem(LOCK(w.address)); rememberSession(w.address); return }
   const l = JSON.parse(localStorage.getItem(LOCK(w.address)) ?? "{}") as { tries?: number }
   const tries = (l.tries ?? 0) + 1
   localStorage.setItem(LOCK(w.address), JSON.stringify(tries >= MAX_TRIES ? { tries: 0, until: Date.now() + LOCKOUT_MS } : { tries }))
@@ -381,6 +387,7 @@ export async function verifyExternalPasskey(address: string) {
     },
   })
   if (!a) throw new Error("Fingerprint cancelled")
+  rememberSession(w.address)
 }
 
 /** Remove the active wallet from this device (device keys are deleted). */
@@ -391,5 +398,6 @@ export function removeWallet(address = getWallet()?.address) {
   s.list = s.list.filter((w) => !same(w.address, address))
   if (same(s.active, address)) s.active = s.list[0]?.address ?? null
   save(s)
+  endSession()
   if (address) localStorage.removeItem(LOCK(address))
 }
