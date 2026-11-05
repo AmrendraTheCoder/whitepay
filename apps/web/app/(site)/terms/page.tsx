@@ -1,12 +1,12 @@
 import type { Metadata } from "next"
+import { Section, SectionHeader } from "@whitepay/ui"
 export const metadata: Metadata = { title: "Terms of use", description: "Terms for using the WhitePay testnet preview.", alternates: { canonical: "/terms" } }
 
 export default function Terms() {
   return (
-    <section className="s-page-head"><div className="s-wrap">
-      <div className="s-kicker">Legal</div>
-      <h1>Terms of use</h1>
-      <div className="s-prose">
+    <Section>
+      <SectionHeader level={1} eyebrow="Legal" title="Terms of use" />
+      <div className="prose">
         <p><b>Last updated: 6 November 2026.</b> WhitePay is a hackathon project built for ETHGlobal Mumbai and is offered as a testnet preview. By using it you agree to these terms.</p>
         <h2>1. Testnet only</h2>
         <p>WhitePay runs on Whitechain Sepolia testnet with test USDT, which has no monetary value. Do not send real funds or rely on WhitePay for real payments.</p>
@@ -23,6 +23,6 @@ export default function Terms() {
         <h2>7. Contact</h2>
         <p>Questions or issues: <a href="https://github.com/AmrendraTheCoder/whitepay/issues" target="_blank" rel="noopener noreferrer">open an issue on GitHub</a>.</p>
       </div>
-    </div></section>
+    </Section>
   )
 }

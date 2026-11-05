@@ -2,7 +2,9 @@ import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { SDK_SRC, SDK_SRI } from "@/lib/sdk"
 import { Fraunces, Inter } from "next/font/google"
+import "@whitepay/ui/styles.css"
 import "./store.css"
+import { Providers } from "./providers"
 
 const display = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], style: ["normal", "italic"], variable: "--f-display", display: "swap" })
 const sans = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--f-sans", display: "swap" })
@@ -20,7 +22,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* ── WHITEPAY INTEGRATION ① ── load the SDK: one script tag, pinned with Subresource Integrity */}
         <script src={SDK_SRC} integrity={SDK_SRI} crossOrigin="anonymous" nonce={nonce} defer />
       </head>
-      <body>{children}</body>
+      <body data-theme="chai"><Providers>{children}</Providers></body>
     </html>
   )
 }

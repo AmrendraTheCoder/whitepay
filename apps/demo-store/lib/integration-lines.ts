@@ -2,11 +2,11 @@
 export const LINES: Record<string, { file: string; line: number }> = {
   "①": {
     "file": "app/layout.tsx",
-    "line": 20
+    "line": 22
   },
   "②": {
     "file": "app/page.tsx",
-    "line": 182
+    "line": 196
   },
   "③": {
     "file": "app/api/create-order/route.ts",

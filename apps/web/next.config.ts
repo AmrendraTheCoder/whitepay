@@ -7,7 +7,7 @@ const rootEnv = path.resolve(__dirname, "../../.env")
 if (existsSync(rootEnv)) process.loadEnvFile(rootEnv)
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@whitepay/shared", "@whitepay/server"],
+  transpilePackages: ["@whitepay/ui", "@whitepay/shared", "@whitepay/server"],
   serverExternalPackages: ["@arkiv-network/sdk"],
   outputFileTracingRoot: path.resolve(__dirname, "../.."),
   // dev only: allow a second origin (separate test wallet) and phones on the LAN

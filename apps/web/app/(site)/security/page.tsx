@@ -1,67 +1,61 @@
 import type { Metadata } from "next"
-import Link from "next/link"
+import { ButtonLink, Card, CodeBlock, Grid, Section, SectionHeader, type IconName } from "@whitepay/ui"
 
-export const metadata: Metadata = { title: "Security", description: "How WhitePay protects your money: on-chain guarantees, keys that never leave your phone, signed webhooks, a strict web security layer and a public attack suite.", alternates: { canonical: "/security" } }
+export const metadata: Metadata = { title: "Security", description: "How WhitePay protects your money: rules enforced on-chain, keys that never leave your phone, signed webhooks, a strict web security layer and a public test suite.", alternates: { canonical: "/security" } }
 
-const LAYERS = [
-  { t: "Money layer: enforced on-chain", items: [
-    ["Exact amounts only", "Shops sign merchant, amount, order id and deadline (EIP-712); the payment router settles only that, once."],
-    ["No replays", "USDT authorizations carry single-use nonces; a payment can never be submitted twice."],
-    ["Can't be front-run", "Payments use receiveWithAuthorization: only the WhitePay router can execute them."],
-    ["Safe refunds", "Only the shop's payout wallet can refund, only to the original payer, capped at what was paid."],
-    ["One-signature Autopay", "One permit to a contract made only for that subscription: exact shop, amount and schedule, capped at amount × payments, missed windows skipped, cancel in one tap."],
+const LAYERS: { id: string; title: string; icon: IconName; items: [string, string][] }[] = [
+  { id: "money", title: "Money rules, enforced on-chain", icon: "lock", items: [
+    ["Exact amounts only", "Shops sign merchant, amount, order id and deadline (EIP-712). The payment router settles only that, once."],
+    ["No replays", "USDT authorizations carry single-use nonces, so a payment can never be submitted twice."],
+    ["No front-running", "Payments use receiveWithAuthorization: only the WhitePay router can execute them."],
+    ["Safe refunds", "Only the shop's payout wallet can refund, only to the original payer, never more than was paid."],
   ] },
-  { t: "Your keys", items: [
-    ["Never leave the phone", "AES-GCM encrypted with a passkey (fingerprint / Face ID) or a PBKDF2-hardened PIN with lockout."],
-    ["Unlock once per session", "15 idle minutes in that tab only, cleared on lock."],
-    ["MetaMask too", "External wallets still approve every signature, and WhitePay adds its own PIN or fingerprint gate."],
+  { id: "keys", title: "Your keys", icon: "key", items: [
+    ["Never leave the phone", "AES-GCM encrypted with a passkey (fingerprint or Face ID) or a PBKDF2-hardened PIN with lockout."],
+    ["Unlock once per session", "Stays unlocked for 15 idle minutes in that tab only, and locks when you close it."],
+    ["MetaMask too", "External wallets still approve every signature, with WhitePay's PIN or fingerprint check in front."],
   ] },
-  { t: "Web layer", items: [
-    ["Strict CSP", "Fresh nonce per request with 'strict-dynamic', no framing (clickjacking), HSTS preload."],
-    ["CSRF and abuse", "JSON-only writes, cross-site origins refused, per-IP rate limits, body-size caps."],
-    ["Signed webhooks", "EIP-191 signatures with a 5-minute replay window and event ids; delivery only to public HTTPS hosts (SSRF guard)."],
-    ["Pinned SDK", "Immutable versioned files with Subresource Integrity; network data is never written as HTML."],
+  { id: "web", title: "Web layer", icon: "shield", items: [
+    ["Strict CSP", "A fresh nonce on every request with 'strict-dynamic', no framing, and HSTS preload."],
+    ["CSRF and abuse", "JSON-only writes, cross-site origins refused, per-IP rate limits and body-size caps."],
+    ["Signed webhooks", "EIP-191 signatures with a 5-minute replay window, sent only to public HTTPS hosts."],
+    ["Pinned SDK", "Immutable versioned files with Subresource Integrity. Network data is never inserted as HTML."],
   ] },
 ]
+
+const SUITE = `✔ CSP with per-request nonce + strict-dynamic
+✔ CSRF: cross-site POST /api/pay blocked (403)
+✔ SSRF: webhook to cloud metadata refused
+✔ forged order signature rejected
+✔ store: replayed webhook rejected (401)
+✔ SDK matches the pinned SRI hash
+
+28 passed, 0 failed`
 
 export default function Security() {
   return (
     <>
-      <section className="s-page-head">
-        <div className="s-wrap">
-          <div className="s-kicker">Security</div>
-          <h1>Your money moves only when you say so.</h1>
-          <p className="s-sub">The rules that protect your money are enforced by smart contracts on Whitechain, not by promises in our database.</p>
-        </div>
-      </section>
+      <Section>
+        <SectionHeader level={1} eyebrow="Security" title="Your money moves only when you say so." description="The rules that protect your money are enforced by smart contracts on Whitechain, not by promises in our database." />
+      </Section>
       {LAYERS.map((l, i) => (
-        <section key={l.t} className={`s-section ${i % 2 ? "s-section-alt" : ""}`} style={{ paddingTop: i ? undefined : 30 }}>
-          <div className="s-wrap">
-            <h2 className="s-h2" style={{ fontSize: "clamp(26px,3vw,36px)" }}>{l.t}</h2>
-            <div className="s-grid-2" style={{ marginTop: 22 }}>{l.items.map(([t, d]) => <div key={t} className="s-card"><h3>{t}</h3><p>{d}</p></div>)}</div>
-          </div>
-        </section>
+        <Section key={l.id} tone={i % 2 ? "default" : "muted"} aria-labelledby={l.id}>
+          <SectionHeader id={l.id} title={l.title} />
+          <Grid cols={2}>{l.items.map(([t, d]) => <Card key={t} title={t}><p>{d}</p></Card>)}</Grid>
+        </Section>
       ))}
-      <section className="s-section">
-        <div className="s-wrap s-split">
-          <div>
-            <div className="s-kicker">Verify it yourself</div>
-            <h2 className="s-h2" style={{ fontSize: "clamp(26px,3vw,36px)" }}>An attack suite anyone can run.</h2>
-            <p className="s-sub">28 live checks: CSP nonces, clickjacking, CSRF, oversized bodies, forged orders, SSRF to cloud metadata, forged and replayed webhooks, price tampering and SDK integrity.</p>
-            <div className="s-hero-cta"><a className="s-btn s-btn-ghost" href="https://github.com/AmrendraTheCoder/whitepay/blob/main/scripts/security-check.sh" target="_blank" rel="noopener noreferrer">View the suite ↗</a><a className="s-btn s-btn-ghost" href="https://github.com/AmrendraTheCoder/whitepay/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">SECURITY.md ↗</a></div>
+      <Section aria-labelledby="verify">
+        <div className="split">
+          <div className="wp-stack">
+            <SectionHeader id="verify" eyebrow="Verify it yourself" title="A test suite anyone can run." description="28 live checks covering CSP nonces, clickjacking, CSRF, oversized bodies, forged orders, SSRF, forged and replayed webhooks, price tampering and SDK integrity." />
+            <div className="wp-cluster">
+              <ButtonLink href="https://github.com/AmrendraTheCoder/whitepay/blob/main/scripts/security-check.sh" variant="secondary">View the suite</ButtonLink>
+              <ButtonLink href="https://github.com/AmrendraTheCoder/whitepay/security" variant="ghost">Report a vulnerability</ButtonLink>
+            </div>
           </div>
-          <div className="s-code"><div className="s-code-head"><i /><i /><i /><span>scripts/security-check.sh</span></div>
-            <pre>{`✔ CSP with per-request nonce + strict-dynamic
-✔ CSRF: cross-site POST /api/pay blocked (403)
-✔ SSRF: webhook to cloud metadata refused
-✔ forged order signature rejected
-✔ store: replayed (1h old) webhook rejected (401)
-✔ SDK matches the pinned SRI hash
-
-`}<span className="s">28 passed, 0 failed</span></pre></div>
+          <CodeBlock code={SUITE} label="Security suite output" />
         </div>
-      </section>
-      <section className="s-wrap"><div className="s-card"><h3>Report a vulnerability</h3><p>Found something? Please open a private report on <a href="https://github.com/AmrendraTheCoder/whitepay/security" target="_blank" rel="noopener noreferrer" style={{ color: "var(--s-lime)" }}>GitHub Security</a>. Testnet only: no real funds are at risk. See also our <Link href="/status" style={{ color: "var(--s-lime)" }}>live system status</Link>.</p></div></section>
+      </Section>
     </>
   )
 }

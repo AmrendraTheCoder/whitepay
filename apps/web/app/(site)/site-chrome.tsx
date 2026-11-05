@@ -1,8 +1,9 @@
-// Marketing site header + footer (server components).
+// Marketing site header + footer.
 import Link from "next/link"
-import { OpenApp } from "./open-app"
+import { ButtonLink, Badge } from "@whitepay/ui"
+import { OpenApp, NavLinks } from "./open-app"
 
-const NAV = [
+export const NAV = [
   { href: "/#product", label: "Product" },
   { href: "/business", label: "Business" },
   { href: "/developers", label: "Developers" },
@@ -12,8 +13,8 @@ const NAV = [
 
 export function Logo() {
   return (
-    <Link href="/" className="s-logo" aria-label="WhitePay home">
-      <img src="/icon.svg" alt="" width={30} height={30} />
+    <Link href="/" className="site-logo" aria-label="WhitePay home">
+      <img src="/icon.svg" alt="" width={28} height={28} />
       <span>WhitePay</span>
     </Link>
   )
@@ -21,23 +22,22 @@ export function Logo() {
 
 export function SiteHeader() {
   return (
-    <header className="s-header">
-      <div className="s-wrap s-header-in">
+    <header className="site-header">
+      <div className="wp-container">
         <Logo />
-        <nav className="s-nav" aria-label="Main">
-          {NAV.map((n) => <Link key={n.href} href={n.href}>{n.label}</Link>)}
-        </nav>
-        <div className="s-header-cta">
-          <Link href="/business" className="s-btn s-btn-ghost s-hide-sm">Accept payments</Link>
-          <OpenApp className="s-btn s-btn-lime" />
+        <nav className="site-nav" aria-label="Main"><NavLinks items={NAV} /></nav>
+        <div className="site-header-actions">
+          <ButtonLink href="/business" variant="ghost" size="sm">Accept payments</ButtonLink>
+          <OpenApp size="sm" />
         </div>
-        <details className="s-menu">
-          <summary aria-label="Menu"><span /><span /><span /></summary>
-          <div className="s-menu-panel">
-            {NAV.map((n) => <Link key={n.href} href={n.href}>{n.label}</Link>)}
-            <Link href="/status">Status</Link>
-            <OpenApp className="s-btn s-btn-lime" />
-          </div>
+        <details className="site-menu">
+          <summary className="wp-btn wp-icon-btn" data-variant="secondary" aria-label="Menu">
+            <svg className="wp-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          </summary>
+          <nav className="site-menu-panel" aria-label="Main">
+            <NavLinks items={[...NAV, { href: "/status", label: "Status" }]} />
+            <OpenApp fullWidth />
+          </nav>
         </details>
       </div>
     </header>
@@ -46,33 +46,33 @@ export function SiteHeader() {
 
 const COLS = [
   { title: "Product", links: [["Open the app", "/app"], ["Autopay", "/#autopay"], ["Pricing", "/pricing"], ["Status", "/status"]] },
-  { title: "Business", links: [["Accept payments", "/business"], ["Checkout SDK", "/developers"], ["Live demo store", "https://whitepay-demo-store.vercel.app"], ["Subscriptions", "/business#autopay"]] },
-  { title: "Developers", links: [["Docs", "/developers"], ["Webhooks", "/developers#webhooks"], ["GitHub", "https://github.com/AmrendraTheCoder/whitepay"], ["Contracts", "/status#contracts"]] },
+  { title: "Business", links: [["Accept payments", "/business"], ["Checkout SDK", "/developers"], ["Demo store", "https://whitepay-demo-store.vercel.app"], ["Subscriptions", "/business#subscriptions"]] },
+  { title: "Developers", links: [["Documentation", "/developers"], ["Webhooks", "/developers#webhooks"], ["GitHub", "https://github.com/AmrendraTheCoder/whitepay"], ["Contracts", "/status#contracts"]] },
   { title: "Company", links: [["Security", "/security"], ["Terms", "/terms"], ["Privacy", "/privacy"], ["Contact", "https://github.com/AmrendraTheCoder/whitepay/issues"]] },
-]
+] as const
 
 export function SiteFooter() {
   return (
-    <footer className="s-footer">
-      <div className="s-wrap">
-        <div className="s-footer-top">
-          <div className="s-footer-brand">
+    <footer className="site-footer">
+      <div className="wp-container">
+        <div className="site-footer-grid">
+          <div className="site-footer-brand">
             <Logo />
-            <p>Digital-dollar payments that feel like UPI. Scan, confirm with your fingerprint, settled in about a second.</p>
-            <div className="s-badges"><span>Whitechain</span><span>ENS</span><span>Arkiv</span><span>World ID</span></div>
+            <p>Digital-dollar payments that feel like UPI: scan, confirm with your fingerprint, settled in about a second.</p>
+            <Badge tone="warning" dot>Testnet · test USDT only</Badge>
           </div>
           {COLS.map((c) => (
-            <div key={c.title} className="s-footer-col">
-              <h4>{c.title}</h4>
-              {c.links.map(([l, h]) => h.startsWith("http") || h.startsWith("mailto")
-                ? <a key={l} href={h} target={h.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer">{l}</a>
-                : <Link key={l} href={h}>{l}</Link>)}
-            </div>
+            <nav key={c.title} aria-label={c.title}>
+              <h2>{c.title}</h2>
+              {c.links.map(([label, href]) => href.startsWith("http")
+                ? <a key={label} href={href} target="_blank" rel="noopener noreferrer">{label}</a>
+                : <Link key={label} href={href}>{label}</Link>)}
+            </nav>
           ))}
         </div>
-        <div className="s-footer-bottom">
-          <span>© 2026 WhitePay. Built for ETHGlobal Mumbai.</span>
-          <span className="s-testnet">● Testnet: Whitechain Sepolia test USDT, no real money</span>
+        <div className="site-footer-bottom">
+          <span>© 2026 WhitePay · Built for ETHGlobal Mumbai</span>
+          <span>Whitechain · ENS · Arkiv · World ID</span>
         </div>
       </div>
     </footer>

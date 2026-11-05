@@ -1,12 +1,12 @@
 import type { Metadata } from "next"
+import { Section, SectionHeader } from "@whitepay/ui"
 export const metadata: Metadata = { title: "Privacy", description: "What WhitePay stores, where, and what never leaves your device.", alternates: { canonical: "/privacy" } }
 
 export default function Privacy() {
   return (
-    <section className="s-page-head"><div className="s-wrap">
-      <div className="s-kicker">Legal</div>
-      <h1>Privacy</h1>
-      <div className="s-prose">
+    <Section>
+      <SectionHeader level={1} eyebrow="Legal" title="Privacy" />
+      <div className="prose">
         <p><b>Last updated: 6 November 2026.</b> WhitePay is designed to know as little about you as possible.</p>
         <h2>Never leaves your device</h2>
         <p>Your wallet key, PIN and fingerprint. Biometrics are handled entirely by your phone's passkey system; WhitePay only receives a yes/no and an encryption secret it cannot read.</p>
@@ -21,6 +21,6 @@ export default function Privacy() {
         <h2>Contact</h2>
         <p><a href="https://github.com/AmrendraTheCoder/whitepay/issues" target="_blank" rel="noopener noreferrer">Open an issue on GitHub</a>.</p>
       </div>
-    </div></section>
+    </Section>
   )
 }

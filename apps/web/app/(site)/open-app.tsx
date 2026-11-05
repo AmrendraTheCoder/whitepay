@@ -1,22 +1,28 @@
 "use client"
-// "Open app" that knows whether this device already has a wallet; installed-app launches skip the site.
 import { useEffect, useState } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { ButtonLink, type ButtonSize } from "@whitepay/ui"
 
-export function OpenApp({ className, big }: { className?: string; big?: boolean }) {
+/** Primary CTA. Says "Open your wallet" when this browser already has one. */
+export function OpenApp({ size = "md", fullWidth, label = "Open app" }: { size?: ButtonSize; fullWidth?: boolean; label?: string }) {
   const [has, setHas] = useState(false)
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("whitepay.wallets.v2")
-      setHas(!!raw && (JSON.parse(raw)?.list?.length ?? 0) > 0)
-    } catch {}
+    try { setHas((JSON.parse(localStorage.getItem("whitepay.wallets.v2") ?? "null")?.list?.length ?? 0) > 0) } catch {}
   }, [])
-  return <a href="/app" className={className}>{has ? "Open your wallet" : big ? "Get started free" : "Open app"}</a>
+  return <ButtonLink href="/app" variant="highlight" size={size} fullWidth={fullWidth}>{has ? "Open your wallet" : label}</ButtonLink>
 }
 
-/** Installed PWA (old start_url was "/"): go straight into the wallet. */
+/** Nav links that mark the current page for assistive tech (aria-current). */
+export function NavLinks({ items }: { items: { href: string; label: string }[] }) {
+  const path = usePathname()
+  return <>{items.map((n) => <Link key={n.href} href={n.href} aria-current={path === n.href ? "page" : undefined}>{n.label}</Link>)}</>
+}
+
+/** Installed PWA launches (old start_url "/") go straight into the wallet. */
 export function StandaloneRedirect() {
   useEffect(() => {
-    const standalone = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as any).standalone
+    const standalone = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone
     if (standalone) location.replace("/app")
   }, [])
   return null
