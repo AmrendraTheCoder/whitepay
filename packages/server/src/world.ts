@@ -14,19 +14,22 @@ import { REGISTRY_ABI, stepUpSignal, nameClaimMessage } from "@whitepay/shared"
 import { arkiv, wc } from "./clients"
 import { config } from "./config"
 
-// World ID 4 uniqueness proofs are ONE-TIME per action (a second proof by the same human is
-// rejected as nullifier_replayed). So each purpose gets its own action, and World itself enforces
-// "one personal name per human" / "one verified shop per human". Step-up uses a fresh action per
-// payment (derived from the payment reference), so every large payment gets a new human check.
+// Actions must exist in the World Developer Portal (World App rejects unknown ones).
+//  - whitepay-name: one personal name per human   (max verifications: 1)
+//  - whitepay-shop: one verified shop per human    (max verifications: 1)
+//  - whitepay-pay:  step-up for large payments     (max verifications: unlimited)
+//    Each step-up proof is bound to ONE payment through its signal (payer + payment ref),
+//    so a proof can't be reused for a different payment even though the action is shared.
 export const WORLD_ACTIONS = {
   claim: "whitepay-name",
   shop: "whitepay-shop",
-  stepUp: (paymentRef: string) => `whitepay-pay-${paymentRef.toLowerCase().replace(/^0x/, "").slice(0, 16)}`,
+  stepUp: (_paymentRef?: string) => "whitepay-pay",
 } as const
 type Action = string
 export const ACTION_DESCRIPTIONS: Record<string, string> = {
   "whitepay-name": "Claim your WhitePay name (one per person)",
   "whitepay-shop": "Verify that a real person runs this WhitePay shop",
+  "whitepay-pay": "Confirm a large WhitePay payment",
 }
 export const describeAction = (a: string) => ACTION_DESCRIPTIONS[a] ?? "Confirm this WhitePay payment"
 

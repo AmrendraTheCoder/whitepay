@@ -52,7 +52,7 @@ Only the official hackathon USDT `0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7` co
 World ID 4 uniqueness proofs are **one-time per action**: the same person proving the same action again is refused (`nullifier_replayed`). WhitePay uses this as its "one per human" guarantee:
 - `whitepay-name`: one personal name per human.
 - `whitepay-shop`: one verified shop per human.
-- `whitepay-pay-<payment>`: a **new action per large payment** (>100 USDT), so every step-up is a fresh check.
+- `whitepay-pay`: step-up for payments above 100 USDT. Set to **unlimited** verifications; each proof is bound to one payment through its signal.
 
 The very first attempt (old action `ens-claim`) was consumed by World's server while ours rejected it (staging/production mismatch). That action is retired, and the new actions start clean.
 
