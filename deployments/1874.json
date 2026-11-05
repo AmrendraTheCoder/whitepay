@@ -1,0 +1,44 @@
+{
+  "chainId": 1874,
+  "network": "Whitechain Sepolia",
+  "explorer": "https://explorer.testnet.whitechain.io",
+  "deployedAt": "2026-11-05",
+  "contracts": {
+    "MerchantRegistry": {
+      "address": "0xe063c2fb8f80c20ff699f9f211be300f58781f68",
+      "tx": "0x7f4d1968b8e372e4ce785450c201c6f5cbefc84c502e2d090cdeb1340eef23e0",
+      "verified": true
+    },
+    "PaymentRouter": {
+      "address": "0x9f38d33010345dcd62e26640b539263fa139026e",
+      "tx": "0xc2146e5cd502ece4a98771f89b92d0def11275c15473ada2f70e8738379f9404",
+      "verified": true
+    }
+  },
+  "token": {
+    "USDT": "0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7"
+  },
+  "roles": {
+    "admin": "0x3c86A87353f3295183Cf613b98d6765023277046",
+    "relayer": "0x723C51867F6ddC75C04C35bD83EbaB734d0109fF",
+    "orderSigner": "0xc84295df3fEaE1eE7E19Ab27051811C07E7E1151"
+  },
+  "demo": {
+    "merchant": {
+      "ens": "chai-shop.whitepay.eth",
+      "address": "0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10",
+      "registerTx": "0x0bb8b54b82aab3ba8c0a0c071730275d759bbcef23129229700c0ed41c88c94d",
+      "verifyTx": "0x78992ba2a5ffc244b0846a27b995c9ef332fae103f1f191867fa5f896a81653b"
+    },
+    "customer": "0x97c6bb8A9Aeb0aA4148201aD6595b54Ca72110e2"
+  },
+  "relayerGated": true,
+  "payments": [
+    {
+      "note": "First gasless USDT payment: customer (0 WBT) -> chai-shop.whitepay.eth, 1 USDT, relayer paid gas",
+      "tx": "0x1c9057fc24477b69f37e8da80b2c1e1bf80908a55a84e908139e07cac86c362f",
+      "paymentId": "0x22de5f4e6314454e7d80c8e3bc842f6c3182c90a71ff3c432cc72e6bb191de03",
+      "explorer": "https://explorer.testnet.whitechain.io/tx/0x1c9057fc24477b69f37e8da80b2c1e1bf80908a55a84e908139e07cac86c362f"
+    }
+  ]
+}

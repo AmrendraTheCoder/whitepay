@@ -13,3 +13,4 @@ contracts/broadcast/*/31337/
 .DS_Store
 .vercel
 .claude/.cc-writes/
+*.recovery.lock
