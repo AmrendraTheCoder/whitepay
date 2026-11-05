@@ -176,7 +176,7 @@ export async function settleOnArkiv(p: {
   paymentId: Hex
   txHash: Hex
   block: bigint
-  kind?: "p2m" | "p2p"
+  kind?: "p2m" | "p2p" | "autopay"
 }): Promise<{ receiptKey: Hex; arkivTx: Hex }> {
   const a = arkiv()
   // idempotency: never write two receipts for the same chain tx

@@ -6,6 +6,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "-w", "@whitepay/web"],
       "port": 3000
+    },
+    {
+      "name": "web-prod",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd apps/web && npx next build && npx next start -p 3002"],
+      "port": 3002
+    },
+    {
+      "name": "store",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd apps/demo-store && npx next build && npx next start -p 3100"],
+      "port": 3100
     }
   ]
 }

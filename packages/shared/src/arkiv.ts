@@ -101,3 +101,58 @@ export const PersonProfile = defineSchema("whitepay.person", {
 export const ARKIV_CHAIN_ID = 7794095
 export const ARKIV_RPC = "https://rpc.rabdi.db-chain.testnet.arkiv.network"
 export const ARKIV_EXPLORER = "https://rabdi.explorer.arkiv.network"
+
+// ---------------------------------------------------------------- Autopay (see autopay.ts)
+/** A merchant's signed subscription offer. Lives until the offer expires. */
+export const SubPlan = defineSchema("whitepay.plan", {
+  merchant: addr().indexed(),
+  merchantName: str().optional(),
+  title: str(), // e.g. "Chai Club" (<=128 bytes)
+  amount: u256().indexed(),
+  period: u64(), // seconds
+  periodKey: str(), // demo | daily | weekly | monthly
+  cycles: i32(),
+  planId: str().indexed(),
+  expiresAt: u64(),
+  merchantSig: bytes(),
+  single: bool().default(false), // one subscriber only (checkout-button plans)
+  status: str().indexed(), // "open" | "subscribed"
+  mandateRef: key().optional(), // set when a single-use plan is taken
+  webhook: str().optional(),
+  createdAt: u64().indexed(),
+})
+
+/** The subscriber's standing approval: all cycle authorizations, signed once. */
+export const Mandate = defineSchema("whitepay.mandate", {
+  subscriber: addr().indexed(),
+  merchant: addr().indexed(),
+  merchantName: str().optional(),
+  title: str(),
+  planRef: key().indexed(),
+  subscriptionId: str().indexed(), // bytes32
+  amount: u256(),
+  period: u64(),
+  grace: u64(),
+  cycles: i32(),
+  startAt: u64().indexed(),
+  paidCycles: i32().default(0),
+  nextDueAt: u64().indexed(),
+  status: str().indexed(), // "active" | "completed" | "cancelled" | "failed"
+  auths: bytes(), // cycles × 65-byte ReceiveWithAuthorization signatures
+  webhook: str().optional(),
+  lastTx: str().optional(),
+  updatedAt: u64().indexed(),
+})
+
+/** One upcoming charge. Arkiv expiry = dueAt + grace: the entity IS the countdown. */
+export const DueCycle = defineSchema("whitepay.due", {
+  mandateRef: key().indexed(),
+  subscriber: addr().indexed(),
+  merchant: addr().indexed(),
+  cycle: i32().indexed(),
+  amount: u256(),
+  dueAt: u64().indexed(),
+  status: str().indexed(), // "scheduled" | "retrying"
+  attempts: i32().default(0),
+  lastError: str().optional(),
+})

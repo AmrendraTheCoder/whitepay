@@ -19,3 +19,5 @@ export { registerMerchant, getMerchantByAddress, getMerchantByLabel, validateLab
 export { isLabelAvailable, validateEnsLabel, issueSubname, revokeSubname, setText, setWalletAddress, resolveName, getTexts, ensConfig, ensPublic, ENS_RESERVED_LABELS, type LabelCheck, type IssuedSubname } from "./ens"
 export { rpContext, worldStatus, claimPersonName, getPersonByAddress, verifyMerchantHuman, verifyStepUp, checkStepUpToken, worldConfigured, WORLD_ACTIONS } from "./world"
 export { refundInfo, relayRefund, REFUND_ABI, type RefundInfo } from "./refunds"
+export { assertSafeWebhookUrl, deliverWebhook, webhookSignerAddress, webhookMessage, isPrivateIp } from "./webhooks"
+export { createPlan, getPlan, subscribe, runKeeper, cancelMandate, getMandate, listMandates, remainingCycles, type PlanView, type MandateView } from "./autopay"

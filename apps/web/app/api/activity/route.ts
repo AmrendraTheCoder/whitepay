@@ -14,7 +14,7 @@ export type ActivityRow = {
   counterpartyName?: string
   amount: string
   at: number
-  kind: "p2m" | "p2p" | "transfer" | "whitepay" | "refund"
+  kind: "p2m" | "p2p" | "transfer" | "whitepay" | "refund" | "autopay"
   txHash: string
   explorer: string
   source: "arkiv" | "chain"

@@ -7,7 +7,9 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./arkiv": "./src/arkiv.ts"
+    "./arkiv": "./src/arkiv.ts",
+    "./security": "./src/security.ts",
+    "./autopay": "./src/autopay.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

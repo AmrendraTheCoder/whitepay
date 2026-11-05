@@ -1,7 +1,7 @@
 // Merchant: publish a payment request. The order is signed on the merchant's OWN device;
 // the server only checks the signature against MerchantRegistry and writes the Arkiv entity.
 import { isAddress, isHex, type Address, type Hex } from "viem"
-import { createPaymentRequest, getMerchantByAddress } from "@whitepay/server"
+import { createPaymentRequest, getMerchantByAddress, assertSafeWebhookUrl } from "@whitepay/server"
 import { REQUEST_TTL } from "@whitepay/shared"
 import { json, errorMessage, CORS, preflight } from "@/lib/json"
 
@@ -27,8 +27,10 @@ export async function POST(req: Request) {
     if (amount <= 0n || amount > 1_000_000_000n) return json({ error: "Amount must be between 0 and 1000 USDT" }, { status: 400 })
 
     const webhook = b.webhook ? String(b.webhook) : undefined
-    if (webhook && (!/^https:\/\/[^\s]+$/.test(webhook) || webhook.length > 128))
-      return json({ error: "webhook must be an https URL up to 128 characters" }, { status: 400, headers: CORS })
+    if (webhook && webhook.length > 128) return json({ error: "webhook must be at most 128 characters" }, { status: 400, headers: CORS })
+    if (webhook) {
+      try { await assertSafeWebhookUrl(webhook) } catch (e) { return json({ error: errorMessage(e) }, { status: 400, headers: CORS }) }
+    }
 
     const profile = await getMerchantByAddress(o.merchant as Address)
     if (!profile) return json({ error: "Sign up as a merchant first" }, { status: 403 })

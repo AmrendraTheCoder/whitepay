@@ -7,6 +7,7 @@ import { usdt } from "@/lib/format"
 
 const P = { width: 28, height: 28, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const
 export const Icon = {
+  repeat: (s = 26) => <svg {...P} width={s} height={s}><path d="M17 2l4 4-4 4" /><path d="M3 11V9a3 3 0 0 1 3-3h15" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v2a3 3 0 0 1-3 3H3" /></svg>,
   search: (s = 24) => <svg {...P} width={s} height={s}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>,
   scan: (s = 30) => <svg {...P} width={s} height={s}><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><rect x="7.5" y="7.5" width="3.5" height="3.5" rx=".5" /><rect x="13" y="7.5" width="3.5" height="3.5" rx=".5" /><rect x="7.5" y="13" width="3.5" height="3.5" rx=".5" /><path d="M13 13h1.5v1.5M16.5 16.5h-2" /></svg>,
   pay: (s = 30) => <svg {...P} width={s} height={s}><path d="M13 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M14 4h6v6M20 4l-9 9" /></svg>,
@@ -77,14 +78,14 @@ export type Activity = {
   counterpartyName?: string
   amount: string
   at: number
-  kind: "p2m" | "p2p" | "transfer" | "whitepay" | "refund"
+  kind: "p2m" | "p2p" | "transfer" | "whitepay" | "refund" | "autopay"
   txHash: string
   explorer: string
   source: "arkiv" | "chain"
 }
 
 export const activityLabel = (r: Activity) =>
-  r.kind === "p2m" ? "Shop QR" : r.kind === "p2p" ? "Person" : r.kind === "refund" ? "Refund" : r.kind === "whitepay" ? "WhitePay" : "Transfer"
+  r.kind === "p2m" ? "Shop QR" : r.kind === "p2p" ? "Person" : r.kind === "refund" ? "Refund" : r.kind === "autopay" ? "Autopay" : r.kind === "whitepay" ? "WhitePay" : "Transfer"
 
 /** Wallet + live data for the ACTIVE wallet (any kind): balance (Whitechain), name, unified activity
  *  (Arkiv receipts + every on-chain USDT transfer). Polls the balance and auto-detects incoming money. */
@@ -152,7 +153,7 @@ export const Toast = ({ text }: { text: string | null }) =>
 export const AccountBadge = ({ account }: { account?: "personal" | "business" | "new" }) =>
   account === undefined ? <span className="skel" style={{ width: 70, height: 20 }} />
   : account === "business" ? <span className="badge badge-lime">Business</span>
-  : <span className="badge badge-brand">Personal</span>
+  : <span className="badge badge-neon">Personal</span>
 
 /** Animated success check (draws itself, pulse rings) + a short vibration where supported. */
 export function SuccessCheck() {

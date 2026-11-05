@@ -1,0 +1,92 @@
+// WhitePay Checkout SDK docs: the universal, framework-free way to accept USDT on Whitechain.
+import type { Metadata } from "next"
+import { SDK_SRI } from "./sri"
+
+export const metadata: Metadata = { title: "WhitePay Checkout SDK", description: "Accept USDT on Whitechain on any website: one script tag, one button, signed webhooks." }
+
+const ORIGIN = "https://whitepay.vercel.app"
+const SRC = `${ORIGIN}/sdk/v1.2.0/checkout.js`
+const Code = ({ children }: { children: string }) => <pre className="dev-code">{children}</pre>
+
+export default function Developers() {
+  return (
+    <main className="dev">
+      <header className="dev-hero">
+        <a href="/" className="dev-brand"><img src="/icon.svg" alt="" /> WhitePay</a>
+        <span className="dev-pill">Checkout SDK v1.2</span>
+        <h1>Accept USDT on any website.</h1>
+        <p>One script tag, one button, one server call. Shoppers scan, confirm with their fingerprint and pay with <b>zero gas</b>; you get a signed webhook and an on-chain receipt on Whitechain.</p>
+        <div className="dev-cta">
+          <a href="https://whitepay-demo-store.vercel.app" target="_blank" rel="noopener noreferrer">Live demo store ↗</a>
+          <a href="https://whitepay-demo-store.vercel.app/plain.html" target="_blank" rel="noopener noreferrer">Plain HTML demo ↗</a>
+          <a href="https://github.com/AmrendraTheCoder/whitepay/tree/main/packages/checkout" target="_blank" rel="noopener noreferrer">Source ↗</a>
+        </div>
+      </header>
+
+      <section>
+        <h2>1 · Load the SDK (browser)</h2>
+        <p>Pin an exact version with Subresource Integrity: versioned files (<code>/sdk/v1.2.0/</code>) never change, and if the bytes ever differ the browser refuses to run them. <code>/sdk/v1/checkout.js</code> always serves the latest 1.x for quick prototypes (no SRI).</p>
+        <Code>{`<script src="${SRC}"\n        integrity="${SDK_SRI}"\n        crossorigin="anonymous" defer></script>`}</Code>
+        <p>Using a Content-Security-Policy? Allow <code>{ORIGIN}</code> in <code>script-src</code> (or put your nonce on the tag), <code>connect-src</code> and <code>img-src</code>.</p>
+      </section>
+
+      <section>
+        <h2>2 · Add the button</h2>
+        <Code>{`<whitepay-button order-endpoint="/api/create-order"\n                 payload='{"sku":"chai-kit"}'\n                 label="Pay 2.50 USDT"></whitepay-button>\n\n<script>\n  document.addEventListener("whitepay:paid", (e) => showThanks(e.detail))\n</script>`}</Code>
+        <table className="dev-table"><tbody>
+          <tr><td><code>order-endpoint</code></td><td>Your same-origin route that signs the order (step 3). Cross-origin endpoints are refused.</td></tr>
+          <tr><td><code>payload</code></td><td>JSON sent to your endpoint (product id, cart id). Never the price.</td></tr>
+          <tr><td><code>label</code></td><td>Button text.</td></tr>
+          <tr><td><code>whitepay:created</code></td><td><code>{"{ entityKey, payUrl, deadline }"}</code> the order is live on Arkiv, QR shown</td></tr>
+          <tr><td><code>whitepay:paid</code></td><td><code>{"{ entityKey, orderId, txHash, explorer, amount }"}</code> UI hint only: fulfil from the webhook</td></tr>
+          <tr><td><code>whitepay:expired</code> / <code>whitepay:error</code></td><td>QR expired unpaid / something failed (<code>{"{ message }"}</code>)</td></tr>
+        </tbody></table>
+        <p>It is a standard Web Component, so it works in React, Next.js, Vue (<code>isCustomElement</code>), Svelte, Angular (<code>CUSTOM_ELEMENTS_SCHEMA</code>), WordPress, Shopify themes and plain HTML.</p>
+      </section>
+
+      <section>
+        <h2>3 · Sign the order (your server)</h2>
+        <Code>{`import { createWhitePayOrder } from "@whitepay/checkout/server"\n\nconst CATALOG = { "chai-kit": "2.50" }            // prices live on the server\n\napp.post("/api/create-order", async (req, res) => {\n  const amount = CATALOG[req.body.payload?.sku]\n  if (!amount) return res.status(400).json({ error: "unknown product" })\n  res.json(await createWhitePayOrder({\n    merchantKey: process.env.SHOP_PK,               // your registered shop key, never in the browser\n    amount,\n    webhook: "https://shop.example/api/webhook",\n  }))\n})`}</Code>
+        <p>Your shop key signs <code>merchant, amount, orderId, deadline</code> (EIP-712). The WhitePay router contract only settles that exact amount, to your payout address, once.</p>
+      </section>
+
+      <section>
+        <h2>4 · Fulfil from the webhook</h2>
+        <Code>{`import { verifyWhitePayWebhook, verifyWhitePayPayment } from "@whitepay/checkout/server"\n\napp.post("/api/webhook", express.text({ type: "*/*" }), async (req, res) => {\n  const auth = await verifyWhitePayWebhook({ rawBody: req.body, headers: new Headers(req.headers) })\n  if (!auth.ok) return res.status(401).end()          // forged, tampered or replayed\n  if (await db.seen(auth.eventId)) return res.end()   // idempotent\n  const { txHash, orderId, amount } = auth.event\n  const v = await verifyWhitePayPayment({ txHash, merchant: SHOP, orderId, minAmount: BigInt(amount) })\n  if (v.ok) await fulfil(orderId)                      // money confirmed on Whitechain\n  res.end()\n})`}</Code>
+        <table className="dev-table"><tbody>
+          <tr><td><code>x-whitepay-signature</code></td><td>EIP-191 signature of <code>whitepay-webhook:v1:&lt;timestamp&gt;:&lt;keccak256(body)&gt;</code></td></tr>
+          <tr><td><code>x-whitepay-timestamp</code></td><td>Unix seconds; rejected if older than 5 minutes</td></tr>
+          <tr><td><code>x-whitepay-event-id</code></td><td>Unique per payment: de-duplicate on it</td></tr>
+          <tr><td>Signer</td><td><code>0x27d2F6770F18E1C0Eefc129124747407Ef44aBe1</code> (also at <a href="/api/webhook-key">/api/webhook-key</a>)</td></tr>
+        </tbody></table>
+      </section>
+
+      <section>
+        <h2>5 · Subscriptions (Autopay)</h2>
+        <p>Same button, <code>mode="subscribe"</code>. The shopper approves once with their fingerprint; WhitePay charges every period with zero gas and sends you a signed webhook per payment.</p>
+        <Code>{`<whitepay-button mode="subscribe" order-endpoint="/api/create-subscription"\n                 label="Subscribe · 4.99 USDT / month"></whitepay-button>\n\n// server\nimport { createWhitePaySubscription } from "@whitepay/checkout/server"\napp.post("/api/create-subscription", async (_req, res) => res.json(await createWhitePaySubscription({\n  merchantKey: process.env.SHOP_PK, title: "Pro plan", amount: "4.99", period: "monthly", cycles: 12,\n  webhook: "https://shop.example/api/webhook",   // subscription.started | charged | completed | cancelled | failed\n})))`}</Code>
+        <ul className="dev-list">
+          <li><b>How it runs:</b> each upcoming payment is an Arkiv entity whose expiry is its countdown. At 0 the keeper submits that cycle's pre-signed, time-locked authorization, deletes the entity and creates the next one.</li>
+          <li><b>Time-locked:</b> payment <i>n</i> is valid only from 30 s before its due time until the grace window ends (USDT EIP-3009 <code>validAfter</code> / <code>validBefore</code>), only to you, only that amount, only once.</li>
+          <li><b>Cancel = revoke:</b> cancelling submits USDT <code>cancelAuthorization</code> for every unused payment, so nobody (including WhitePay) can ever charge them.</li>
+          <li><b>Verify charges:</b> <code>verifyWhitePaySubscriptionCharge({"{ txHash, merchant, subscriber }"})</code> checks the router's <code>DirectPayment</code> event on-chain.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Security model</h2>
+        <ul className="dev-list">
+          <li><b>Price tampering:</b> impossible from the browser. The amount is in the shop-signed order and enforced by the contract.</li>
+          <li><b>Fake payments:</b> the browser event is only a hint; fulfilment needs a signed webhook <i>and</i> a <code>PaymentSettled</code> event on-chain.</li>
+          <li><b>Replay:</b> EIP-3009 nonces are single-use on-chain; webhooks expire after 5 minutes and carry an event id.</li>
+          <li><b>Supply chain:</b> versioned SDK path + SRI hash. The SDK never touches keys or money.</li>
+          <li><b>XSS in the SDK:</b> every network value is regex-validated and written with <code>textContent</code>; links use <code>noopener noreferrer</code>.</li>
+          <li><b>SSRF:</b> webhooks only go to https:443 hostnames resolving to public IPs, re-checked before every send, redirects not followed.</li>
+          <li><b>Abuse:</b> per-IP rate limits, JSON-only writes, body caps, cross-site POST blocking and per-payer relayer limits on WhitePay.</li>
+          <li><b>Refunds:</b> only from your payout wallet, only to the original payer, capped at the amount paid (on-chain).</li>
+        </ul>
+      </section>
+      <footer className="dev-foot">Whitechain Sepolia testnet · official USDT <code>0xcedf…55a7</code> · receipts on Arkiv · names on ENS</footer>
+    </main>
+  )
+}

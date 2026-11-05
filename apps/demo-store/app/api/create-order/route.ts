@@ -1,24 +1,28 @@
-// THE MERCHANT INTEGRATION, server side (1 of 2): sign the order with the shop key and publish it on WhitePay.
+// ── WHITEPAY INTEGRATION ③ (server) ── sign the order with the shop's key and publish it on WhitePay.
 import { createWhitePayOrder } from "@whitepay/checkout/server"
 import type { Hex } from "viem"
+import { recordEvent } from "@/lib/events"
 
+// prices live on the SERVER; the browser only says which product (price tampering is impossible)
 const CATALOG: Record<string, string> = { "chai-kit": "2.50", "tote-bag": "1.20", "sticker-pack": "0.40" }
 
 export async function POST(req: Request) {
-  const { payload } = (await req.json()) as { payload?: { sku?: string } }
-  const amount = CATALOG[payload?.sku ?? ""] // price from the SERVER catalog, never from the browser
+  const body = (await req.json().catch(() => null)) as { payload?: { sku?: unknown } } | null
+  const sku = typeof body?.payload?.sku === "string" ? body.payload.sku : ""
+  const amount = Object.hasOwn(CATALOG, sku) ? CATALOG[sku] : undefined
   if (!amount) return Response.json({ error: "unknown product" }, { status: 400 })
-  const site = process.env.STORE_URL // e.g. https://whitepay-demo-store.vercel.app
   try {
     const order = await createWhitePayOrder({
       merchantKey: process.env.STORE_MERCHANT_PK as Hex,
       amount,
       whitepayUrl: process.env.WHITEPAY_URL ?? "https://whitepay.vercel.app",
-      webhook: site?.startsWith("https://") ? `${site}/api/webhook` : undefined,
-      note: payload?.sku,
+      webhook: process.env.STORE_URL?.startsWith("https://") ? `${process.env.STORE_URL}/api/webhook` : undefined,
+      note: sku,
     })
+    recordEvent(order.orderId, `order signed by shop key, published to WhitePay (${amount} USDT)`)
     return Response.json(order)
   } catch (e) {
-    return Response.json({ error: (e as Error).message }, { status: 502 })
+    console.error("[create-order]", (e as Error).message)
+    return Response.json({ error: "could not create the order" }, { status: 502 }) // never leak internals
   }
 }

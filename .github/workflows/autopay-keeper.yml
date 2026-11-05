@@ -1,0 +1,13 @@
+# Autopay keeper heartbeat: pays every subscription cycle whose Arkiv countdown reached 0.
+# Idempotent: each cycle's on-chain nonce can only be used once.
+name: autopay-keeper
+on:
+  schedule: [{ cron: "*/5 * * * *" }]
+  workflow_dispatch: {}
+permissions: {}
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: curl -fsS --max-time 60 https://whitepay.vercel.app/api/autopay/tick

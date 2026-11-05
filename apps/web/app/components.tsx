@@ -111,8 +111,9 @@ export function UnlockSheet({
   }
 
   useEffect(() => {
-    if (session?.pk && !external) return onUnlocked(privateKeyToAccount(session.pk))
-    if (session && external) return void tryWallet()
+    // (an effect may only return a cleanup function, so never `return onUnlocked(...)` here)
+    if (session?.pk && !external) { void onUnlocked(privateKeyToAccount(session.pk)); return }
+    if (session && external) { void tryWallet(); return }
     if (mode === "passkey") void tryPasskey()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

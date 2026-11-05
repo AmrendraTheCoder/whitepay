@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Manrope } from "next/font/google"
 import "./globals.css"
+import { headers } from "next/headers"
 import { THEME_BOOT } from "@/lib/theme-boot"
 
 // Whitechain uses a geometric grotesk; Manrope is the closest open match.
@@ -22,11 +23,13 @@ export const viewport: Viewport = {
   themeColor: "#2448ff",
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // per-request CSP nonce from proxy.ts (this also makes every page dynamically rendered, as nonces require)
+  const nonce = (await headers()).get("x-nonce") ?? undefined
   return (
     <html lang="en" className={sans.variable} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
       <body>{children}</body>
     </html>

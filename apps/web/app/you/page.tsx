@@ -116,7 +116,8 @@ export default function You() {
       <div className="section-title">Payments &amp; security</div>
       <div className="menu-list">
         <a className="menu-row" href="/receive"><span className="ic">{Icon.receive(26)}</span><div>Your QR code<div className="s">Use to receive money from any WhitePay user</div></div><span className="chev">{Icon.chev()}</span></a>
-        <a className="menu-row" href="/merchant"><span className="ic">{Icon.shop(26)}</span><div>Shop &amp; merchant tools<div className="s">Sign up a shop, show QR, verify with World ID</div></div><span className="chev">{Icon.chev()}</span></a>
+        <a className="menu-row" href="/autopay"><span className="ic">{Icon.repeat(26)}</span><div>Autopay &amp; subscriptions<div className="s">Live countdowns, history, cancel anytime</div></div><span className="chev">{Icon.chev()}</span></a>
+        <a className="menu-row" href="/merchant"><span className="ic">{Icon.shop(26)}</span><div>Shop &amp; merchant tools<div className="s">Sign up a shop, QR payments, subscription plans</div></div><span className="chev">{Icon.chev()}</span></a>
         {wallet.kind === "device" && (
           <div className="menu-row">
             <span className="ic">{Icon.finger(26)}</span>

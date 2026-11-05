@@ -7,6 +7,7 @@ import { merchantSignupMessage, orderTypedData, receiveAuthTypedData, ROUTER_ADD
 import { TopBar, UnlockSheet } from "../components"
 import { BottomNav, SuccessCheck, MiniLogo } from "../ui"
 import { WorldVerify } from "../world"
+import { PlansCard } from "./plans"
 import { getWallet } from "@/lib/wallet"
 import { endSession } from "@/lib/session"
 import { usdt, short, ago, mmss } from "@/lib/format"
@@ -314,6 +315,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
           })}
         </div>
       </div>
+      <PlansCard merchant={merchant} account={account} setAccount={setAccount} />
       {unlock && <UnlockSheet title="Unlock terminal" subtitle={`${amount} USDT request`} onUnlocked={create} onCancel={() => setUnlock(false)} />}
       {refundRow && <RefundSheet row={refundRow} account={account} setAccount={setAccount} onClose={(done) => { setRefundRow(null); if (done) void loadReceipts() }} />}
     <BottomNav /></main>
