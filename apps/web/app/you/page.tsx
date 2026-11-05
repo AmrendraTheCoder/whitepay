@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { BottomNav, Icon, avatarColor, prettyName, useWalletData, AccountBadge, LogoLoader } from "../ui"
+import { BottomNav, Icon, avatarColor, prettyName, useWalletData, AccountBadge, LogoLoader, Identicon } from "../ui"
 import { PinPad } from "../components"
 import {
   enablePasskey, passkeySupported, removeWallet, listWallets, setActiveWallet, type WalletInfo,
@@ -45,12 +45,12 @@ export default function You() {
   return (
     <main className="shell with-nav">
       <div className="profile-hero">
-        <div style={{ marginBottom: 8 }}><AccountBadge account={account} /></div>
+        <div className="hero-top"><span className="hero-ident"><Identicon seed={wallet.address} size={52} /></span><AccountBadge account={account} /></div>
         <div className="nm">{name === undefined ? <span className="skel" style={{ width: 200, height: 34 }} /> : account === "business" && displayName ? displayName : name ? prettyName(name) : wallet.label}</div>
         <div className="id">{account === "business" ? "Shop ID" : "WhitePay ID"}: {name === undefined ? <span className="skel" style={{ width: 160, height: 16 }} /> : <b>{name ?? "not claimed yet"}</b>}</div>
         <button className="addr chip" style={{ background: "rgba(255,255,255,.14)", border: 0, color: "#fff" }}
           onClick={() => { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1400) }}>
-          {copied ? "Copied ✓" : `${short(wallet.address)} · ${wallet.kind === "walletconnect" ? "MetaMask app" : wallet.kind === "injected" ? "browser extension" : "this device"}`}
+          {copied ? "Copied ✓" : <>{short(wallet.address)} <span style={{ opacity: .7 }}>· {wallet.kind === "walletconnect" ? "MetaMask app" : wallet.kind === "injected" ? "browser extension" : "this device"}</span> <span aria-hidden style={{ opacity: .8 }}>⧉</span></>}
         </button>
         <a className="qrbtn" href="/receive" aria-label="My QR code">{Icon.receive(44)}</a>
       </div>
@@ -88,7 +88,7 @@ export default function You() {
           const on = w.address.toLowerCase() === wallet.address.toLowerCase()
           return (
             <button key={w.address} className="wallet-row" onClick={() => !on && switchTo(w.address)}>
-              <span className="pic" style={{ background: avatarColor(w.address) }}>{w.kind !== "device" ? Icon.shield(22) : w.label.slice(-1)}</span>
+              <span className="tx-av"><Identicon seed={w.address} size={48} />{w.kind !== "device" && <span className="dir kind" title="external wallet">{Icon.shield(12)}</span>}</span>
               <div>
                 <div style={{ fontWeight: 700 }}>{w.label}</div>
                 <div className="sub">{types[w.address] ?? "…"}</div>

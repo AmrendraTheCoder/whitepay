@@ -21,6 +21,8 @@ export default function Subscriptions() {
   const [cancel, setCancel] = useState<MandateRow | null>(null)
   const [pay, setPay] = useState<MandateRow | null>(null)
   const [paid, setPaid] = useState<{ title: string; amount: string; explorer: string } | null>(null)
+  const [confirm, setConfirm] = useState<MandateRow | null>(null)
+  const [cancelled, setCancelled] = useState<{ m: MandateRow; remaining: number; txs: string[] } | null>(null)
   const [busy, setBusy] = useState("")
   const [msg, setMsg] = useState("")
   const [notif, setNotif] = useState<string>("")
@@ -98,13 +100,39 @@ export default function Subscriptions() {
       const r = await fetch("/api/subscriptions/cancel", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
-      setMsg(m.mode === "reminder" ? "Cancelled. You won't get any more payment requests." : `Cancelled on-chain. ${d.revoked} remaining payment${d.revoked === 1 ? "" : "s"} can never be charged.`)
-      await load(acct.address)
+      setCancelled({ m, remaining: Math.max(0, m.cycles - (m.nextCycle ?? m.paidCycles)), txs: d.txs ?? [] })
+      setRows((rs) => rs?.map((x) => x.key === m.key ? { ...x, status: "cancelled", payNow: false } : x) ?? null)
     } catch (e) { setMsg(friendly((e as Error).message)) } finally { setBusy("") }
   }
 
   if (wallet === undefined || (wallet && rows === null)) return <main className="shell with-nav"><TopBar back="/you" /><LogoLoader /><BottomNav /></main>
   if (!wallet) return <main className="shell with-nav"><TopBar /><div className="card">Create a wallet first.</div><BottomNav /></main>
+
+  if (cancelled) {
+    const { m, remaining, txs } = cancelled
+    return (
+      <main className="shell with-nav"><TopBar back="/you" />
+        <div className="result">
+          <div className="cancel-mark" aria-hidden>✕</div>
+          <h1>{m.title} cancelled</h1>
+          <div className="sub">{m.merchantName ?? short(m.merchant)}</div>
+          <div className="card stack" style={{ width: "100%", textAlign: "left" }}>
+            <div className="row"><span className="sub">Payments made</span><b>{m.paidCycles} of {m.cycles} · {usdt(BigInt(m.amount) * BigInt(m.paidCycles))} USDT</b></div>
+            <div className="row"><span className="sub">Won't be charged</span><b className="pos">{remaining} payment{remaining === 1 ? "" : "s"} · {usdt(BigInt(m.amount) * BigInt(remaining))} USDT</b></div>
+            <div className="row"><span className="sub">What changed</span><b style={{ textAlign: "right" }}>{m.mode === "reminder" ? "No more payment requests" : "Blocked on-chain"}</b></div>
+          </div>
+          <div className="sub" style={{ textAlign: "center" }}>
+            {m.mode === "reminder"
+              ? "Nothing was pre-approved, so there is nothing left that could be charged. The shop has been notified."
+              : "The subscription's contract is switched off on Whitechain: nobody, including WhitePay or the shop, can charge the remaining payments. The shop has been notified."}
+          </div>
+          {txs[0] && <a className="chip" href={txs[0]} target="_blank" rel="noreferrer">Cancellation on Whitechain ↗</a>}
+          <button className="btn btn-primary btn-big" onClick={() => setCancelled(null)}>Done</button>
+        </div>
+        <BottomNav />
+      </main>
+    )
+  }
 
   if (paid)
     return (
@@ -162,7 +190,7 @@ export default function Subscriptions() {
             )}
             <div className="row">
               {m.lastTxUrl ? <a className="chip" href={m.lastTxUrl} target="_blank" rel="noreferrer">Last payment ↗</a> : <span />}
-              <button className="chip" disabled={busy === m.key} onClick={() => setCancel(m)}>{busy === m.key && !payNow ? <><span className="spinner" /> Cancelling…</> : "Cancel subscription"}</button>
+              <button className="chip" disabled={busy === m.key} onClick={() => setConfirm(m)}>{busy === m.key && !payNow ? <><span className="spinner" /> Cancelling…</> : "Cancel subscription"}</button>
             </div>
           </div>
         )
@@ -174,6 +202,22 @@ export default function Subscriptions() {
           <span className={`badge ${m.status === "completed" ? "badge-ok" : m.status === "cancelled" ? "badge-warn" : "badge-bad"}`}>{m.status}</span>
         </div>
       ))}
+      {confirm && (() => {
+        const left = Math.max(0, confirm.cycles - (confirm.nextCycle ?? confirm.paidCycles))
+        return (
+          <div className="sheet-backdrop" onClick={() => setConfirm(null)}>
+            <div className="sheet stack" onClick={(e) => e.stopPropagation()}>
+              <h3>Cancel {confirm.title}?</h3>
+              <div className="sub" style={{ textAlign: "center" }}>
+                You've paid {confirm.paidCycles} of {confirm.cycles}. {left ? `The remaining ${left} payment${left === 1 ? "" : "s"} (${usdt(BigInt(confirm.amount) * BigInt(left))} USDT) won't be charged.` : "No payments are left."}
+                {" "}{confirm.mode === "reminder" ? "You'll stop getting payment requests." : "This switches the subscription's contract off on-chain."} Payments already made aren't refunded automatically; ask the shop if needed.
+              </div>
+              <button className="btn btn-big btn-danger" onClick={() => { setCancel(confirm); setConfirm(null) }}>Cancel subscription</button>
+              <button className="btn btn-ghost" onClick={() => setConfirm(null)}>Keep it</button>
+            </div>
+          </div>
+        )
+      })()}
       {pay && <UnlockSheet title={`Pay ${usdt(pay.amount)} USDT`} subtitle={`${pay.title}: payment ${(pay.nextCycle ?? 0) + 1} of ${pay.cycles}`} onUnlocked={doPay} onCancel={() => setPay(null)} />}
       {cancel && (
         <UnlockSheet title="Cancel subscription" subtitle={cancel.mode === "reminder" ? `${cancel.title}: stop all future payment requests` : `${cancel.title}: block ${cancel.cycles - cancel.paidCycles} remaining payment(s) on-chain`} onUnlocked={doCancel} onCancel={() => setCancel(null)} />

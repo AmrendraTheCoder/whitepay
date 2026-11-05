@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { getWallet } from "@/lib/wallet"
 import { usdt, mmss } from "@/lib/format"
+import { keccak256, toBytes } from "viem"
 
 const P = { width: 28, height: 28, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const
 export const Icon = {
@@ -53,13 +54,16 @@ export function BottomNav() {
     { href: "/merchant", label: "Shop", icon: Icon.shop(24) },
     { href: "/you", label: "You", icon: Icon.user() },
   ]
+  const active = Math.max(0, items.findIndex((i) => path === i.href || (i.href !== "/app" && path.startsWith(i.href))))
   return (
-    <nav className="bottomnav">
-      <div className="in">
-        {items.map((i) => (
-          <a key={i.href} href={i.href} className={`navitem ${path === i.href ? "on" : ""}`}>
+    <nav className="bottomnav" aria-label="Main">
+      <div className="in" style={{ ["--i" as string]: active, ["--n" as string]: items.length }}>
+        <span className="nav-pill" aria-hidden />
+        {items.map((i, idx) => (
+          <a key={i.href} href={i.href} className={`navitem ${idx === active ? "on" : ""}`} aria-current={idx === active ? "page" : undefined}
+            onClick={() => { try { navigator.vibrate?.(8) } catch {} }}>
             <span className="ic">{i.icon}</span>
-            {i.label}
+            <span className="lbl">{i.label}</span>
           </a>
         ))}
       </div>
@@ -217,4 +221,45 @@ export function Countdown({ to, format = mmss, done = "0:00" }: { to: number; fo
   }, [])
   const left = to - Date.now() / 1000
   return <span className="countdown">{left > 0 ? format(left) : done}</span>
+}
+
+/**
+ * Generated avatar for a wallet: two-tone gradient + symmetric 5×5 pattern from keccak(address), so the same
+ * address always gets the same picture and similar-looking addresses look different. Named contacts show
+ * their initial on the same gradient. Pure SVG, memoised per seed.
+ */
+const identiconCache = new Map<string, { a: string; b: string; cells: boolean[] }>()
+function identiconData(seed: string) {
+  const k = seed.toLowerCase()
+  const hit = identiconCache.get(k)
+  if (hit) return hit
+  const bytes = keccak256(toBytes(k), "bytes")
+  const hue = (bytes[0] * 360) / 256
+  const hue2 = (hue + 40 + (bytes[1] % 80)) % 360
+  const cells: boolean[] = []
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) cells[r * 3 + c] = bytes[2 + r * 3 + c] % 2 === 0
+  const d = { a: `hsl(${hue} 72% 52%)`, b: `hsl(${hue2} 78% 38%)`, cells }
+  if (identiconCache.size > 500) identiconCache.clear()
+  identiconCache.set(k, d)
+  return d
+}
+export function Identicon({ seed, name, size = 48 }: { seed: string; name?: string; size?: number }) {
+  const { a, b, cells } = identiconData(seed || "0x")
+  const id = `ig${seed.slice(2, 10)}${size}`
+  return (
+    <svg className="identicon" width={size} height={size} viewBox="0 0 60 60" role="img" aria-label={name ?? seed}>
+      <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={a} /><stop offset="1" stopColor={b} /></linearGradient></defs>
+      <rect width="60" height="60" rx="30" fill={`url(#${id})`} />
+      {name ? (
+        <text x="30" y="31" textAnchor="middle" dominantBaseline="central" fontSize="26" fontWeight="800" fill="#fff">{initial(name)}</text>
+      ) : (
+        <g fill="#fff" opacity=".88">
+          {Array.from({ length: 25 }, (_, i) => {
+            const r = Math.floor(i / 5), c = i % 5, on = cells[r * 3 + (c < 3 ? c : 4 - c)]
+            return on ? <rect key={i} x={12 + c * 7.2} y={12 + r * 7.2} width="6.4" height="6.4" rx="1.6" /> : null
+          })}
+        </g>
+      )}
+    </svg>
+  )
 }

@@ -3,7 +3,7 @@ import { useMemo } from "react"
 import { DueBanner } from "../due-banner"
 import { AvatarRings } from "../avatar-rings"
 import { Onboard } from "../onboard"
-import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp, LogoLoader } from "../ui"
+import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp, LogoLoader, Identicon } from "../ui"
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 
@@ -79,7 +79,7 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
         {rows?.length === 0 && <div className="empty" style={{ gridColumn: "1 / -1" }}>People and shops you pay show up here.</div>}
         {people.map((p) => (
           <a key={p.address} className="person" href={`/send?to=${p.address}${p.name ? `&name=${p.name}` : ""}`}>
-            <span className="pic" style={{ background: avatarColor(p.name ?? p.address) }}>{initial(p.name ?? p.address.slice(2))}</span>
+            <span className="pic pic-ident"><Identicon seed={p.address} name={p.name} size={64} /></span>
             <span className="nm">{prettyName(p.name, p.address)}</span>
           </a>
         ))}

@@ -1,74 +1,141 @@
 "use client"
-import { useState } from "react"
-import { BottomNav, Icon, useWalletData, Toast } from "../ui"
-import { usdt } from "@/lib/format"
+import { useMemo, useState } from "react"
+import { BottomNav, Icon, Identicon, useWalletData, Toast, type Activity } from "../ui"
+import { usdt, short } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 import { USDT_ADDRESS, EXPLORER_URL } from "@whitepay/shared"
 
-/** GPay "Money": accounts (USDT on Whitechain instead of a bank), with a link to history. */
+const CATS: { id: string; label: string; color: string; test: (r: Activity) => boolean }[] = [
+  { id: "shops", label: "Shops", color: "#3DE0FF", test: (r) => r.kind === "p2m" },
+  { id: "people", label: "People", color: "#DDF05A", test: (r) => r.kind === "p2p" || r.kind === "transfer" },
+  { id: "subs", label: "Subscriptions", color: "#FF5CC8", test: (r) => r.kind === "autopay" },
+  { id: "other", label: "Other", color: "#8a92c8", test: () => true },
+]
+
+/** Money: balance, this month's in/out, 6-month trend, where money went, your address + QR. */
 export default function Money() {
   const { wallet, bal, rows, toast } = useWalletData()
   const { hidden, toggle } = useHideBalance()
   const [copied, setCopied] = useState(false)
+  const [qr, setQr] = useState("")
+  const [showAdd, setShowAdd] = useState(false)
   const show = (v: bigint | string) => (hidden ? "••••" : usdt(v))
-  const spent = (rows ?? []).filter((r) => r.direction === "out").reduce((a, r) => a + BigInt(r.amount), 0n)
-  const received = (rows ?? []).filter((r) => r.direction === "in").reduce((a, r) => a + BigInt(r.amount), 0n)
+
+  const stats = useMemo(() => {
+    const now = new Date()
+    const months = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+      return { key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleString("en-IN", { month: "short" }), inn: 0n, out: 0n }
+    })
+    const byKey = new Map(months.map((m) => [m.key, m]))
+    const cats = new Map<string, bigint>(CATS.map((c) => [c.id, 0n]))
+    const thisKey = months[5].key
+    for (const r of rows ?? []) {
+      const d = new Date(r.at * 1000)
+      const m = byKey.get(`${d.getFullYear()}-${d.getMonth()}`)
+      if (!m) continue
+      const a = BigInt(r.amount)
+      if (r.direction === "in") m.inn += a
+      else {
+        m.out += a
+        if (m.key === thisKey) { const c = CATS.find((c) => c.test(r))!; cats.set(c.id, cats.get(c.id)! + a) }
+      }
+    }
+    const max = months.reduce((x, m) => (m.inn > x ? m.inn : m.out > x ? m.out : x), 1n)
+    return { months, max, cats, month: months[5] }
+  }, [rows])
+
+  const copy = () => { if (wallet) { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1400) } }
+  const loadQr = async () => {
+    if (!wallet || qr) return
+    const { default: QR } = await import("qrcode") // only loaded when the user opens it
+    setQr(await QR.toDataURL(wallet.address, { margin: 1, width: 360 }))
+  }
+  const m = stats.month
+  const net = m.inn - m.out
+  const catTotal = [...stats.cats.values()].reduce((a, b) => a + b, 0n)
 
   return (
     <main className="shell with-nav">
       <Toast text={toast} />
-      <div className="profile-hero" style={{ paddingTop: 56, paddingBottom: 30 }}>
-        <div className="row" style={{ alignItems: "center" }}>
-          <div className="nm">Money</div>
+      <section className="money-hero">
+        <div className="row">
+          <span className="lbl">Total balance</span>
           <button className="eye" onClick={toggle} aria-label={hidden ? "Show balances" : "Hide balances"}>{hidden ? Icon.eyeOff() : Icon.eye()}</button>
         </div>
-        <div className="sub" style={{ color: "rgba(255,255,255,.8)", marginTop: 6 }}>Stablecoin balance on Whitechain</div>
-      </div>
-
-      <div className="menu-list">
-        <a className="menu-row" href={wallet ? `${EXPLORER_URL}/address/${wallet.address}` : "#"} target="_blank" rel="noreferrer">
-          <span className="pic" style={{ width: 52, height: 52, borderRadius: "50%", display: "grid", placeItems: "center", background: "#fff" }}>
-            <img src="/icon.svg" alt="" style={{ width: 34, height: 34, borderRadius: 9 }} />
-          </span>
-          <div>
-            <div style={{ fontWeight: 700 }}>Tether USD · Whitechain</div>
-            <div className="s">{bal ? `${show(bal.usdt)} USDT` : <span className="skel" style={{ width: 90, height: 14 }} />}</div>
-          </div>
-          <span className="chev" style={{ color: "var(--brand-soft)", fontWeight: 700, fontSize: 15 }}>Explorer</span>
-        </a>
-        <div className="menu-row">
-          <span className="ic" style={{ width: 52, display: "grid", placeItems: "center" }}>{Icon.bolt(26)}</span>
-          <div>
-            <div style={{ fontWeight: 700 }}>Network fees</div>
-            <div className="s">You pay 0 gas. WhitePay's relayer covers it.</div>
-          </div>
+        <div className="bal">{bal ? show(bal.usdt) : <span className="skel" style={{ width: 160, height: 44 }} />}<small>USDT</small></div>
+        <div className="meta"><span className="pill-lime">0 gas</span><span>Tether USD on Whitechain · ≈ ${hidden ? "••" : bal ? usdt(bal.usdt) : "…"}</span></div>
+        <div className="qa">
+          <a href="/send"><span>{Icon.pay(24)}</span>Send</a>
+          <a href="/receive"><span>{Icon.receive(24)}</span>Receive</a>
+          <button onClick={() => { setShowAdd(true); void loadQr(); document.getElementById("add")?.scrollIntoView({ behavior: "smooth" }) }}><span>{Icon.balance(24)}</span>Add money</button>
+          <a href="/transactions"><span>{Icon.history(24)}</span>History</a>
         </div>
-      </div>
+      </section>
 
-      <div className="actions">
-        <div className="card"><div className="sub">Spent</div><div style={{ fontSize: 24, fontWeight: 800 }}>{rows === null ? <span className="skel" style={{ width: 80, height: 26 }} /> : show(spent)}</div></div>
-        <div className="card"><div className="sub">Received</div><div style={{ fontSize: 24, fontWeight: 800, color: "var(--ok)" }}>{rows === null ? <span className="skel" style={{ width: 80, height: 26 }} /> : show(received)}</div></div>
-      </div>
+      <section className="card stack">
+        <div className="row"><h2 style={{ margin: 0 }}>This month</h2><a className="sub" href="/transactions">See all ›</a></div>
+        <div className="io">
+          <div><span className="sub">Sent</span><b className="neg">−{rows === null ? "…" : show(m.out)}</b></div>
+          <div><span className="sub">Received</span><b className="pos">+{rows === null ? "…" : show(m.inn)}</b></div>
+          <div><span className="sub">Net</span><b className={net < 0n ? "neg" : "pos"}>{net < 0n ? "−" : "+"}{rows === null ? "…" : show(net < 0n ? -net : net)}</b></div>
+        </div>
+        <div className="bars" role="img" aria-label="Received and sent per month, last 6 months">
+          {stats.months.map((x) => (
+            <div key={x.key} className="bar-col">
+              <div className="bar-pair">
+                <span className="b in" style={{ height: `${Number((x.inn * 100n) / stats.max)}%` }} title={`${x.label}: +${usdt(x.inn)}`} />
+                <span className="b out" style={{ height: `${Number((x.out * 100n) / stats.max)}%` }} title={`${x.label}: −${usdt(x.out)}`} />
+              </div>
+              <span className="sub">{x.label}</span>
+            </div>
+          ))}
+        </div>
+        <div className="legend"><span><i className="in" />Received</span><span><i className="out" />Sent</span></div>
+      </section>
 
-      <div className="section-title" id="add">Add money</div>
-      <div className="card stack">
-        <div className="sub">Your WhitePay wallet address on Whitechain (USDT only)</div>
-        <button className="input mono" style={{ textAlign: "left", cursor: "pointer" }}
-          onClick={() => { if (wallet) { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1400) } }}>
-          {copied ? "Copied ✓" : wallet?.address ?? ""}
+      {catTotal > 0n && (
+        <section className="card stack">
+          <h2 style={{ margin: 0 }}>Where it went</h2>
+          <div className="stack-bar">
+            {CATS.map((c) => { const v = stats.cats.get(c.id)!; return v > 0n ? <span key={c.id} style={{ width: `${Number((v * 1000n) / catTotal) / 10}%`, background: c.color }} /> : null })}
+          </div>
+          <div className="cat-list">
+            {CATS.map((c) => { const v = stats.cats.get(c.id)!; return v > 0n ? (
+              <div key={c.id} className="row"><span><i style={{ background: c.color }} />{c.label}</span><b>{show(v)} <span className="sub">{Math.round(Number((v * 100n) / catTotal))}%</span></b></div>
+            ) : null })}
+          </div>
+        </section>
+      )}
+
+      <section className="card stack addr-card" id="add">
+        <div className="row" style={{ gap: 12, justifyContent: "flex-start" }}>
+          {wallet && <Identicon seed={wallet.address} size={52} />}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800 }}>Your wallet address</div>
+            <div className="sub"><span className="mono">{wallet ? short(wallet.address) : ""}</span> · USDT on Whitechain</div>
+          </div>
+          <button className="chip" onClick={copy}>{copied ? "Copied ✓" : "Copy"}</button>
+        </div>
+        <button className="btn btn-ghost" onClick={() => { setShowAdd((v) => !v); void loadQr() }} aria-expanded={showAdd}>
+          {showAdd ? "Hide" : "Show QR & ways to add money"}
         </button>
-        <ol className="sub" style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8, fontSize: 14.5 }}>
-          <li><b style={{ color: "var(--text)" }}>From a friend:</b> show your QR (Receive), they pay you in USDT, with no gas for either of you.</li>
-          <li><b style={{ color: "var(--text)" }}>Swap on testnet:</b> get WBT from the <a href="https://faucet.testnet.whitechain.io" target="_blank" rel="noreferrer" style={{ color: "var(--brand-soft)" }}>Whitechain faucet</a>, swap WBT → <b>Tether USD (0xcedf…55a7)</b> on <a href="https://testnet.yetitrade.fi" target="_blank" rel="noreferrer" style={{ color: "var(--brand-soft)" }}>YetiTrade</a>, then send it to the address above.</li>
-          <li><b style={{ color: "var(--text)" }}>From MetaMask:</b> on Whitechain Sepolia (chain 1874), send USDT to the address above, or connect MetaMask as a wallet under You.</li>
-        </ol>
-        <a className="btn btn-primary" href="/receive">Show my QR</a>
-      </div>
+        {showAdd && (
+          <div className="stack add-body">
+            <div className="qr-wrap" style={{ maxWidth: 220, margin: "0 auto" }}>{qr ? <img src={qr} alt="Your wallet address QR" /> : <span className="skel" style={{ width: 200, height: 200 }} />}</div>
+            <div className="mono addr-full" onClick={copy}>{wallet?.address}</div>
+            <ol className="ways">
+              <li><b>From a friend:</b> show your QR (Receive); they pay you in USDT, no gas for either of you.</li>
+              <li><b>Testnet swap:</b> get WBT from the <a href="https://faucet.testnet.whitechain.io" target="_blank" rel="noreferrer">Whitechain faucet</a>, swap WBT → Tether USD (0xcedf…55a7) on <a href="https://testnet.yetitrade.fi" target="_blank" rel="noreferrer">YetiTrade</a>, send it here.</li>
+              <li><b>From MetaMask:</b> on Whitechain Sepolia (chain 1874), send USDT to this address, or connect MetaMask under You.</li>
+            </ol>
+          </div>
+        )}
+      </section>
 
-      <div className="section-title">Manage</div>
       <div className="menu-list">
-        <a className="menu-row" href="/transactions"><span className="ic">{Icon.history()}</span>See transaction history<span className="chev">{Icon.chev()}</span></a>
-        <a className="menu-row" href="/receive"><span className="ic">{Icon.receive(24)}</span>Your QR code<span className="chev">{Icon.chev()}</span></a>
+        <a className="menu-row" href="/autopay"><span className="ic">{Icon.repeat(24)}</span>Subscriptions<span className="chev">{Icon.chev()}</span></a>
+        <a className="menu-row" href={wallet ? `${EXPLORER_URL}/address/${wallet.address}` : "#"} target="_blank" rel="noreferrer"><span className="ic">{Icon.history(24)}</span>View on Whitechain explorer<span className="chev">{Icon.chev()}</span></a>
         <a className="menu-row" href={`${EXPLORER_URL}/address/${USDT_ADDRESS}`} target="_blank" rel="noreferrer"><span className="ic">{Icon.shield()}</span>About USDT on Whitechain<span className="chev">{Icon.chev()}</span></a>
       </div>
 
