@@ -31,7 +31,7 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
   return (
     <div className="card stack">
       <h2>Claim your WhitePay name</h2>
-      <div className="sub">Friends pay <b>you.whitepay.eth</b> instead of a long address. One name per person, verified with World ID.</div>
+      <div className="sub">Friends pay <b>you.whitepay.eth</b> instead of a long address. One name per person, verified with World ID. If your World ID already has a name on another wallet, it moves to this wallet instead.</div>
       <div className="row" style={{ gap: 6 }}>
         <input className="input" placeholder="ravi" value={label} autoCapitalize="none" onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
         <span className="sub" style={{ whiteSpace: "nowrap" }}>.whitepay.eth</span>
@@ -53,7 +53,10 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
             if (!r.ok) throw new Error(d.error)
             return d
           }}
-          onVerified={(d) => { setMsg(`You are ${d?.name ?? label + ".whitepay.eth"} ✓`); onClaimed() }}
+          onVerified={(d) => {
+            setMsg(d?.moved ? `Your World ID's name ${d.name} now points to this wallet ✓` : `You are ${d?.name ?? label + ".whitepay.eth"} ✓`)
+            onClaimed()
+          }}
           onDenied={(reason) => setMsg(`Name not claimed: ${reason}`)}
         />
       )}

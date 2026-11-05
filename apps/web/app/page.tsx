@@ -1,13 +1,13 @@
 "use client"
 import { useMemo } from "react"
 import { Onboard } from "./onboard"
-import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp } from "./ui"
+import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp, LogoLoader } from "./ui"
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 
 export default function Home() {
   const data = useWalletData()
-  if (data.wallet === undefined) return <main className="shell" />
+  if (data.wallet === undefined) return <main className="shell"><LogoLoader /></main>
   if (!data.wallet) return <Onboard onDone={() => location.reload()} />
   return <WalletHome {...data} wallet={data.wallet} />
 }

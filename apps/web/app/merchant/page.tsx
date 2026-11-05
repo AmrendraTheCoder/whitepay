@@ -5,7 +5,7 @@ import { parseUnits, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { merchantSignupMessage, orderTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { BottomNav, SuccessCheck } from "../ui"
+import { BottomNav, SuccessCheck, LogoLoader } from "../ui"
 import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, ago, mmss } from "@/lib/format"
@@ -35,7 +35,7 @@ export default function MerchantPage() {
   }, [wallet])
 
   if (wallet === undefined || (wallet && merchant === undefined))
-    return <main className="shell with-nav"><TopBar /><div className="card row"><span className="spinner" /> Loading merchant profile…</div><BottomNav /></main>
+    return <main className="shell with-nav"><LogoLoader label="Opening your shop…" /><BottomNav /></main>
   if (!wallet)
     return (
       <main className="shell with-nav">
@@ -44,7 +44,7 @@ export default function MerchantPage() {
         <a className="btn btn-primary" href="/">Create wallet</a>
       <BottomNav /></main>
     )
-  if (!merchant && personalName === undefined) return <main className="shell with-nav"><TopBar back={null} /><div className="card row"><span className="spinner" /> Checking account type…</div><BottomNav /></main>
+  if (!merchant && personalName === undefined) return <main className="shell with-nav"><LogoLoader label="Opening your shop…" /><BottomNav /></main>
   if (!merchant && personalName)
     return (
       <main className="shell with-nav">

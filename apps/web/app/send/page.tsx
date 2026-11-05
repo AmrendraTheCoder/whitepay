@@ -5,7 +5,7 @@ import { isAddress, keccak256, parseUnits, toHex, type Address, type Hex } from 
 import type { PrivateKeyAccount } from "viem/accounts"
 import { directNonce, receiveAuthTypedData, stepUpSignal, ROUTER_ADDRESS } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { SuccessCheck } from "../ui"
+import { SuccessCheck, LogoLoader } from "../ui"
 import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, initials } from "@/lib/format"
@@ -14,7 +14,7 @@ type Payee = { address: Address; name?: string; displayName?: string; kind?: str
 
 export default function SendPage() {
   return (
-    <Suspense fallback={<main className="shell"><TopBar /></main>}>
+    <Suspense fallback={<main className="shell"><LogoLoader /></main>}>
       <Send />
     </Suspense>
   )
@@ -52,7 +52,7 @@ function Send() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  if (wallet === undefined) return <main className="shell"><TopBar /></main>
+  if (wallet === undefined) return <main className="shell"><LogoLoader /></main>
   if (!wallet)
     return (
       <main className="shell">

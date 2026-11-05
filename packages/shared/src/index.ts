@@ -231,3 +231,12 @@ export const stepUpSignal = (payer: Address, paymentRef: Hex) => `step-up:${getA
 /** Personal name claim message the user's device signs (proves control of the wallet). */
 export const nameClaimMessage = (p: { label: string; address: Address; issuedAt: number }) =>
   `WhitePay name claim\nname: ${p.label}\naddress: ${p.address}\nissued: ${p.issuedAt}`
+
+/** WhitePay's ENSv2 deployment on Ethereum Sepolia (parent whitepay.eth). */
+export const ENS_WHITEPAY = {
+  parent: "whitepay.eth",
+  userRegistry: "0x7dF61f730b8f90668aD10363e9E086131422264d" as Address,
+  resolver: "0xc10Ffe23aada8a5cb09DDbe09259e251971844ea" as Address,
+  app: (name: string) => `https://sepolia.app.ens.domains/${name}`,
+  etherscan: (a: string) => `https://sepolia.etherscan.io/address/${a}`,
+} as const

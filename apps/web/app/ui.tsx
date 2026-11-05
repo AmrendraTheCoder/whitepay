@@ -183,3 +183,19 @@ export function useCountUp(target: number | null, ms = 700) {
   }, [target, ms])
   return v
 }
+
+/** Brand loader: the W draws itself on the blue tile, the lime dot bounces. Used for every
+ *  full-screen loading state instead of a spinner card. */
+export function LogoLoader({ label }: { label?: string }) {
+  return (
+    <div className="logo-loader" role="status" aria-live="polite">
+      <div className="ll-tile">
+        <svg viewBox="0 0 512 512" aria-hidden>
+          <path className="ll-w" d="M110 168l50 176 56-128 40 92 40-92 56 128 50-176" />
+          <circle className="ll-dot" cx="410" cy="110" r="34" />
+        </svg>
+      </div>
+      {label && <div className="ll-label">{label}</div>}
+    </div>
+  )
+}

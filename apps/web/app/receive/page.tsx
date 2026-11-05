@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import QRCode from "qrcode"
 import { receiveUrl } from "@whitepay/shared"
 import { TopBar } from "../components"
+import { LogoLoader } from "../ui"
 import { getWallet } from "@/lib/wallet"
 import { short } from "@/lib/format"
 
@@ -31,7 +32,7 @@ export default function Receive() {
     QRCode.toDataURL(url, { margin: 1, width: 600, errorCorrectionLevel: "M" }).then(setQr)
   }, [wallet, name, amount])
 
-  if (wallet === undefined) return <main className="shell"><TopBar /></main>
+  if (wallet === undefined) return <main className="shell"><LogoLoader /></main>
   if (!wallet)
     return (
       <main className="shell">

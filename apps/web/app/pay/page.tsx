@@ -5,7 +5,7 @@ import { hashTypedData, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { orderTypedData, receiveAuthTypedData, stepUpSignal, ROUTER_ADDRESS, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { SuccessCheck } from "../ui"
+import { SuccessCheck, LogoLoader } from "../ui"
 import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, initials, mmss } from "@/lib/format"
@@ -18,7 +18,7 @@ type ReqResp =
 
 export default function PayPage() {
   return (
-    <Suspense fallback={<main className="shell"><TopBar /></main>}>
+    <Suspense fallback={<main className="shell"><LogoLoader /></main>}>
       <Pay />
     </Suspense>
   )
@@ -45,7 +45,7 @@ function Pay() {
     return () => clearInterval(t)
   }, [])
 
-  if (wallet === undefined) return <main className="shell"><TopBar /></main>
+  if (wallet === undefined) return <main className="shell"><LogoLoader /></main>
   if (!wallet)
     return (
       <main className="shell">
@@ -58,7 +58,7 @@ function Pay() {
       </main>
     )
 
-  if (!data) return <main className="shell"><TopBar /><div className="card row"><span className="spinner" /> Fetching request from Arkiv and verifying…</div></main>
+  if (!data) return <main className="shell"><LogoLoader label="Verifying payment request…" /></main>
 
   if (data.state !== "pending" && phase === "idle") {
     const paid = data.state === "paid"

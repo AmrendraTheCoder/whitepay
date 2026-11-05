@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { BottomNav, Icon, avatarColor, prettyName, useWalletData, AccountBadge } from "../ui"
+import { BottomNav, Icon, avatarColor, prettyName, useWalletData, AccountBadge, LogoLoader } from "../ui"
 import { ClaimName } from "../claim-name"
 import { PinPad } from "../components"
 import {
@@ -8,11 +8,18 @@ import {
 } from "@/lib/wallet"
 import { useTheme, type Theme } from "@/lib/prefs"
 import { short } from "@/lib/format"
+import { ENS_WHITEPAY } from "@whitepay/shared"
 
 /** GPay "You": name, WhitePay ID (ENS, like a UPI ID), QR, wallets, appearance, security. */
 export default function You() {
   const { wallet, name, account, displayName, reload } = useWalletData()
   const [types, setTypes] = useState<Record<string, string>>({})
+  const [ensLive, setEnsLive] = useState<{ address?: string; source?: string } | null>(null)
+  useEffect(() => {
+    if (!name) return
+    // resolve the name through ENS (not our directory) to show what the chain says
+    fetch(`/api/resolve?q=${encodeURIComponent(name)}`).then((r) => r.json()).then(setEnsLive).catch(() => setEnsLive({}))
+  }, [name])
   const { theme, setTheme } = useTheme()
   const [wallets, setWallets] = useState<WalletInfo[]>([])
   const [copied, setCopied] = useState(false)
@@ -28,7 +35,7 @@ export default function You() {
       setTypes((t) => ({ ...t, [w.address]: d.kind === "merchant" ? `Business · ${d.displayName ?? d.name}` : d.name ? `Personal · ${d.name}` : "Personal · no name yet" }))).catch(() => {}))
   }, [])
 
-  if (wallet === undefined) return <main className="shell" />
+  if (wallet === undefined) return <main className="shell"><LogoLoader /></main>
   if (!wallet) return <main className="shell"><a className="btn btn-primary" href="/">Create your wallet</a></main>
 
   const switchTo = (a: string) => { setActiveWallet(a); location.reload() }
@@ -61,6 +68,21 @@ export default function You() {
           <div><div style={{ fontWeight: 700 }}>Business account</div><div className="sub">Show QR, see payments, verify your shop with World ID</div></div>
           <span className="chev">{Icon.chev()}</span>
         </a>
+      )}
+
+      {name && (
+        <>
+          <div className="section-title">On ENS</div>
+          <div className="card stack">
+            <div className="row"><span className="sub">Name</span><b>{name}</b></div>
+            <div className="row"><span className="sub">Resolves to (Whitechain)</span>
+              <span className="mono">{ensLive === null ? <span className="skel" style={{ width: 110, height: 14 }} /> : ensLive.source === "ens" && ensLive.address ? short(ensLive.address) : "updating…"}</span></div>
+            <div className="row"><span className="sub">Resolver</span><a className="mono" href={ENS_WHITEPAY.etherscan(ENS_WHITEPAY.resolver)} target="_blank" rel="noreferrer" style={{ color: "var(--brand-soft)" }}>{short(ENS_WHITEPAY.resolver)} ↗</a></div>
+            <div className="row"><span className="sub">Registry</span><a className="mono" href={ENS_WHITEPAY.etherscan(ENS_WHITEPAY.userRegistry)} target="_blank" rel="noreferrer" style={{ color: "var(--brand-soft)" }}>{short(ENS_WHITEPAY.userRegistry)} ↗</a></div>
+            <a className="btn btn-ghost" href={ENS_WHITEPAY.app(name)} target="_blank" rel="noreferrer">Open in ENS app ↗</a>
+            <div className="sub">ENSv2 on Ethereum Sepolia. The resolver stores your Whitechain address (coin type 2147485522) plus display/kind/verified records.</div>
+          </div>
+        </>
       )}
 
       <div className="section-title">Wallets</div>

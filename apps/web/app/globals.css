@@ -312,3 +312,16 @@ button { font: inherit; color: inherit; }
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition: none !important; }
   .hero::before { display: none; }
 }
+
+/* ---------- brand loader ---------- */
+.logo-loader { min-height: 70dvh; display: grid; place-items: center; align-content: center; gap: 18px; }
+.ll-tile { width: 96px; height: 96px; border-radius: 26px; background: var(--brand); display: grid; place-items: center;
+  box-shadow: 0 18px 40px rgba(36,72,255,.35); animation: llBreath 1.8s ease-in-out infinite; }
+.ll-tile svg { width: 78px; height: 78px; overflow: visible; }
+.ll-w { fill: none; stroke: #fff; stroke-width: 40; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 900; stroke-dashoffset: 0; animation: llDraw 1.8s cubic-bezier(.65,0,.35,1) infinite; }
+.ll-dot { fill: var(--lime); transform-origin: 410px 110px; animation: llDot 1.8s cubic-bezier(.3,1.6,.5,1) infinite; }
+.ll-label { color: var(--muted); font-weight: 600; font-size: 15px; letter-spacing: .01em; }
+@keyframes llDraw { 0% { stroke-dashoffset: 900 } 55% { stroke-dashoffset: 0 } 85% { stroke-dashoffset: 0 } 100% { stroke-dashoffset: -900 } }
+@keyframes llDot { 0%, 40% { transform: translateY(0) scale(1) } 55% { transform: translateY(-46px) scale(1.15) } 70% { transform: translateY(0) scale(.9) } 80%, 100% { transform: scale(1) } }
+@keyframes llBreath { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.04) } }
+@media (prefers-reduced-motion: reduce) { .ll-w, .ll-dot, .ll-tile { animation: none !important; stroke-dashoffset: 0; } }

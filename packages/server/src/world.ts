@@ -173,9 +173,6 @@ export async function claimPersonName(
   if (existing) return { name: existing.ensName, pending: !existing.ensIssued, already: true }
 
   const ens: any = await import("./ens")
-  const check = await ens.isLabelAvailable(label)
-  if (!check.available) throw new Error(`${check.name}: ${check.reason}`)
-
   const { nullifier } = await verifyProof(p.result, WORLD_ACTIONS.claim, address)
   const a = arkiv()
   const prior = await a.pub
@@ -184,7 +181,29 @@ export async function claimPersonName(
     .where(and(eq("action", WORLD_ACTIONS.claim), eq("nullifier", nullifier), eq("purpose", "name-claim")))
     .limit(1).fetch()
   const priorAddr = (prior.entities[0] as any)?.address?.value as string | undefined
-  if (priorAddr && getAddress(priorAddr) !== address) throw new Error("This person already claimed a WhitePay name with another wallet (one name per human)")
+  if (priorAddr && getAddress(priorAddr) !== address) {
+    // Same human (same nullifier), different wallet: one World ID = one name, so MOVE it here.
+    const old = await getPersonByAddress(getAddress(priorAddr))
+    if (!old) throw new Error("This World ID already has a WhitePay name on another wallet")
+    const claimKey = (prior.entities[0] as any).$key as Hex
+    await a.writer.executeBatch(
+      {
+        patches: [
+          { schema: PersonProfile, entityKey: old.key, set: { address: addr(address) } },
+          { schema: WorldClaim, entityKey: claimKey, set: { address: addr(address) } },
+        ],
+      } as any,
+      { gas: 2_000_000n },
+    )
+    defer(async () => {
+      try { await ens.setWalletAddress(old.ensName, address) }
+      catch (e) { console.error("[world] ENS move failed for", old.ensName, (e as Error).message) }
+    })
+    return { name: old.ensName, pending: true, moved: true, from: getAddress(priorAddr) }
+  }
+
+  const check = await ens.isLabelAvailable(label)
+  if (!check.available) throw new Error(`${check.name}: ${check.reason}`)
 
   // record the claim + directory entry in ONE Arkiv batch (fast, ~2 s)
   const now = u64(BigInt(Math.floor(Date.now() / 1000)))

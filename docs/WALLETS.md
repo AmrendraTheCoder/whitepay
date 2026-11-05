@@ -48,13 +48,13 @@ The wallet list is stored on the device as `{ active, list[] }`. **You → Walle
 
 Only the official hackathon USDT `0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7` counts. **USDT.e** and the many "Mock USDT" tokens are different tokens and won't show.
 
-## 6. World ID rules (why "already verified" happens)
-World ID 4 uniqueness proofs are **one-time per action**: the same person proving the same action again is refused (`nullifier_replayed`). WhitePay uses this as its "one per human" guarantee:
-- `whitepay-name`: one personal name per human.
-- `whitepay-shop`: one verified shop per human.
-- `whitepay-pay`: step-up for payments above 100 USDT. Set to **unlimited** verifications; each proof is bound to one payment through its signal.
+## 6. World ID rules: one human = one name (movable between your wallets)
+Each person has **one fixed World ID fingerprint (nullifier) per action**. WhitePay stores it on Arkiv (`whitepay.worldclaim`) and enforces the limits itself:
+- `whitepay-name`: **one personal name per human.** If the same human verifies from a *different* wallet, the name isn't duplicated; it **moves** to the new wallet. The ENS address records are re-pointed and the Arkiv directory and claim are updated.
+- `whitepay-shop`: **one verified shop per human.**
+- `whitepay-pay`: step-up for payments above 100 USDT, each proof bound to one payment.
 
-The very first attempt (old action `ens-claim`) was consumed by World's server while ours rejected it (staging/production mismatch). That action is retired, and the new actions start clean.
+**Developer Portal setting:** set all three actions to **unlimited verifications**. With "max 1", World App blocks the second attempt itself ("Already verified") before WhitePay can recognize the person and move the name. Uniqueness is enforced by WhitePay instead.
 
 ## 7. Security notes
 - Keys never leave the phone. The server never sees a private key, PIN or fingerprint.
