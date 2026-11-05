@@ -11,10 +11,13 @@ const state = { t: 0, playing: false, seek: 0 } // seek bumps on every jump so C
 const subs = new Set<Listener>()
 let raf = 0
 let last = 0
+let lastFrameAt = 0
+let backup: ReturnType<typeof setInterval> | undefined
 const events: { at: number; fn: () => void }[] = []
 
 function frame(now: number) {
   if (!state.playing) return
+  lastFrameAt = performance.now()
   const dt = last ? (now - last) / 1000 : 0
   last = now
   const prev = state.t
@@ -35,9 +38,12 @@ export const clock = {
     state.playing = true
     last = 0
     raf = requestAnimationFrame(frame)
+    // rAF stops in hidden/background views: keep time with a timer when frames stop arriving
+    clearInterval(backup)
+    backup = setInterval(() => { if (state.playing && performance.now() - lastFrameAt > 250) { cancelAnimationFrame(raf); frame(performance.now()) } }, 200)
     subs.forEach((l) => l())
   },
-  pause() { state.playing = false; cancelAnimationFrame(raf); subs.forEach((l) => l()) },
+  pause() { state.playing = false; cancelAnimationFrame(raf); clearInterval(backup); subs.forEach((l) => l()) },
   toggle() { if (state.playing) this.pause(); else this.play() },
   seek(t: number) { state.t = Math.max(0, Math.min(TOTAL, t)); state.seek++; last = 0; subs.forEach((l) => l()) },
   /** fire fn when the playhead crosses `at` while playing (chimes) */
