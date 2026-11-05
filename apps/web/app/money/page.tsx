@@ -74,7 +74,7 @@ export default function Money() {
       </section>
 
       <section className="card stack">
-        <div className="row"><h2 style={{ margin: 0 }}>This month</h2><a className="sub" href="/transactions">See all ›</a></div>
+        <div className="row"><h2 className="m-0">This month</h2><a className="sub" href="/transactions">See all ›</a></div>
         <div className="io">
           <div><span className="sub">Sent</span><b className="neg">−{rows === null ? "…" : show(m.out)}</b></div>
           <div><span className="sub">Received</span><b className="pos">+{rows === null ? "…" : show(m.inn)}</b></div>
@@ -96,7 +96,7 @@ export default function Money() {
 
       {catTotal > 0n && (
         <section className="card stack">
-          <h2 style={{ margin: 0 }}>Where it went</h2>
+          <h2 className="m-0">Where it went</h2>
           <div className="stack-bar">
             {CATS.map((c) => { const v = stats.cats.get(c.id)!; return v > 0n ? <span key={c.id} style={{ width: `${Number((v * 1000n) / catTotal) / 10}%`, background: c.color }} /> : null })}
           </div>
@@ -112,10 +112,10 @@ export default function Money() {
         <div className="row" style={{ gap: 12, justifyContent: "flex-start" }}>
           {wallet && <Identicon seed={wallet.address} size={52} />}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800 }}>Your wallet address</div>
+            <div className="strong">Your wallet address</div>
             <div className="sub"><span className="mono">{wallet ? short(wallet.address) : ""}</span> · USDT on Whitechain</div>
           </div>
-          <button className="chip" onClick={copy}>{copied ? "Copied ✓" : "Copy"}</button>
+          <button className="chip" onClick={copy}>{copied ? "Copied" : "Copy"}</button>
         </div>
         <button className="btn btn-ghost" onClick={() => { setShowAdd((v) => !v); void loadQr() }} aria-expanded={showAdd}>
           {showAdd ? "Hide" : "Show QR & ways to add money"}

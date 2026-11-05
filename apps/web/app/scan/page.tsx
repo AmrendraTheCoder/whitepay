@@ -76,7 +76,7 @@ export default function Scan() {
       <video ref={video} playsInline muted />
       <div className="scan-top">
         <button onClick={() => router.push("/app")} aria-label="Close">{Icon.close()}</button>
-        <span style={{ fontWeight: 700 }}>WhitePay</span>
+        <span className="strong">WhitePay</span>
         <span style={{ width: 42 }} />
       </div>
       <div className="scan-frame"><i /><i /><i /><i /></div>
@@ -86,7 +86,7 @@ export default function Scan() {
         <div className="h">Scan any WhitePay QR to pay</div>
         <div className="s">Shop QR · Friend's QR · name.whitepay.eth</div>
         {err && <div className="err">{err}</div>}
-        <div className="row" style={{ gap: 8 }}>
+        <div className="row gap-2">
           <input className="input" placeholder="Or paste a link, name or 0x…" value={manual} onChange={(e) => setManual(e.target.value)} />
           <button className="btn btn-primary" style={{ width: "auto", padding: "14px 18px" }} onClick={() => go(manual)} disabled={!manual}>Go</button>
         </div>

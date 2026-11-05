@@ -50,19 +50,19 @@ export default function You() {
         <div className="id">{account === "business" ? "Shop ID" : "WhitePay ID"}: {name === undefined ? <span className="skel" style={{ width: 160, height: 16 }} /> : <b>{name ?? "not claimed yet"}</b>}</div>
         <button className="addr chip" style={{ background: "rgba(255,255,255,.14)", border: 0, color: "#fff" }}
           onClick={() => { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1400) }}>
-          {copied ? "Copied ✓" : <>{short(wallet.address)} <span style={{ opacity: .7 }}>· {wallet.kind === "walletconnect" ? "MetaMask app" : wallet.kind === "injected" ? "browser extension" : "this device"}</span> <span aria-hidden style={{ opacity: .8 }}>⧉</span></>}
+          {copied ? "Copied" : <>{short(wallet.address)} <span style={{ opacity: .7 }}>· {wallet.kind === "walletconnect" ? "MetaMask app" : wallet.kind === "injected" ? "browser extension" : "this device"}</span> <span aria-hidden style={{ opacity: .8 }}>⧉</span></>}
         </button>
         <a className="qrbtn" href="/receive" aria-label="My QR code">{Icon.receive(44)}</a>
       </div>
 
       {account === "new" && (
         <>
-          <div className="sub" style={{ textAlign: "center" }}>Running a shop? Use a <a href="/add?type=business" style={{ color: "var(--brand-soft)", fontWeight: 700 }}>separate business wallet</a>, like GPay for Business.</div>
+          <div className="sub center">Running a shop? Use a <a href="/add?type=business" className="text-brand strong">separate business wallet</a>, like GPay for Business.</div>
         </>
       )}
       {account === "business" && (
         <a className="card row" href="/merchant">
-          <div><div style={{ fontWeight: 700 }}>Business account</div><div className="sub">Show QR, see payments, refunds and CSV export</div></div>
+          <div><div className="strong">Business account</div><div className="sub">Show QR, see payments, refunds and CSV export</div></div>
           <span className="chev">{Icon.chev()}</span>
         </a>
       )}
@@ -74,8 +74,8 @@ export default function You() {
             <div className="row"><span className="sub">Name</span><b>{name}</b></div>
             <div className="row"><span className="sub">Resolves to (Whitechain)</span>
               <span className="mono">{ensLive === null ? <span className="skel" style={{ width: 110, height: 14 }} /> : ensLive.source === "ens" && ensLive.address ? short(ensLive.address) : "updating…"}</span></div>
-            <div className="row"><span className="sub">Resolver</span><a className="mono" href={ENS_WHITEPAY.etherscan(ENS_WHITEPAY.resolver)} target="_blank" rel="noreferrer" style={{ color: "var(--brand-soft)" }}>{short(ENS_WHITEPAY.resolver)} ↗</a></div>
-            <div className="row"><span className="sub">Registry</span><a className="mono" href={ENS_WHITEPAY.etherscan(ENS_WHITEPAY.userRegistry)} target="_blank" rel="noreferrer" style={{ color: "var(--brand-soft)" }}>{short(ENS_WHITEPAY.userRegistry)} ↗</a></div>
+            <div className="row"><span className="sub">Resolver</span><a className="mono text-brand" href={ENS_WHITEPAY.etherscan(ENS_WHITEPAY.resolver)} target="_blank" rel="noreferrer">{short(ENS_WHITEPAY.resolver)} ↗</a></div>
+            <div className="row"><span className="sub">Registry</span><a className="mono text-brand" href={ENS_WHITEPAY.etherscan(ENS_WHITEPAY.userRegistry)} target="_blank" rel="noreferrer">{short(ENS_WHITEPAY.userRegistry)} ↗</a></div>
             <a className="btn btn-ghost" href={ENS_WHITEPAY.app(name)} target="_blank" rel="noreferrer">Open in ENS app ↗</a>
             <div className="sub">ENSv2 on Ethereum Sepolia. The resolver stores your Whitechain address (coin type 2147485522) plus display/kind/verified records.</div>
           </div>
@@ -90,7 +90,7 @@ export default function You() {
             <button key={w.address} className="wallet-row" onClick={() => !on && switchTo(w.address)}>
               <span className="tx-av"><Identicon seed={w.address} size={48} />{w.kind !== "device" && <span className="dir kind" title="external wallet">{Icon.shield(12)}</span>}</span>
               <div>
-                <div style={{ fontWeight: 700 }}>{w.label}</div>
+                <div className="strong">{w.label}</div>
                 <div className="sub">{types[w.address] ?? "…"}</div>
                 <div className="sub">{short(w.address)} · {w.kind === "walletconnect" ? "MetaMask app" : w.kind === "injected" ? "browser extension" : "this device"} · {w.hasPasskey ? "fingerprint + PIN" : w.hasPin ? "PIN" : "PIN not set"}</div>
               </div>
@@ -127,9 +127,9 @@ export default function You() {
         )}
         <a className="menu-row" href="/transactions"><span className="ic">{Icon.history(26)}</span><div>Transaction history<div className="s">Receipts stored on Arkiv</div></div><span className="chev">{Icon.chev()}</span></a>
       </div>
-      {msg && <div className="sub" style={{ textAlign: "center" }}>{msg}</div>}
+      {msg && <div className="sub center">{msg}</div>}
 
-      <button className="btn btn-ghost" style={{ color: "var(--bad)" }}
+      <button className="btn btn-ghost text-bad"
         onClick={() => {
           const warn = wallet.kind === "device" ? "Remove this wallet from the device? Its funds are lost unless you have the key." : "Disconnect MetaMask from WhitePay?"
           if (confirm(warn)) { removeWallet(wallet.address); location.href = "/app" }
@@ -142,7 +142,7 @@ export default function You() {
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <h3>Enter your PIN to turn on fingerprint</h3>
             <PinPad onComplete={async (pin) => {
-              try { await enablePasskey(pin); setMsg("Fingerprint is on ✓"); setAskPin(false); location.reload() }
+              try { await enablePasskey(pin); setMsg("Fingerprint is on"); setAskPin(false); location.reload() }
               catch (e) { setMsg((e as Error).message); setAskPin(false) }
             }} />
           </div>

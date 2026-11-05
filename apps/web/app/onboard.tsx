@@ -86,13 +86,13 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
           <button className="btn btn-ghost" onClick={() => connect("walletconnect")} disabled={busy || !wcConfigured()}>
             {busy ? <span className="spinner" /> : null} Connect MetaMask app (WalletConnect)
           </button>
-          <div className="sub" style={{ textAlign: "center" }}>
+          <div className="sub center">
             {wcConfigured()
               ? "WhitePay stays open in this browser. MetaMask opens only to approve, then you come back here."
               : "WalletConnect isn't configured on this server yet."}
           </div>
           {err && step === "intro" && <div className="err">{err}</div>}
-          <button className="chip" style={{ alignSelf: "center" }} onClick={() => setShowImport((s) => !s)}>
+          <button className="chip self-center" onClick={() => setShowImport((s) => !s)}>
             {showImport ? "Hide" : "Use an existing test key"}
           </button>
           {showImport && (
@@ -104,17 +104,17 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
         </>
       )}
       {(step === "pin" || step === "confirm") && (
-        <div className="stack" style={{ marginTop: 24 }}>
-          <div style={{ textAlign: "center", fontSize: 24, fontWeight: 700 }}>{step === "pin" ? "Set your WhitePay PIN" : "Confirm your PIN"}</div>
-          <div className="sub" style={{ textAlign: "center" }}>6 digits, like your UPI PIN. Used when fingerprint isn't available.</div>
+        <div className="stack mt-6">
+          <div className="title center">{step === "pin" ? "Set your WhitePay PIN" : "Confirm your PIN"}</div>
+          <div className="sub center">6 digits, like your UPI PIN. Used when fingerprint isn't available.</div>
           <PinPad key={step} onComplete={step === "pin" ? onFirst : onConfirm} />
           <div className="err">{err}</div>
         </div>
       )}
       {step === "bio" && (
-        <div className="stack" style={{ textAlign: "center", marginTop: 30 }}>
-          <div style={{ margin: "0 auto", width: 96, height: 96, borderRadius: "50%", display: "grid", placeItems: "center", background: "var(--brand)", color: "#fff" }}>{Icon.finger(48)}</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>Pay with your fingerprint?</div>
+        <div className="stack center mt-8">
+          <div className="hero-icon">{Icon.finger(48)}</div>
+          <div className="title">Pay with your fingerprint?</div>
           <div className="sub">Your phone's fingerprint or Face ID encrypts your wallet key. You can always use your PIN.</div>
           {bioOk ? (
             <button className="btn btn-primary btn-big" onClick={enableBio} disabled={busy}>
@@ -128,17 +128,17 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
         </div>
       )}
       {(step === "extpin" || step === "extconfirm") && (
-        <div className="stack" style={{ marginTop: 24 }}>
-          <div style={{ textAlign: "center", fontSize: 24, fontWeight: 700 }}>{step === "extpin" ? "Set your WhitePay PIN" : "Confirm your PIN"}</div>
-          <div className="sub" style={{ textAlign: "center" }}>Connected {extAddr.slice(0, 6)}…{extAddr.slice(-4)}. WhitePay asks for this PIN before MetaMask signs any payment.</div>
+        <div className="stack mt-6">
+          <div className="title center">{step === "extpin" ? "Set your WhitePay PIN" : "Confirm your PIN"}</div>
+          <div className="sub center">Connected {extAddr.slice(0, 6)}…{extAddr.slice(-4)}. WhitePay asks for this PIN before MetaMask signs any payment.</div>
           <PinPad key={step} onComplete={step === "extpin" ? onExtFirst : onExtConfirm} />
           <div className="err">{err}</div>
         </div>
       )}
       {step === "extbio" && (
-        <div className="stack" style={{ textAlign: "center", marginTop: 30 }}>
-          <div style={{ margin: "0 auto", width: 96, height: 96, borderRadius: "50%", display: "grid", placeItems: "center", background: "var(--brand)", color: "#fff" }}>{Icon.finger(48)}</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>Confirm payments with your fingerprint?</div>
+        <div className="stack center mt-8">
+          <div className="hero-icon">{Icon.finger(48)}</div>
+          <div className="title">Confirm payments with your fingerprint?</div>
           <div className="sub">Before MetaMask is asked to sign, WhitePay checks your fingerprint or Face ID. Your PIN always works too.</div>
           {bioOk && <button className="btn btn-primary btn-big" onClick={enableExtBio} disabled={busy}>{busy ? <span className="spinner" /> : null} Enable fingerprint</button>}
           <button className="btn btn-ghost" onClick={finish}>{bioOk ? "Skip for now" : "Continue"}</button>
@@ -148,7 +148,7 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
       {step === "name" && (
         <div className="stack" style={{ marginTop: 18 }}>
           <div style={{ textAlign: "center", fontSize: 22, fontWeight: 700 }}>Last step: your WhitePay name</div>
-          <div className="sub" style={{ textAlign: "center" }}>Verify you're a real person with World ID once, now. Payments never ask for it.</div>
+          <div className="sub center">Verify you're a real person with World ID once, now. Payments never ask for it.</div>
           <ClaimName address={getWallet()!.address as `0x${string}`} onClaimed={() => setTimeout(onDone, 1200)} />
           <button className="btn btn-ghost" onClick={onDone}>Skip, use my address only</button>
         </div>

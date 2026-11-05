@@ -32,12 +32,12 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
     <div className="card stack">
       <h2>Claim your WhitePay name</h2>
       <div className="sub">Friends pay <b>you.whitepay.eth</b> instead of a long address. One name per person, verified with World ID. If your World ID already has a name on another wallet, it moves to this wallet instead.</div>
-      <div className="row" style={{ gap: 6 }}>
+      <div className="row gap-2">
         <input className="input" placeholder="ravi" value={label} autoCapitalize="none" onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
-        <span className="sub" style={{ whiteSpace: "nowrap" }}>.whitepay.eth</span>
+        <span className="sub nowrap">.whitepay.eth</span>
       </div>
-      <div className="sub" style={{ minHeight: 18 }}>
-        {avail === null ? "" : avail.available ? <span style={{ color: "var(--ok)" }}>✓ available</span> : <span style={{ color: "var(--bad)" }}>{avail.reason}</span>}
+      <div className="sub min-line">
+        {avail === null ? "" : avail.available ? <span className="text-ok">Available</span> : <span className="text-bad">{avail.reason}</span>}
       </div>
       {!signed ? (
         <button className="btn btn-ghost" disabled={!avail?.available} onClick={() => setUnlock(true)}>1. Sign with fingerprint / PIN</button>
@@ -54,13 +54,13 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
             return d
           }}
           onVerified={(d) => {
-            setMsg(d?.moved ? `Your World ID's name ${d.name} now points to this wallet ✓` : `You are ${d?.name ?? label + ".whitepay.eth"} ✓`)
+            setMsg(d?.moved ? `Your World ID's name ${d.name} now points to this wallet` : `You are ${d?.name ?? label + ".whitepay.eth"}`)
             onClaimed()
           }}
           onDenied={(reason) => setMsg(`Name not claimed: ${reason}`)}
         />
       )}
-      {msg && <div className="sub" style={{ textAlign: "center" }}>{msg}</div>}
+      {msg && <div className="sub center">{msg}</div>}
       {unlock && <UnlockSheet title="Sign name claim" subtitle={`${label}.whitepay.eth`} onUnlocked={sign} onCancel={() => setUnlock(false)} />}
     </div>
   )

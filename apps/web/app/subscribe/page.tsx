@@ -57,8 +57,8 @@ function Subscribe() {
   if (loadErr)
     return (
       <main className="shell"><TopBar />
-        <div className="card stack" style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>Can't open this subscription</div>
+        <div className="card stack center">
+          <div className="title">Can't open this subscription</div>
           <div className="err" style={{ fontSize: 15 }}>{loadErr}</div>
           <button className="btn btn-primary" onClick={() => location.reload()}>Try again</button>
           <a className="btn btn-ghost" href="/scan">Scan another QR</a>
@@ -69,8 +69,8 @@ function Subscribe() {
   if (plan.state !== "open" && phase !== "done")
     return (
       <main className="shell"><TopBar />
-        <div className="card stack" style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>{plan.state === "subscribed" ? "Already subscribed" : "This offer has expired"}</div>
+        <div className="card stack center">
+          <div className="title">{plan.state === "subscribed" ? "Already subscribed" : "This offer has expired"}</div>
           <div className="sub">{plan.state === "subscribed" ? "This checkout QR was already used to start a subscription (each checkout QR works once). Manage it in Autopay." : "The shop's subscription offer behind this QR has expired (checkout QRs last 15 minutes, shared links 7 days). Ask the shop for a fresh one."}</div>
           <a className="btn btn-primary" href="/autopay">Open Autopay</a>
         </div>
@@ -131,7 +131,7 @@ function Subscribe() {
           {done.nextDueAt && <div className="timer-big"><span>{mode === "reminder" ? "We'll ask you to pay the next one in" : "Next payment in"}</span><b><Countdown to={done.nextDueAt} format={countdown} /></b></div>}
           {mode === "reminder" && (
             <button className="btn btn-lime" onClick={async () => setNotif(await enableReminderNotifications())}>
-              🔔 Remind me when a payment is due
+              {Icon.bell(18)} Remind me when a payment is due
             </button>
           )}
           {notif && <div className="sub">{notif}</div>}
@@ -149,11 +149,11 @@ function Subscribe() {
           <span className="sub-ic">{Icon.repeat(28)}</span>
           <div>
             <div style={{ fontWeight: 800, fontSize: 19 }}>{plan.title}</div>
-            <div className="sub">{plan.merchantName ?? short(plan.merchant)} {verified ? <span className="badge badge-ok" style={{ padding: "2px 8px" }}>✓ Verified</span> : verified === false ? <span className="badge badge-warn" style={{ padding: "2px 8px" }}>Unverified shop</span> : null}</div>
+            <div className="sub">{plan.merchantName ?? short(plan.merchant)} {verified ? <span className="badge badge-ok badge-sm">{Icon.check(12)} Verified</span> : verified === false ? <span className="badge badge-warn badge-sm">Unverified shop</span> : null}</div>
           </div>
         </div>
-        <div className="big-amount" style={{ textAlign: "center" }}>{usdt(amount)} <span style={{ fontSize: 18, color: "var(--muted)" }}>USDT {plan.periodLabel}</span></div>
-        <div className="sub" style={{ textAlign: "center" }}>{plan.cycles} payments · {usdt(total)} USDT total · first one now · 0 gas</div>
+        <div className="big-amount center">{usdt(amount)} <span style={{ fontSize: 18, color: "var(--muted)" }}>USDT {plan.periodLabel}</span></div>
+        <div className="sub center">{plan.cycles} payments · {usdt(total)} USDT total · first one now · 0 gas</div>
       </div>
 
       <div className="card">
@@ -169,7 +169,7 @@ function Subscribe() {
         <h2>How do you want to pay the next ones?</h2>
         <label className={`mode-opt ${mode === "reminder" ? "on" : ""}`}>
           <input type="radio" name="mode" checked={mode === "reminder"} onChange={() => setMode("reminder")} />
-          <div><b>Ask me each time</b> <span className="badge badge-ok" style={{ padding: "1px 7px" }}>Recommended</span>
+          <div><b>Ask me each time</b> <span className="badge badge-ok badge-sm">Recommended</span>
             <div className="sub">You approve only today's {usdt(amount)} USDT now. When the next payment is due you get a reminder and approve it with one tap. Nothing is pre-approved.</div></div>
         </label>
         <label className={`mode-opt ${mode === "autopay" ? "on" : ""}`}>
@@ -195,7 +195,7 @@ function Subscribe() {
       {phase === "signing" || phase === "charging" ? (
         <div className="card">
           <ul className="steps">
-            <li className={phase === "signing" ? "active" : "done"}>{phase === "signing" ? <span className="spinner" /> : <span className="tick">✓</span>} {mode === "reminder" ? `${progress ? "Signed" : "Sign"} today's payment on your device (${usdt(amount)} USDT)` : `${progress ? "Approved once" : "Approve once"} on your device (cap ${usdt(total)} USDT)`}</li>
+            <li className={phase === "signing" ? "active" : "done"}>{phase === "signing" ? <span className="spinner" /> : <span className="tick" aria-hidden>{Icon.check(14)}</span>} {mode === "reminder" ? `${progress ? "Signed" : "Sign"} today's payment on your device (${usdt(amount)} USDT)` : `${progress ? "Approved once" : "Approve once"} on your device (cap ${usdt(total)} USDT)`}</li>
             <li className={phase === "charging" ? "active" : ""}>{phase === "charging" ? <span className="spinner" /> : <span className="tick" style={{ opacity: .3 }}>·</span>} First payment on Whitechain, schedule saved to Arkiv</li>
           </ul>
         </div>
@@ -204,7 +204,7 @@ function Subscribe() {
           {self ? "This is your own shop" : mode === "reminder" ? `Subscribe · pay ${usdt(amount)} USDT now` : `Turn on autopay · ${usdt(amount)} USDT now`}
         </button>
       )}
-      {err && <div className="card stack" style={{ borderColor: "var(--bad)" }}><div className="err" style={{ textAlign: "center", fontSize: 15 }}>{err}</div><div className="sub" style={{ textAlign: "center" }}>Nothing is charged unless the first payment succeeds.</div></div>}
+      {err && <div className="card stack" style={{ borderColor: "var(--bad)" }}><div className="err" style={{ textAlign: "center", fontSize: 15 }}>{err}</div><div className="sub center">Nothing is charged unless the first payment succeeds.</div></div>}
       {unlock && <UnlockSheet title={mode === "reminder" ? `Pay ${usdt(amount)} USDT` : "Approve autopay"} subtitle={mode === "reminder" ? `${plan.title}: first payment only` : `${usdt(amount)} USDT ${plan.periodLabel} · ${plan.cycles} payments`} onUnlocked={approve} onCancel={() => setUnlock(false)} />}
     </main>
   )

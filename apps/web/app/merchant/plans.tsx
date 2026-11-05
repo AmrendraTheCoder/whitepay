@@ -46,24 +46,24 @@ export function PlansCard({ merchant, account, setAccount }: { merchant: { addre
   const active = subs.filter((s) => s.status === "active")
   return (
     <div className="card stack">
-      <div className="row"><h2 style={{ margin: 0 }}>Subscriptions (Autopay)</h2><span className="sub">{active.length} active</span></div>
+      <div className="row"><h2 className="m-0">Subscriptions (Autopay)</h2><span className="sub">{active.length} active</span></div>
       {link ? (
-        <div className="stack" style={{ textAlign: "center" }}>
+        <div className="stack center">
           <div className="sub">Customers scan to subscribe. Valid for 7 days, any number of subscribers.</div>
           <div className="qr-wrap"><img src={link.qr} alt="Subscribe QR" /></div>
-          <button className="chip" style={{ alignSelf: "center" }} onClick={() => navigator.clipboard?.writeText(link.url)}>Copy subscribe link</button>
+          <button className="chip self-center" onClick={() => navigator.clipboard?.writeText(link.url)}>Copy subscribe link</button>
           <button className="btn btn-ghost" onClick={() => setLink(null)}>New plan</button>
         </div>
       ) : (
         <>
           <input className="input" placeholder="Plan name, e.g. Chai Club" value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} />
-          <div className="row" style={{ gap: 8 }}>
+          <div className="row gap-2">
             <input className="input" inputMode="decimal" placeholder="USDT per cycle" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} />
             <select className="input" value={periodKey} onChange={(e) => setPeriodKey(e.target.value as PeriodKey)}>
               {Object.entries(PERIODS).map(([k, p]) => <option key={k} value={k}>{p.label}</option>)}
             </select>
           </div>
-          <label className="sub row" style={{ gap: 8 }}>Payments
+          <label className="sub row gap-2">Payments
             <input className="input" type="number" min={1} max={MAX_CYCLES} value={cycles} onChange={(e) => setCycles(Math.max(1, Math.min(MAX_CYCLES, Number(e.target.value) || 1)))} style={{ maxWidth: 90 }} />
             {valid && <span>= {usdt(parseUnits(amount, 6) * BigInt(cycles))} USDT total</span>}
           </label>
@@ -78,7 +78,7 @@ export function PlansCard({ merchant, account, setAccount }: { merchant: { addre
           {subs.slice(0, 8).map((s) => (
             <div key={s.key} className="item" style={{ gap: 12 }}>
               {s.status === "active" ? <TimerRing left={s.nextDueAt - t} period={s.period} /> : null}
-              <div style={{ flex: 1 }}>
+              <div className="grow">
                 <div className="t">{s.title} · {short(s.subscriber)}</div>
                 <div className="sub">{usdt(s.amount)} {PERIOD_LABEL(s.period)} · {s.paidCycles}/{s.cycles} paid · {s.status === "active" ? `next in ${countdown(s.nextDueAt - t)}` : s.status}</div>
               </div>

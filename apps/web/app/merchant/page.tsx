@@ -4,7 +4,7 @@ import { formatUnits, parseUnits, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { merchantSignupMessage, orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { SuccessCheck, MiniLogo, Countdown, Identicon } from "../ui"
+import { SuccessCheck, MiniLogo, Countdown, Identicon, Icon } from "../ui"
 import { WorldVerify } from "../world"
 import { PlansCard } from "./plans"
 import { getWallet } from "@/lib/wallet"
@@ -73,10 +73,10 @@ export default function MerchantPage() {
         <TopBar back={null} right={<a className="chip" href="/app">Personal</a>} />
         <div className="card stack">
           <span className="badge badge-brand" style={{ alignSelf: "flex-start" }}>Personal account</span>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>This wallet is personal</div>
+          <div className="title">This wallet is personal</div>
           <div className="sub">{personalName} is your personal WhitePay name. Shops use a separate <b>business wallet</b> so personal and shop money, names and history never mix, like Google Pay and Google Pay for Business.</div>
           <a className="btn btn-primary btn-big" href="/add?type=business">Create a business wallet</a>
-          <div className="sub" style={{ textAlign: "center" }}>Already have one? Switch wallets in <a href="/you" style={{ color: "var(--brand-soft)", fontWeight: 700 }}>You</a>.</div>
+          <div className="sub center">Already have one? Switch wallets in <a href="/you" className="text-brand strong">You</a>.</div>
         </div>
         
       </main>
@@ -125,10 +125,10 @@ function Signup({ address, account, setAccount, onDone }: {
     return (
       <main className="shell with-nav">
         <TopBar back={null} />
-        <div className="card stack" style={{ textAlign: "center" }}>
+        <div className="card stack center">
           <SuccessCheck />
-          <div style={{ fontSize: 22, fontWeight: 800 }}>{label}.whitepay.eth is yours</div>
-          <div className="sub">Last step: prove a real, unique person runs this shop with World ID (one verified shop per human). Customers see the ✓ badge before they pay. You only do this once; payments never ask for it.</div>
+          <div className="title">{label}.whitepay.eth is yours</div>
+          <div className="sub">Last step: prove a real, unique person runs this shop with World ID (one verified shop per human). Customers see the Verified badge before they pay. You only do this once; payments never ask for it.</div>
           <WorldVerify
             purpose="shop"
             signal={address}
@@ -140,7 +140,7 @@ function Signup({ address, account, setAccount, onDone }: {
               if (!r.ok) throw new Error(d.error)
               return d
             }}
-            onVerified={() => { setWorldMsg("Verified ✓"); setTimeout(onDone, 900) }}
+            onVerified={() => { setWorldMsg("Verified"); setTimeout(onDone, 900) }}
             onDenied={(reason) => setWorldMsg(`Not verified: ${reason}`)}
           />
           {worldMsg && <div className="sub">{worldMsg}</div>}
@@ -155,20 +155,20 @@ function Signup({ address, account, setAccount, onDone }: {
     <main className="shell with-nav">
       <TopBar back={null} right={<a className="chip" href="/app">Customer mode</a>} />
       <div className="card stack">
-        <div style={{ fontSize: 22, fontWeight: 800 }}>Accept USDT payments</div>
+        <div className="title">Accept USDT payments</div>
         <div className="sub">Your shop gets a WhitePay name and a QR. Customers pay with no gas; money lands in this wallet ({short(address)}) instantly.</div>
       </div>
       <div className="card stack">
         <h2>Business name</h2>
         <input className="input" placeholder="Chai Point, Bandra" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={60} />
         <h2>Your handle</h2>
-        <div className="row" style={{ gap: 6 }}>
+        <div className="row gap-2">
           <input className="input" placeholder="chai-point" value={label} autoCapitalize="none"
             onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
-          <span className="sub" style={{ whiteSpace: "nowrap" }}>.whitepay.eth</span>
+          <span className="sub nowrap">.whitepay.eth</span>
         </div>
-        <div className="sub" style={{ minHeight: 18 }}>
-          {avail === null ? "" : avail.available ? <span style={{ color: "var(--ok)" }}>✓ {label}.whitepay.eth is available</span> : <span style={{ color: "var(--bad)" }}>{avail.reason === "taken" ? "Already taken" : avail.reason}</span>}
+        <div className="sub min-line">
+          {avail === null ? "" : avail.available ? <span className="text-ok">{label}.whitepay.eth is available</span> : <span className="text-bad">{avail.reason === "taken" ? "Already taken" : avail.reason}</span>}
         </div>
         <h2>Category (optional)</h2>
         <input className="input" placeholder="Food & beverage" value={category} onChange={(e) => setCategory(e.target.value)} maxLength={60} />
@@ -177,7 +177,7 @@ function Signup({ address, account, setAccount, onDone }: {
         {busy ? <><span className="spinner" /> Registering on Whitechain…</> : "Register my shop"}
       </button>
       <div className="err">{err}</div>
-      <div className="sub" style={{ textAlign: "center" }}>New shops start unverified. Verify with World ID to get the ✓ badge.</div>
+      <div className="sub center">New shops start unverified. Verify with World ID to get the Verified badge.</div>
       {unlock && <UnlockSheet title="Sign shop registration" subtitle={`${label}.whitepay.eth`} onUnlocked={submit} onCancel={() => setUnlock(false)} />}
     </main>
   )
@@ -273,7 +273,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
 
   return (
     <main className="shell with-nav">
-      <TopBar back={null} right={<div className="row" style={{ gap: 8 }}>
+      <TopBar back={null} right={<div className="row gap-2">
         {account && <button className="chip" onClick={() => { endSession(); setAccount(null) }} aria-label="Lock terminal">Lock</button>}
         <a className="chip" href="/app">Personal</a>
       </div>} />
@@ -282,9 +282,9 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
         <div className="shop-id">
           <Identicon seed={merchant.address} name={merchant.displayName} size={52} />
           <div className="shop-id-text">
-            <div className="shop-name">{merchant.displayName} {merchant.verified ? <span className="badge badge-ok">✓ Verified</span> : <span className="badge badge-warn">Unverified</span>}</div>
+            <div className="shop-name">{merchant.displayName} {merchant.verified ? <span className="badge badge-ok">{Icon.check(12)} Verified</span> : <span className="badge badge-warn">Unverified</span>}</div>
             <button className="shop-ens" onClick={() => { navigator.clipboard?.writeText(merchant.ensName); setCopied(true); setTimeout(() => setCopied(false), 1400) }} aria-label={`Copy ${merchant.ensName}`}>
-              {copied ? "Copied ✓" : merchant.ensName}
+              {copied ? "Copied" : merchant.ensName}
             </button>
           </div>
         </div>
@@ -309,9 +309,9 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
         <div id="shop-panel-charge" role="tabpanel" aria-labelledby="shop-tab-charge" className="shop-panel">
           {req && status === "pending" ? (
             <div className="card stack charge-live">
-              <div className="sub" style={{ textAlign: "center" }}>Ask the customer to scan</div>
-              <div className="big-amount">{usdt(req.amount)} <span style={{ fontSize: 20, color: "var(--muted)" }}>USDT</span></div>
-              {note.trim() && <div className="sub" style={{ textAlign: "center" }}>“{note.trim()}”</div>}
+              <div className="sub center">Ask the customer to scan</div>
+              <div className="big-amount">{usdt(req.amount)} <span className="unit">USDT</span></div>
+              {note.trim() && <div className="sub center">“{note.trim()}”</div>}
               <div className="qr-wrap"><img src={qr} alt={`Payment QR for ${usdt(req.amount)} USDT`} /></div>
               <div className="row" style={{ justifyContent: "center", gap: 10 }} role="status">
                 <span className="spinner" /> <span>Waiting for payment · <Countdown to={Number(req.deadline)} /></span>
@@ -324,7 +324,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
             </div>
           ) : status === "paid" && req ? (
             <div className="card stack" role="status">
-              <div className="result" style={{ padding: "8px 0" }}>
+              <div className="result py-2">
                 <SuccessCheck />
                 <h1>Received {usdt(req.amount)} USDT</h1>
                 {paidTx && <a className="chip" href={paidTx} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
@@ -333,11 +333,11 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
             </div>
           ) : (
             <div className="card stack">
-              {status === "depleted" && <div className="badge badge-warn" style={{ alignSelf: "center" }}>Last QR expired unpaid</div>}
+              {status === "depleted" && <div className="badge badge-warn self-center">Last QR expired unpaid</div>}
               <label className="sr-only" htmlFor="charge-amount">Amount in USDT</label>
               <input id="charge-amount" className="amount-input" inputMode="decimal" placeholder="0.00" value={amount} autoComplete="off"
                 onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1"))} />
-              <div className="sub" style={{ textAlign: "center" }}>USDT · QR valid for 5 minutes</div>
+              <div className="sub center">USDT · QR valid for 5 minutes</div>
               <div className="quick-amts" role="group" aria-label="Quick amounts">
                 {QUICK.map((q) => <button key={q} className={`fchip ${amount === q ? "on" : ""}`} onClick={() => setAmount(q)}>{q}</button>)}
               </div>
@@ -355,7 +355,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
         <div id="shop-panel-payments" role="tabpanel" aria-labelledby="shop-tab-payments" className="shop-panel">
           <div className="card">
             <div className="row">
-              <h2 style={{ margin: 0 }}>Payments</h2>
+              <h2 className="m-0">Payments</h2>
               <button className="chip" onClick={() => exportCsv(merchant)} aria-label="Download payments as CSV">Export CSV</button>
             </div>
             {rows === null && <div className="list" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="item"><span className="pic skel circle" /><div className="grow"><span className="skel" style={{ width: "50%", height: 14 }} /></div></div>)}</div>}
@@ -375,7 +375,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
                           <div className="t">{short(r.payer)}</div>
                           <div className="sub">{new Date(r.paidAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {r.kind === "p2p" ? "Direct" : r.kind === "autopay" ? "Subscription" : "QR"}{refunded > 0n ? ` · refunded ${usdt(refunded.toString())}` : ""}</div>
                         </a>
-                        <div style={{ textAlign: "right" }}>
+                        <div className="right">
                           <div className={`amt ${full ? "" : "pos"}`} style={full ? { color: "var(--muted)", textDecoration: "line-through" } : undefined}>+{usdt(r.amount)}</div>
                           {canRefund && <button className="chip" style={{ marginTop: 4, fontSize: 12 }} onClick={() => setRefundRow(r)}>Refund</button>}
                         </div>
@@ -434,7 +434,7 @@ function RefundSheet({ row, account, setAccount, onClose }: {
     <div className="sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget && phase !== "busy") onClose(phase === "done") }}>
       <div className="sheet stack">
         {phase === "done" ? (
-          <div className="result" style={{ padding: "8px 0" }}>
+          <div className="result py-2">
             <SuccessCheck />
             <h1>Refunded {amt} USDT</h1>
             <div className="sub">Sent back to {short(row.payer)}. Receipt updated on Arkiv.</div>
@@ -443,7 +443,7 @@ function RefundSheet({ row, account, setAccount, onClose }: {
           </div>
         ) : (
           <>
-            <div style={{ fontSize: 20, fontWeight: 800 }}>Refund payment</div>
+            <div className="title">Refund payment</div>
             <div className="sub">Goes back to the customer who paid ({short(row.payer)}), never anywhere else. Up to {usdt(remaining.toString())} USDT. No gas.</div>
             <input className="amount-input" inputMode="decimal" value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d.]/g, ""))} />
             <button className="btn btn-primary btn-big" disabled={!valid || phase === "busy"} onClick={() => (account ? run(account) : setUnlock(true))}>
@@ -484,7 +484,7 @@ function ShopSkeleton() {
         <div className="brand"><MiniLogo /> Opening your shop…</div>
       </div>
       <div className="card row">
-        <div style={{ flex: 1 }}>
+        <div className="grow">
           <span className="skel" style={{ width: "55%", height: 18 }} /><br />
           <span className="skel" style={{ width: "70%", height: 13, marginTop: 8 }} />
         </div>

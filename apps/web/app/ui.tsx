@@ -9,6 +9,8 @@ import { keccak256, toBytes } from "viem"
 
 const P = { width: 28, height: 28, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const
 export const Icon = {
+  check: (s = 18) => <svg {...P} width={s} height={s}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>,
+  bell: (s = 22) => <svg {...P} width={s} height={s}><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>,
   repeat: (s = 26) => <svg {...P} width={s} height={s}><path d="M17 2l4 4-4 4" /><path d="M3 11V9a3 3 0 0 1 3-3h15" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v2a3 3 0 0 1-3 3H3" /></svg>,
   search: (s = 24) => <svg {...P} width={s} height={s}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>,
   scan: (s = 30) => <svg {...P} width={s} height={s}><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><rect x="7.5" y="7.5" width="3.5" height="3.5" rx=".5" /><rect x="13" y="7.5" width="3.5" height="3.5" rx=".5" /><rect x="7.5" y="13" width="3.5" height="3.5" rx=".5" /><path d="M13 13h1.5v1.5M16.5 16.5h-2" /></svg>,
@@ -19,7 +21,7 @@ export const Icon = {
   history: (s = 24) => <svg {...P} width={s} height={s}><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5" /><path d="M3.5 4v4.5H8M12 8v4.5l3 2" /></svg>,
   id: (s = 24) => <svg {...P} width={s} height={s}><path d="m13 2-9 12h7l-1 8 9-12h-7z" /></svg>,
   home: (s = 24) => <svg {...P} width={s} height={s}><path d="M4 10.5 12 4l8 6.5V20h-5.5v-5.5h-5V20H4z" /></svg>,
-  money: (s = 24) => <svg {...P} width={s} height={s}><circle cx="12" cy="12" r="8.5" /><path d="M9 8.5h6M9 11.5h6M12 8.5c2.2 0 2.2 3 0 3H9l4.5 4" /></svg>,
+  money: (s = 24) => <svg {...P} width={s} height={s}><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3.5" /><path d="M4 7.5v10A2.5 2.5 0 0 0 6.5 20H20v-11.5H6.5A2.5 2.5 0 0 1 4 7.5z" /><circle cx="16" cy="14.25" r="1.25" /></svg>,
   user: (s = 24) => <svg {...P} width={s} height={s}><circle cx="12" cy="8.5" r="3.8" /><path d="M4.5 20c1-3.7 4-5.5 7.5-5.5s6.5 1.8 7.5 5.5" /></svg>,
   chev: (s = 22) => <svg {...P} width={s} height={s}><path d="m9 6 6 6-6 6" /></svg>,
   back: (s = 24) => <svg {...P} width={s} height={s}><path d="m15 5-7 7 7 7" /></svg>,

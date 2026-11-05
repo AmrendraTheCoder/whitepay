@@ -52,7 +52,7 @@ export default function Receive() {
   return (
     <main className="shell">
       <TopBar right={<a className="chip" href="/app">Close</a>} />
-      <div className="card stack" style={{ textAlign: "center" }}>
+      <div className="card stack center">
         <div className="sub">Scan to pay</div>
         <div style={{ fontSize: 20, fontWeight: 700 }}>{displayName ?? name ?? short(wallet.address)}</div>
         {name && <div className="sub">{name}</div>}
@@ -67,7 +67,7 @@ export default function Receive() {
         <button className="btn btn-primary" onClick={share}>Share</button>
         <button className="btn btn-ghost" onClick={() => { navigator.clipboard?.writeText(link); setNote("Link copied") }}>Copy link</button>
       </div>
-      <div className="sub" style={{ textAlign: "center" }}>{note || "Friends pay you in USDT on Whitechain. Nobody pays gas."}</div>
+      <div className="sub center">{note || "Friends pay you in USDT on Whitechain. Nobody pays gas."}</div>
     </main>
   )
 }

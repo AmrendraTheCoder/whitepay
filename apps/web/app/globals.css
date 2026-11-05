@@ -1,13 +1,14 @@
 /* WhitePay — Google Pay layout, Whitechain palette.
    Palette from whitechain.io: electric blue #2448FF, periwinkle tints, lime #DDF05A, deep navy ink. */
 :root {
-  --bg: #0a0c19;
-  --surface: #14182b;
-  --surface-2: #1c2140;
-  --surface-3: #252b52;
-  --line: #2a3158;
-  --text: #f2f4ff;
-  --muted: #9aa3c9;
+  /* neutrals shared with the website (@whitepay/ui "ink" theme) */
+  --bg: #0b0d14;
+  --surface: #131722;
+  --surface-2: #1a1f2d;
+  --surface-3: #232938;
+  --line: #232938;
+  --text: #eceef5;
+  --muted: #9aa1b5;
   --brand: #2448ff;
   --brand-hover: #3657ff;
   --brand-2: #5b7cfa;
@@ -549,3 +550,78 @@ html[data-nav-dir="back"] .shell.with-nav { animation: tab-in-back .28s cubic-be
 .pay-day { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 12px 0 4px; }
 .charge-live .qr-wrap { animation: pop .3s ease-out; }
 @media (prefers-reduced-motion: reduce) { .shop-seg-pill { transition: none; } .shop-panel, .charge-live .qr-wrap { animation: none; } }
+
+/* =====================================================================================
+   Design-system alignment (@whitepay/ui): one radius scale, one type scale, named utilities.
+   Every wallet page reads from these, so spacing, corners and type match across the app
+   and the website. Prefer a utility class over an inline style.
+   ===================================================================================== */
+:root {
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px; --r-pill: 999px;
+  --t-xs: 12px; --t-sm: 14px; --t-md: 16px; --t-lg: 18px; --t-xl: 20px; --t-2xl: 24px; --t-3xl: 32px; --t-4xl: 44px;
+  --radius: var(--r-lg);
+}
+/* corners: cards 16, hero cards and sheets 20, controls 12, small chips 8 */
+.card, .shop-hero, .qr-wrap, .tile .sq, .mode-opt, .due-card, .autopay-card { border-radius: var(--r-lg); }
+.hero, .money-hero, .profile-hero, .bottomnav { border-radius: var(--r-xl); }
+.sheet, .scan-sheet { border-radius: var(--r-xl) var(--r-xl) 0 0; }
+.input, .pinpad button, .period, .io > div, .addr-full, .sub-ic, .shop-stats { border-radius: var(--r-md); }
+.skel { border-radius: var(--r-sm); }
+.nav-pill { border-radius: calc(var(--r-xl) - 6px); }
+/* type: one scale */
+.sub { font-size: var(--t-sm); }
+.section-title { font-size: var(--t-2xl); font-weight: 700; }
+.card h2 { font-size: var(--t-sm); }
+.menu-row { font-size: var(--t-md); }
+.menu-row .s, .legend, .ways { font-size: var(--t-sm); }
+.search { font-size: var(--t-md); }
+.tile span, .chip, .fchip, .steps li { font-size: var(--t-sm); }
+.sheet h3, .scan-sheet .h, .shop-name { font-size: var(--t-xl); }
+.result h1 { font-size: var(--t-2xl); }
+.err { font-size: var(--t-sm); }
+
+/* utilities (replace one-off inline styles) */
+.page-title { font-size: var(--t-2xl); font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+.page-head { display: flex; flex-direction: column; gap: 6px; }
+.title { font-size: var(--t-xl); font-weight: 700; letter-spacing: -0.01em; }
+.item-title { font-size: var(--t-md); font-weight: 700; }
+.unit { font-size: var(--t-xl); color: var(--muted); font-weight: 600; }
+.strong { font-weight: 700; }
+.center { text-align: center; } .left { text-align: left; } .right { text-align: right; }
+.grow { flex: 1; min-width: 0; } .w-full { width: 100%; } .nowrap { white-space: nowrap; }
+.self-center { align-self: center; } .justify-start { justify-content: flex-start; }
+.m-0 { margin: 0; } .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-4 { margin-top: 16px; } .mt-6 { margin-top: 24px; } .mt-8 { margin-top: 32px; }
+.py-2 { padding-block: 8px; } .gap-2 { gap: 8px; } .gap-3 { gap: 12px; } .gap-4 { gap: 16px; }
+.min-line { min-height: 20px; }
+.text-bad { color: var(--bad); } .text-ok { color: var(--ok); } .text-brand { color: var(--brand-soft); } .text-muted { color: var(--muted); }
+.badge-sm { padding: 2px 8px; }
+.hero-icon { margin: 0 auto; width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: #fff; }
+.empty-state { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 28px 16px; }
+.empty-state .ic { width: 56px; height: 56px; border-radius: var(--r-lg); display: grid; place-items: center; background: var(--surface-2); color: var(--brand-soft); margin-bottom: 4px; }
+.notice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface); font-size: var(--t-sm); color: var(--muted); }
+.notice.bad { border-color: color-mix(in oklab, var(--bad) 45%, transparent); color: var(--bad); }
+.notice.ok { border-color: color-mix(in oklab, var(--ok) 45%, transparent); color: var(--ok); }
+.kv { display: grid; gap: 10px; } .kv .row { align-items: baseline; } .kv .row > :last-child { text-align: right; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.badge svg, .btn svg, .chip svg { flex: none; }
+.tick svg { display: block; }
+.due-card .bell { display: grid; place-items: center; color: var(--lime); }
+
+/* subscriptions page */
+.sub-summary { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; border-radius: var(--r-lg); overflow: hidden; background: var(--line); border: 1px solid var(--line); }
+.sub-summary div { background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column-reverse; gap: 2px; min-width: 0; }
+.sub-summary dt { font-size: var(--t-xs); color: var(--muted); }
+.sub-summary dd { margin: 0; font-size: var(--t-lg); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-summary dd small { font-size: var(--t-xs); color: var(--muted); font-weight: 600; }
+.sub-card { gap: 14px; }
+.sub-card-top { display: flex; gap: 14px; align-items: center; }
+.sub-card-head { display: flex; flex-direction: column; gap: 2px; }
+.sub-card-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sub-card-title .item-title { flex: 1; min-width: 0; }
+.sub-card-amt { margin-top: 4px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.sub-card-amt b { font-size: var(--t-lg); font-variant-numeric: tabular-nums; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sub-progress { display: flex; align-items: center; gap: 12px; } .sub-progress .progress { flex: 1; }
+.chip-danger { color: var(--bad); border-color: color-mix(in oklab, var(--bad) 35%, var(--line)); }
+.chip-danger:hover:not(:disabled) { background: color-mix(in oklab, var(--bad) 10%, var(--surface-2)); }
+.chip:disabled { opacity: .5; cursor: not-allowed; }

@@ -5,7 +5,7 @@ import { isAddress, keccak256, parseUnits, toHex, type Address, type Hex } from 
 import type { PrivateKeyAccount } from "viem/accounts"
 import { directNonce, receiveAuthTypedData, ROUTER_ADDRESS } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { SuccessCheck, LogoLoader } from "../ui"
+import { SuccessCheck, LogoLoader, Icon } from "../ui"
 import { getWallet } from "@/lib/wallet"
 import { PayeeSearch } from "./search"
 import { usdt, short, initials } from "@/lib/format"
@@ -111,7 +111,7 @@ function Send() {
       <main className="shell">
         <TopBar right={<a className="chip" href="/app">Home</a>} />
         <div className="card result">
-          {phase === "done" ? <SuccessCheck /> : <div className="icon bad">✕</div>}
+          {phase === "done" ? <SuccessCheck /> : <div className="icon bad" aria-hidden>{Icon.close(40)}</div>}
           <h1>{phase === "done" ? `Sent ${amount} USDT` : "Not sent"}</h1>
           <div className="sub">
             {phase === "done" ? `to ${payee?.displayName ?? payee?.name ?? short(payee?.address)}. Settled on Whitechain. You paid no gas.` : result.error}
@@ -140,28 +140,28 @@ function Send() {
               <div className="name">{label}</div>
               {payee.name && payee.name !== label && <div className="sub">{payee.name}</div>}
               <div className="sub mono" style={{ marginTop: 4 }}>{short(payee.address)}</div>
-              <div style={{ marginTop: 6 }}>
-                {payee.source === "ens" ? <span className="badge badge-ok">✓ ENS name</span>
+              <div className="mt-2">
+                {payee.source === "ens" ? <span className="badge badge-ok">{Icon.check(14)} ENS name</span>
                   : payee.kind === "merchant" ? <span className="badge badge-ok">Merchant</span>
                   : <span className="badge badge-warn">Unnamed address: check it's right</span>}
               </div>
             </div>
-            <div className="sub" style={{ textAlign: "center", marginTop: 14 }}>You are paying</div>
+            <div className="sub center mt-4">You are paying</div>
             <input className="amount-input" inputMode="decimal" placeholder="0.00" value={amount} readOnly={fixedAmount}
               onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} />
-            <div className="sub" style={{ textAlign: "center" }}>USDT</div>
+            <div className="sub center">USDT</div>
           </div>
           {self && <div className="err">That's your own wallet.</div>}
           {phase === "idle" ? (
             <button className="btn btn-primary btn-big" disabled={!validAmount || !!self} onClick={() => setUnlock(true)}>
-              {wallet.hasPasskey ? "☝︎ Pay with fingerprint" : "Pay with PIN"}
+              {wallet.hasPasskey ? <>{Icon.finger(20)} Pay with fingerprint</> : "Pay with PIN"}
             </button>
           ) : (
             <div className="card row" style={{ justifyContent: "center" }}>
               <span className="spinner" /> {phase === "signing" ? "Signing on your device…" : "Settling on Whitechain…"}
             </div>
           )}
-          <div className="sub" style={{ textAlign: "center" }}>Network fee: 0. WhitePay covers the gas.</div>
+          <div className="sub center">Network fee: 0. WhitePay covers the gas.</div>
         </>
       )}
       {unlock && payee && (

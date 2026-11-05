@@ -5,7 +5,7 @@ import { hashTypedData, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { SuccessCheck, LogoLoader, Countdown } from "../ui"
+import { SuccessCheck, LogoLoader, Countdown, Icon } from "../ui"
 import { getWallet } from "@/lib/wallet"
 import { usdt, initials, mmss } from "@/lib/format"
 
@@ -75,7 +75,7 @@ function Pay() {
       <main className="shell">
         <TopBar right={<a className="chip" href="/app">Home</a>} />
         <div className="card result">
-          <div className={`icon ${paid ? "ok" : "bad"}`}>{paid ? "✓" : "!"}</div>
+          <div className={`icon ${paid ? "ok" : "bad"}`}>{paid ? Icon.check(40) : "!"}</div>
           <h1>{paid ? "Already paid" : data.state === "depleted" ? "Request expired" : "Can't pay this"}</h1>
           <div className="sub">
             {paid ? "This request was completed. It can't be paid twice." : "reason" in data ? data.reason : ""}
@@ -140,7 +140,7 @@ function Pay() {
       <main className="shell">
         <TopBar right={<a className="chip" href="/app">Home</a>} />
         <div className="card result">
-          {phase === "done" ? <SuccessCheck /> : <div className="icon bad">✕</div>}
+          {phase === "done" ? <SuccessCheck /> : <div className="icon bad" aria-hidden>{Icon.close(40)}</div>}
           <h1>{phase === "done" ? `Paid ${usdt(req.amount)} USDT` : "Payment not sent"}</h1>
           <div className="sub">
             {phase === "done"
@@ -161,13 +161,13 @@ function Pay() {
           <div className="avatar">{initials(pending?.merchantDisplayName ?? req.merchantName)}</div>
           <div className="name">{pending?.merchantDisplayName ?? req.merchantName}</div>
           {pending?.merchantDisplayName && <div className="sub">{req.merchantName}</div>}
-          <div style={{ marginTop: 6 }}>
-            {pending?.verifiedMerchant ? <span className="badge badge-ok">✓ Verified merchant</span> : <span className="badge badge-warn">Unverified merchant</span>}
+          <div className="mt-2">
+            {pending?.verifiedMerchant ? <span className="badge badge-ok">{Icon.check(14)} Verified merchant</span> : <span className="badge badge-warn">Unverified merchant</span>}
           </div>
         </div>
-        <div className="sub" style={{ textAlign: "center", marginTop: 14 }}>You are paying</div>
-        <div className="big-amount">{usdt(req.amount)} <span style={{ fontSize: 20, color: "var(--muted)" }}>USDT</span></div>
-        <div className="sub" style={{ textAlign: "center" }}>
+        <div className="sub center mt-4">You are paying</div>
+        <div className="big-amount">{usdt(req.amount)} <span className="unit">USDT</span></div>
+        <div className="sub center">
           {expired ? <span className="badge badge-bad">Expired</span> : <>Request expires in <Countdown to={Number(pending!.order.deadline)} /></>}
         </div>
       </div>
@@ -177,7 +177,7 @@ function Pay() {
           <h2>Verified before you pay</h2>
           <ul className="checks">
             {pending.checks.map((c) => (
-              <li key={c.label}><span className="tick">✓</span><div><div>{c.label}</div><div className="sub">{c.detail}</div></div></li>
+              <li key={c.label}><span className="tick" aria-hidden>{Icon.check(14)}</span><div><div>{c.label}</div><div className="sub">{c.detail}</div></div></li>
             ))}
           </ul>
         </div>
@@ -185,18 +185,18 @@ function Pay() {
 
       {phase === "idle" ? (
         <button className="btn btn-primary btn-big" disabled={expired} onClick={() => setUnlock(true)}>
-          {wallet.hasPasskey ? "☝︎ Pay with fingerprint" : "Pay with PIN"}
+          {wallet.hasPasskey ? <>{Icon.finger(20)} Pay with fingerprint</> : "Pay with PIN"}
         </button>
       ) : (
         <div className="card">
           <ul className="steps">
-            <li className="done"><span className="tick">✓</span> Request verified</li>
-            <li className={phase === "signing" ? "active" : "done"}>{phase === "signing" ? <span className="spinner" /> : <span className="tick">✓</span>} Signed on your device</li>
+            <li className="done"><span className="tick" aria-hidden>{Icon.check(14)}</span> Request verified</li>
+            <li className={phase === "signing" ? "active" : "done"}>{phase === "signing" ? <span className="spinner" /> : <span className="tick" aria-hidden>{Icon.check(14)}</span>} Signed on your device</li>
             <li className={phase === "settling" ? "active" : ""}>{phase === "settling" ? <span className="spinner" /> : <span className="tick" style={{ opacity: 0.3 }}>·</span>} Settling on Whitechain, saving receipt to Arkiv</li>
           </ul>
         </div>
       )}
-      <div className="sub" style={{ textAlign: "center" }}>Network fee: 0. WhitePay covers the gas.</div>
+      <div className="sub center">Network fee: 0. WhitePay covers the gas.</div>
 
       {unlock && (
         <UnlockSheet

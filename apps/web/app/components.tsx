@@ -147,10 +147,10 @@ export function UnlockSheet({
     <div className="sheet-backdrop" onClick={onCancel}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <h3>{title}</h3>
-        {subtitle && <div className="sub" style={{ textAlign: "center" }}>{subtitle}</div>}
+        {subtitle && <div className="sub center">{subtitle}</div>}
         {mode === "wallet" ? (
           <>
-            <div className="sub" style={{ textAlign: "center" }}>✓ Verified. Now approve the signature in {walletName}. It costs no gas.</div>
+            <div className="sub center">Verified. Now approve the signature in {walletName}. It costs no gas.</div>
             <button className="btn btn-primary btn-big" onClick={tryWallet} disabled={busy}>
               {busy ? <span className="spinner" /> : null} Confirm in {walletName}
             </button>
@@ -161,14 +161,14 @@ export function UnlockSheet({
           </button>
         ) : mode === "setpin" || mode === "confirmpin" ? (
           <>
-            <div className="sub" style={{ textAlign: "center" }}>
+            <div className="sub center">
               {mode === "setpin" ? "Set a 6-digit WhitePay PIN for this wallet. You'll enter it before every payment." : "Confirm your WhitePay PIN"}
             </div>
             <PinPad key={mode} onComplete={onSetPin} busy={busy} />
           </>
         ) : (
           <>
-            <div className="sub" style={{ textAlign: "center" }}>Enter your 6-digit WhitePay PIN</div>
+            <div className="sub center">Enter your 6-digit WhitePay PIN</div>
             {!locked && <PinPad onComplete={onPin} busy={busy} />}
           </>
         )}

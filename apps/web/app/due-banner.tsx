@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useDueReminders } from "@/lib/reminders"
 import { usdt, countdown } from "@/lib/format"
+import { Icon } from "./ui"
 
 export function DueBanner({ address }: { address?: string }) {
   const due = useDueReminders(address)
@@ -13,9 +14,9 @@ export function DueBanner({ address }: { address?: string }) {
     <>
       {due.map((r) => (
         <a key={r.key} className="due-card" href={`/autopay?pay=${r.key}`}>
-          <span className="bell" aria-hidden>🔔</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 800 }}>Payment due · {r.title}</div>
+          <span className="bell" aria-hidden>{Icon.bell(24)}</span>
+          <div className="grow">
+            <div className="strong">Payment due · {r.title}</div>
             <div className="sub">{usdt(r.amount)} USDT to {r.merchantName ?? "the shop"} · payment {r.nextCycle + 1} of {r.cycles} · approve within {countdown(r.payBy - now)}</div>
           </div>
           <span className="due-pay">Pay</span>
