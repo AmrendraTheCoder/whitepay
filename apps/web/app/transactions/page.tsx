@@ -28,7 +28,7 @@ export default function Transactions() {
       <Toast text={toast} />
       <div className="searchbar">
         <div className="search" style={{ paddingLeft: 10 }}>
-          <a href="/" aria-label="Back" style={{ display: "grid", placeItems: "center", padding: 6, color: "var(--text)" }}>{Icon.back()}</a>
+          <a href="/app" aria-label="Back" style={{ display: "grid", placeItems: "center", padding: 6, color: "var(--text)" }}>{Icon.back()}</a>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search transactions"
             style={{ flex: 1, background: "transparent", border: 0, outline: "none", color: "var(--text)", font: "inherit", fontSize: 17 }} />
         </div>

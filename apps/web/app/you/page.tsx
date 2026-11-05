@@ -35,7 +35,7 @@ export default function You() {
   }, [])
 
   if (wallet === undefined) return <main className="shell"><LogoLoader /></main>
-  if (!wallet) return <main className="shell"><a className="btn btn-primary" href="/">Create your wallet</a></main>
+  if (!wallet) return <main className="shell"><a className="btn btn-primary" href="/app">Create your wallet</a></main>
 
   const switchTo = (a: string) => { setActiveWallet(a); location.reload() }
   // connecting (extension or WalletConnect) + setting its WhitePay PIN happens in the add-wallet flow
@@ -132,7 +132,7 @@ export default function You() {
       <button className="btn btn-ghost" style={{ color: "var(--bad)" }}
         onClick={() => {
           const warn = wallet.kind === "device" ? "Remove this wallet from the device? Its funds are lost unless you have the key." : "Disconnect MetaMask from WhitePay?"
-          if (confirm(warn)) { removeWallet(wallet.address); location.href = "/" }
+          if (confirm(warn)) { removeWallet(wallet.address); location.href = "/app" }
         }}>
         {wallet.kind === "device" ? "Remove this wallet from device" : "Disconnect MetaMask"}
       </button>

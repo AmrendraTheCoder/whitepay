@@ -48,7 +48,7 @@ export const prettyName = (name?: string, address?: string) =>
 export function BottomNav() {
   const path = usePathname()
   const items = [
-    { href: "/", label: "Home", icon: Icon.home() },
+    { href: "/app", label: "Home", icon: Icon.home() },
     { href: "/money", label: "Money", icon: Icon.money() },
     { href: "/merchant", label: "Shop", icon: Icon.shop(24) },
     { href: "/you", label: "You", icon: Icon.user() },

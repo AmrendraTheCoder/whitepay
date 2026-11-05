@@ -70,7 +70,7 @@ function Subscribe() {
       </main>
     )
   if (!wallet)
-    return <main className="shell"><TopBar /><div className="card stack"><b>Create a WhitePay wallet first</b><a className="btn btn-primary" href="/">Create wallet</a></div></main>
+    return <main className="shell"><TopBar /><div className="card stack"><b>Create a WhitePay wallet first</b><a className="btn btn-primary" href="/app">Create wallet</a></div></main>
 
   const amount = BigInt(plan.amount)
   const total = amount * BigInt(plan.cycles)

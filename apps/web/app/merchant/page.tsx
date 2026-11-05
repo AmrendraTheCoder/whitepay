@@ -64,14 +64,14 @@ export default function MerchantPage() {
       <main className="shell with-nav">
         <TopBar />
         <div className="card stack"><h2>Merchant mode</h2><div className="sub">Create a WhitePay wallet first. It becomes your shop's payout and signing key.</div></div>
-        <a className="btn btn-primary" href="/">Create wallet</a>
+        <a className="btn btn-primary" href="/app">Create wallet</a>
       <BottomNav /></main>
     )
   if (!merchant && personalName === undefined) return <ShopSkeleton />
   if (!merchant && personalName)
     return (
       <main className="shell with-nav">
-        <TopBar back={null} right={<a className="chip" href="/">Personal</a>} />
+        <TopBar back={null} right={<a className="chip" href="/app">Personal</a>} />
         <div className="card stack">
           <span className="badge badge-brand" style={{ alignSelf: "flex-start" }}>Personal account</span>
           <div style={{ fontSize: 22, fontWeight: 800 }}>This wallet is personal</div>
@@ -154,7 +154,7 @@ function Signup({ address, account, setAccount, onDone }: {
   const ok = displayName.trim().length > 1 && avail?.available
   return (
     <main className="shell with-nav">
-      <TopBar back={null} right={<a className="chip" href="/">Customer mode</a>} />
+      <TopBar back={null} right={<a className="chip" href="/app">Customer mode</a>} />
       <div className="card stack">
         <div style={{ fontSize: 22, fontWeight: 800 }}>Accept USDT payments</div>
         <div className="sub">Your shop gets a WhitePay name and a QR. Customers pay with no gas; money lands in this wallet ({short(address)}) instantly.</div>
@@ -244,7 +244,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
 
   return (
     <main className="shell with-nav">
-      <TopBar back={null} right={<a className="chip" href="/">Customer mode</a>} />
+      <TopBar back={null} right={<a className="chip" href="/app">Customer mode</a>} />
       <div className="card row">
         <div>
           <div style={{ fontWeight: 700 }}>{merchant.displayName}</div>

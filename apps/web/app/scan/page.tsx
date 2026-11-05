@@ -75,7 +75,7 @@ export default function Scan() {
     <div className="scan-page">
       <video ref={video} playsInline muted />
       <div className="scan-top">
-        <button onClick={() => router.push("/")} aria-label="Close">{Icon.close()}</button>
+        <button onClick={() => router.push("/app")} aria-label="Close">{Icon.close()}</button>
         <span style={{ fontWeight: 700 }}>WhitePay</span>
         <span style={{ width: 42 }} />
       </div>

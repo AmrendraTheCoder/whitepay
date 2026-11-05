@@ -2,7 +2,7 @@
 import type { Metadata } from "next"
 import { SDK_SRI } from "./sri"
 
-export const metadata: Metadata = { title: "WhitePay Checkout SDK", description: "Accept USDT on Whitechain on any website: one script tag, one button, signed webhooks." }
+export const metadata: Metadata = { alternates: { canonical: "/developers" }, title: "Developers · Checkout SDK", description: "Accept USDT on Whitechain on any website: one script tag, one button, signed webhooks." }
 
 const ORIGIN = "https://whitepay.vercel.app"
 const SRC = `${ORIGIN}/sdk/v1.2.0/checkout.js`
@@ -12,7 +12,6 @@ export default function Developers() {
   return (
     <main className="dev">
       <header className="dev-hero">
-        <a href="/" className="dev-brand"><img src="/icon.svg" alt="" /> WhitePay</a>
         <span className="dev-pill">Checkout SDK v1.2</span>
         <h1>Accept USDT on any website.</h1>
         <p>One script tag, one button, one server call. Shoppers scan, confirm with their fingerprint and pay with <b>zero gas</b>; you get a signed webhook and an on-chain receipt on Whitechain.</p>
@@ -51,7 +50,7 @@ export default function Developers() {
       </section>
 
       <section>
-        <h2>4 · Fulfil from the webhook</h2>
+        <h2 id="webhooks">4 · Fulfil from the webhook</h2>
         <Code>{`import { verifyWhitePayWebhook, verifyWhitePayPayment } from "@whitepay/checkout/server"\n\napp.post("/api/webhook", express.text({ type: "*/*" }), async (req, res) => {\n  const auth = await verifyWhitePayWebhook({ rawBody: req.body, headers: new Headers(req.headers) })\n  if (!auth.ok) return res.status(401).end()          // forged, tampered or replayed\n  if (await db.seen(auth.eventId)) return res.end()   // idempotent\n  const { txHash, orderId, amount } = auth.event\n  const v = await verifyWhitePayPayment({ txHash, merchant: SHOP, orderId, minAmount: BigInt(amount) })\n  if (v.ok) await fulfil(orderId)                      // money confirmed on Whitechain\n  res.end()\n})`}</Code>
         <table className="dev-table"><tbody>
           <tr><td><code>x-whitepay-signature</code></td><td>EIP-191 signature of <code>whitepay-webhook:v1:&lt;timestamp&gt;:&lt;keccak256(body)&gt;</code></td></tr>

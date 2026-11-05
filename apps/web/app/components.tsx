@@ -4,7 +4,7 @@ import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
 import { sessionFor } from "@/lib/session"
 import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout, isExternal, externalSigner, verifyExternalPin, verifyExternalPasskey, setExternalPin } from "@/lib/wallet"
 
-export function TopBar({ right, back = "/" }: { right?: React.ReactNode; back?: string | null }) {
+export function TopBar({ right, back = "/app" }: { right?: React.ReactNode; back?: string | null }) {
   return (
     <div className="topbar">
       <div className="brand">

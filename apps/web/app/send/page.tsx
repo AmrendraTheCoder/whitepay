@@ -57,7 +57,7 @@ function Send() {
         <TopBar />
         <div className="card stack">
           <h2>Set up WhitePay first</h2>
-          <a className="btn btn-primary" href="/">Create wallet</a>
+          <a className="btn btn-primary" href="/app">Create wallet</a>
         </div>
       </main>
     )
@@ -108,7 +108,7 @@ function Send() {
   if (phase === "done" || phase === "failed")
     return (
       <main className="shell">
-        <TopBar right={<a className="chip" href="/">Home</a>} />
+        <TopBar right={<a className="chip" href="/app">Home</a>} />
         <div className="card result">
           {phase === "done" ? <SuccessCheck /> : <div className="icon bad">✕</div>}
           <h1>{phase === "done" ? `Sent ${amount} USDT` : "Not sent"}</h1>
@@ -117,14 +117,14 @@ function Send() {
           </div>
           {result.explorer && <a className="chip" href={result.explorer} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
         </div>
-        <a className="btn btn-primary" href="/">Done</a>
+        <a className="btn btn-primary" href="/app">Done</a>
       </main>
     )
 
   const label = payee?.displayName ?? payee?.name ?? (payee ? short(payee.address) : "")
   return (
     <main className="shell">
-      <TopBar right={<a className="chip" href="/">Cancel</a>} />
+      <TopBar right={<a className="chip" href="/app">Cancel</a>} />
       {!payee ? (
         <div className="card stack">
           <h2>Pay a person</h2>

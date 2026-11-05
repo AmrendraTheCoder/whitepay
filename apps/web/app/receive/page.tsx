@@ -37,7 +37,7 @@ export default function Receive() {
     return (
       <main className="shell">
         <TopBar />
-        <a className="btn btn-primary" href="/">Create your wallet first</a>
+        <a className="btn btn-primary" href="/app">Create your wallet first</a>
       </main>
     )
 
@@ -51,7 +51,7 @@ export default function Receive() {
 
   return (
     <main className="shell">
-      <TopBar right={<a className="chip" href="/">Close</a>} />
+      <TopBar right={<a className="chip" href="/app">Close</a>} />
       <div className="card stack" style={{ textAlign: "center" }}>
         <div className="sub">Scan to pay</div>
         <div style={{ fontSize: 20, fontWeight: 700 }}>{displayName ?? name ?? short(wallet.address)}</div>

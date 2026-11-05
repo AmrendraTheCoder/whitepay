@@ -1,7 +1,7 @@
 "use client"
 import { useMemo } from "react"
-import { Onboard } from "./onboard"
-import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp, LogoLoader } from "./ui"
+import { Onboard } from "../onboard"
+import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp, LogoLoader } from "../ui"
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 

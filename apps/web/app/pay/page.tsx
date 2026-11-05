@@ -50,7 +50,7 @@ function Pay() {
         <div className="card stack">
           <h2>Set up WhitePay first</h2>
           <div className="sub">Create your wallet (takes 20 seconds), then scan again.</div>
-          <a className="btn btn-primary" href="/">Create wallet</a>
+          <a className="btn btn-primary" href="/app">Create wallet</a>
         </div>
       </main>
     )
@@ -61,7 +61,7 @@ function Pay() {
     const paid = data.state === "paid"
     return (
       <main className="shell">
-        <TopBar right={<a className="chip" href="/">Home</a>} />
+        <TopBar right={<a className="chip" href="/app">Home</a>} />
         <div className="card result">
           <div className={`icon ${paid ? "ok" : "bad"}`}>{paid ? "✓" : "!"}</div>
           <h1>{paid ? "Already paid" : data.state === "depleted" ? "Request expired" : "Can't pay this"}</h1>
@@ -126,7 +126,7 @@ function Pay() {
   if (phase === "done" || phase === "failed")
     return (
       <main className="shell">
-        <TopBar right={<a className="chip" href="/">Home</a>} />
+        <TopBar right={<a className="chip" href="/app">Home</a>} />
         <div className="card result">
           {phase === "done" ? <SuccessCheck /> : <div className="icon bad">✕</div>}
           <h1>{phase === "done" ? `Paid ${usdt(req.amount)} USDT` : "Payment not sent"}</h1>
@@ -137,7 +137,7 @@ function Pay() {
           </div>
           {result.explorer && <a className="chip" href={result.explorer} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
         </div>
-        <a className="btn btn-primary" href="/">Done</a>
+        <a className="btn btn-primary" href="/app">Done</a>
       </main>
     )
 

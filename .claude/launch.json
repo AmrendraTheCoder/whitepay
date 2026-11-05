@@ -10,7 +10,7 @@
     {
       "name": "web-prod",
       "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "cd apps/web && npx next build && npx next start -p 3002"],
+      "runtimeArgs": ["-c", "cd apps/web && npx next build && npx next start -p ${PORT:-3002}"],
       "port": 3002
     },
     {
