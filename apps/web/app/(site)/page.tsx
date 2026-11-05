@@ -134,7 +134,7 @@ export default async function Landing() {
             <div className="s-code-head"><i /><i /><i /><span>checkout.html</span></div>
             <pre>
               <span className="c">{"<!-- 1. load the SDK (pinned with SRI) -->"}</span>{"\n"}
-              <span className="k">{"<script"}</span>{" src="}<span className="s">{'"https://whitepay.vercel.app/sdk/v1.2.0/checkout.js"'}</span>{"\n        integrity="}<span className="s">{'"sha384-…"'}</span>{" crossorigin defer"}<span className="k">{"></script>"}</span>{"\n\n"}
+              <span className="k">{"<script"}</span>{" src="}<span className="s">{'"https://whitepay.vercel.app/sdk/v1.2.1/checkout.js"'}</span>{"\n        integrity="}<span className="s">{'"sha384-…"'}</span>{" crossorigin defer"}<span className="k">{"></script>"}</span>{"\n\n"}
               <span className="c">{"<!-- 2. drop in the button -->"}</span>{"\n"}
               <span className="k">{"<whitepay-button"}</span>{" order-endpoint="}<span className="s">{'"/api/create-order"'}</span>{"\n                 payload="}<span className="s">{`'{"sku":"chai-kit"}'`}</span><span className="k">{" />"}</span>{"\n\n"}
               <span className="c">{"// 3. fulfil from the signed webhook"}</span>{"\n"}

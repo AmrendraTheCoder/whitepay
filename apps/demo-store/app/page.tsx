@@ -1,256 +1,292 @@
 "use client"
-import { useEffect, useRef, useState } from "react"
-import { LINES } from "@/lib/integration-lines"
-import { REPO, SDK_SRC, SDK_SRI, WHITEPAY_URL } from "@/lib/sdk"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { WHITEPAY_URL, SDK_SRC } from "@/lib/sdk"
+import { PRODUCTS, PRICE, MAX_QTY, type Product } from "@/lib/catalog"
+import { HeroArt, ProductArt, ClubArt } from "@/lib/art"
+import { DevPanel, gh, type Log } from "./dev-panel"
 
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      "whitepay-button": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { "order-endpoint"?: string; payload?: string; label?: string; mode?: "subscribe" }
+      "whitepay-button": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { "order-endpoint"?: string; payload?: string; label?: string; mode?: "subscribe"; "data-items"?: string }
     }
   }
 }
 
-const PRODUCTS = [
-  { sku: "chai-kit", name: "Masala Chai Kit", price: "2.50", emoji: "🫖", tint: "#f6e3c9", blurb: "Assam CTC, cardamom, ginger, clove. Brews 20 cups." },
-  { sku: "tote-bag", name: "Chai & Co. Tote", price: "1.20", emoji: "👜", tint: "#e3ecd9", blurb: "Organic cotton, hand block-printed in Jaipur." },
-  { sku: "sticker-pack", name: "Sticker Pack", price: "0.40", emoji: "✨", tint: "#e7e2f6", blurb: "Six waterproof vinyl stickers for your laptop." },
-]
-
-type Sub = { mandateKey: string; subscriber?: string; amount: string; cycles: number }
+type Line = { sku: string; qty: number }
 type Paid = { orderId: string; txHash?: string; explorer?: string; amount: string; entityKey: string }
-type Log = { at: number; src: "sdk" | "server" | "chain"; msg: string; tone?: "ok" | "bad" }
+type Sub = { mandateKey: string; subscriber?: string; amount: string; cycles: number }
 
-const POINTS = [
-  { n: "①", where: "Browser", title: "Load the SDK", code: `<script src="${SDK_SRC}"\n  integrity="${SDK_SRI.slice(0, 22)}…" crossorigin="anonymous" defer></script>`, why: "One tag. Pinned with Subresource Integrity, so a modified SDK file is refused by the browser." },
-  { n: "②", where: "Browser", title: "Place the button + listen", code: `<whitepay-button order-endpoint="/api/create-order"\n  payload='{"sku":"chai-kit"}' label="Pay 2.50 USDT" />\n\ndocument.addEventListener("whitepay:paid", e => …)`, why: "A standard web component: works in React, Vue, Svelte, WordPress or plain HTML." },
-  { n: "③", where: "Your server", title: "Sign the order", code: `const order = await createWhitePayOrder({\n  merchantKey: process.env.STORE_MERCHANT_PK,\n  amount: CATALOG[sku],          // price from the server\n  webhook: \`\${STORE_URL}/api/webhook\` })`, why: "The shop key signs amount + order id + deadline (EIP-712). The browser can't change the price." },
-  { n: "④", where: "Your server", title: "Receive the webhook", code: `const auth = await verifyWhitePayWebhook({ rawBody, headers })\nif (!auth.ok) return 401        // forged / replayed\nconst v = await verifyWhitePayPayment({ txHash, merchant, orderId })\nif (v.ok) fulfil(orderId)        // money confirmed on-chain`, why: "Signed + timestamped + de-duplicated, then the money itself is checked on Whitechain." },
-  { n: "⑤", where: "Your server", title: "Thank-you check (optional)", code: `GET /api/verify?tx=0x…&orderId=0x…\n→ { ok: true, payer, amount, block }`, why: "Trustless receipt from the tx hash; no WhitePay API needed." },
+const base = (usdt: string) => BigInt(Math.round(Number(usdt) * 1e6))
+const fmt = (b: bigint) => `${b / 1_000_000n}.${(b % 1_000_000n).toString().padStart(6, "0").slice(0, 2)}`
+const byS = Object.fromEntries(PRODUCTS.map((p) => [p.sku, p])) as Record<string, Product>
+const CART_KEY = "chaico.cart.v1"
+
+const REVIEWS = [
+  { n: "Priya", c: "Pune", t: "Tastes exactly like the tapri outside my old office. Paid with my fingerprint and it was done before the kettle boiled." },
+  { n: "Daniel", c: "Lisbon", t: "Ordered from Portugal with no card fees and no currency maths. The receipt link is a nice touch." },
+  { n: "Meher", c: "Bandra", t: "The Chai Club box shows up like clockwork and I can cancel from my phone anytime. Love the cardamom blend." },
 ]
-
-const SNIPPETS: Record<string, string> = {
-  "Plain HTML": `<script src="${SDK_SRC}" integrity="${SDK_SRI}" crossorigin="anonymous" defer></script>\n<whitepay-button order-endpoint="/api/create-order" payload='{"sku":"chai-kit"}'></whitepay-button>\n<script>\n  document.addEventListener("whitepay:paid", (e) => location.href = "/thanks?tx=" + e.detail.txHash)\n</script>`,
-  React: `useEffect(() => {\n  const s = Object.assign(document.createElement("script"), { src: "${SDK_SRC}", integrity: "${SDK_SRI}", crossOrigin: "anonymous" })\n  document.head.append(s)\n}, [])\n\nreturn <whitepay-button order-endpoint="/api/create-order" payload={JSON.stringify({ sku })} />`,
-  Vue: `<!-- vite.config: compilerOptions.isCustomElement = t => t.startsWith("whitepay-") -->\n<whitepay-button order-endpoint="/api/create-order" :payload="JSON.stringify({ sku })"\n  @whitepay:paid="onPaid" />`,
-  WordPress: `// functions.php\nwp_enqueue_script("whitepay", "${SDK_SRC}", [], null, true);\nadd_shortcode("whitepay", fn($a) => '<whitepay-button order-endpoint="/wp-json/shop/v1/order" payload=\\'{"sku":"'.esc_attr($a["sku"]).'"}\\'></whitepay-button>');`,
-  "Server (Node)": `import { createWhitePayOrder, verifyWhitePayWebhook, verifyWhitePayPayment } from "@whitepay/checkout/server"\n// any Node / Bun / Deno / edge runtime: Express, Fastify, Next.js, Hono…`,
-}
-
-const gh = (n: string) => (LINES[n] ? `${REPO}/${LINES[n].file}#L${LINES[n].line}` : REPO)
-const loc = (n: string) => (LINES[n] ? `${LINES[n].file}:${LINES[n].line}` : "")
-const time = (t: number) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
 
 export default function Store() {
-  const [inspect, setInspect] = useState(false)
-  const [paid, setPaid] = useState<Paid | null>(null)
-  const [verified, setVerified] = useState<"" | "checking" | "ok" | "bad">("")
-  const [logs, setLogs] = useState<Log[]>([])
-  const [tab, setTab] = useState("Plain HTML")
-  const [sdkReady, setSdkReady] = useState(false)
-  const seenServer = useRef(new Set<string>())
+  const [cart, setCart] = useState<Line[]>([])
+  const [drawer, setDrawer] = useState(false)
+  const [toast, setToast] = useState("")
+  const [paid, setPaid] = useState<{ p: Paid; items: Line[] } | null>(null)
+  const [verified, setVerified] = useState<"checking" | "ok" | "bad">("checking")
   const [sub, setSub] = useState<Sub | null>(null)
-  const push = (l: Omit<Log, "at">) => setLogs((x) => [{ ...l, at: Date.now() }, ...x].slice(0, 40))
+  const [dev, setDev] = useState(false)
+  const [inspect, setInspect] = useState(false)
+  const [logs, setLogs] = useState<Log[]>([])
+  const [ready, setReady] = useState(false)
+  const pending = useRef<Line[]>([])
+  const seen = useRef(new Set<string>())
+  const push = useCallback((l: Omit<Log, "at">) => setLogs((x) => [{ ...l, at: Date.now() }, ...x].slice(0, 60)), [])
 
+  // cart persistence (per browser)
+  useEffect(() => { try { const c = JSON.parse(localStorage.getItem(CART_KEY) ?? "[]"); if (Array.isArray(c)) setCart(c.filter((l) => byS[l.sku])) } catch {} }, [])
+  useEffect(() => { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)) } catch {} }, [cart])
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2200); return () => clearTimeout(t) }, [toast])
+  useEffect(() => { document.body.style.overflow = drawer || paid || dev ? "hidden" : ""; }, [drawer, paid, dev])
+
+  const count = cart.reduce((n, l) => n + l.qty, 0)
+  const total = useMemo(() => cart.reduce((s, l) => s + base(PRICE[l.sku]) * BigInt(l.qty), 0n), [cart])
+  const add = (sku: string) => { setCart((c) => { const f = c.find((l) => l.sku === sku); return f ? c.map((l) => l.sku === sku ? { ...l, qty: Math.min(MAX_QTY, l.qty + 1) } : l) : [...c, { sku, qty: 1 }] }); setToast(`${byS[sku].name} added to your bag`) }
+  const setQty = (sku: string, q: number) => setCart((c) => (q <= 0 ? c.filter((l) => l.sku !== sku) : c.map((l) => l.sku === sku ? { ...l, qty: Math.min(MAX_QTY, q) } : l)))
+
+  // ── WHITEPAY events (part of integration point ②)
   useEffect(() => {
-    const ready = () => setSdkReady(!!customElements.get("whitepay-button"))
-    customElements.whenDefined("whitepay-button").then(() => { ready(); push({ src: "sdk", msg: `SDK v${(window as any).WhitePay?.version ?? "?"} loaded from ${new URL(SDK_SRC).host} (integrity verified)`, tone: "ok" }) })
-    // WhitePay events (part of integration point ②)
-    const on = (name: string, f: (d: any) => void) => { const h = (e: Event) => f((e as CustomEvent).detail); document.addEventListener(name, h); return () => document.removeEventListener(name, h) }
+    customElements.whenDefined("whitepay-button").then(() => { setReady(true); push({ src: "sdk", msg: `SDK v${(window as any).WhitePay?.version ?? "?"} loaded from ${new URL(SDK_SRC).host}, integrity verified`, tone: "ok" }) })
+    const on = (n: string, f: (d: any, e: Event) => void) => { const h = (e: Event) => f((e as CustomEvent).detail, e); document.addEventListener(n, h); return () => document.removeEventListener(n, h) }
     const offs = [
-      on("whitepay:created", (d) => push({ src: "sdk", msg: `whitepay:created · order on Arkiv ${d.entityKey.slice(0, 10)}… · QR expires ${time(d.deadline * 1000)}` })),
-      on("whitepay:paid", (d: Paid) => { push({ src: "sdk", msg: `whitepay:paid · ${Number(d.amount) / 1e6} USDT · tx ${d.txHash?.slice(0, 10)}…`, tone: "ok" }); setPaid(d) }),
-      on("whitepay:expired", () => push({ src: "sdk", msg: "whitepay:expired · request removed from Arkiv", tone: "bad" })),
-      on("whitepay:subscribed", (d: Sub) => { push({ src: "sdk", msg: `whitepay:subscribed · autopay mandate ${d.mandateKey.slice(0, 10)}… · first ${Number(d.amount) / 1e6} USDT paid`, tone: "ok" }); setSub(d) }),
-      on("whitepay:error", (d) => push({ src: "sdk", msg: `whitepay:error · ${d.message}`, tone: "bad" })),
+      on("whitepay:created", (d, e) => {
+        if (d.entityKey) {
+          try { pending.current = JSON.parse((e.target as HTMLElement).dataset.items ?? "[]") } catch { pending.current = [] }
+          push({ src: "sdk", msg: `order created · request ${d.entityKey.slice(0, 10)}… on Arkiv · QR valid until ${new Date(d.deadline * 1000).toLocaleTimeString()}` })
+        } else push({ src: "sdk", msg: `subscription offer ${d.planKey?.slice(0, 10)}… signed by the shop` })
+      }),
+      on("whitepay:paid", (d: Paid) => { push({ src: "sdk", msg: `paid ${Number(d.amount) / 1e6} USDT · tx ${d.txHash?.slice(0, 10)}…`, tone: "ok" }); setDrawer(false); setPaid({ p: d, items: pending.current }) }),
+      on("whitepay:subscribed", (d: Sub) => { push({ src: "sdk", msg: `subscribed · mandate ${d.mandateKey.slice(0, 10)}… · first ${Number(d.amount) / 1e6} USDT paid`, tone: "ok" }); setSub(d); setToast("Welcome to Chai Club ✓") }),
+      on("whitepay:expired", () => push({ src: "sdk", msg: "payment window expired · request removed from Arkiv", tone: "bad" })),
+      on("whitepay:error", (d) => push({ src: "sdk", msg: `error · ${d.message}`, tone: "bad" })),
     ]
     return () => offs.forEach((f) => f())
-  }, [])
+  }, [push])
 
-  // after payment: our server re-checks the chain, and we show what the webhook handler did
+  // after payment: our own server re-checks the chain, and shows what its webhook handler did
   useEffect(() => {
-    if (!paid?.txHash) return
+    if (!paid?.p.txHash) return
+    const { p, items } = paid
     setVerified("checking")
-    fetch(`/api/verify?tx=${paid.txHash}&orderId=${paid.orderId}`).then((r) => r.json()).then((v) => {
+    if (items.length) setCart((c) => c.filter((l) => !items.some((i) => i.sku === l.sku)))
+    fetch(`/api/verify?tx=${p.txHash}&orderId=${p.orderId}`).then((r) => r.json()).then((v) => {
       setVerified(v.ok ? "ok" : "bad")
-      push({ src: "chain", msg: v.ok ? `on-chain ✓ PaymentSettled in block ${v.block} · payer ${v.payer.slice(0, 8)}…` : `on-chain check failed: ${v.reason}`, tone: v.ok ? "ok" : "bad" })
-    })
-    let n = 0
-    const t = setInterval(async () => {
-      const d = await fetch(`/api/order-status?orderId=${paid.orderId}`).then((r) => r.json()).catch(() => null)
-      for (const e of d?.events ?? []) {
-        const k = `${e.at}${e.msg}`
-        if (seenServer.current.has(k)) continue
-        seenServer.current.add(k)
-        push({ src: "server", msg: e.msg, tone: e.msg.includes("✓") ? "ok" : undefined })
-      }
-      if (++n > 10 || (d?.events ?? []).some((e: any) => e.msg.startsWith("webhook"))) clearInterval(t)
-    }, 1500)
-    return () => clearInterval(t)
-  }, [paid])
+      push({ src: "chain", msg: v.ok ? `PaymentSettled confirmed in block ${v.block}` : `on-chain check: ${v.reason}`, tone: v.ok ? "ok" : "bad" })
+    }).catch(() => setVerified("bad"))
+    return poll(`orderId=${p.orderId}`, 12, 1500)
+  }, [paid]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // autopay: the shop's server receives a signed webhook for every cycle; show them as they land
   useEffect(() => {
     if (!sub) return
+    const stop = poll(`mandateKey=${sub.mandateKey}`, 110, 5000, () => fetch(`${WHITEPAY_URL}/api/autopay/tick`, { mode: "no-cors", credentials: "omit" }).catch(() => {}))
+    return stop
+  }, [sub]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function poll(q: string, times: number, every: number, each?: () => void) {
+    let n = 0
     const t = setInterval(async () => {
-      // demo speed-up: nudge WhitePay's keeper (it also runs on its own cron); fire-and-forget
-      fetch(`${WHITEPAY_URL}/api/autopay/tick`, { mode: "no-cors", credentials: "omit" }).catch(() => {})
-      const d = await fetch(`/api/order-status?mandateKey=${sub.mandateKey}`).then((r) => r.json()).catch(() => null)
+      each?.()
+      const d = await fetch(`/api/order-status?${q}`).then((r) => r.json()).catch(() => null)
       for (const e of d?.events ?? []) {
         const k = `${e.at}${e.msg}`
-        if (seenServer.current.has(k)) continue
-        seenServer.current.add(k)
-        push({ src: "server", msg: e.msg, tone: "ok" })
+        if (seen.current.has(k)) continue
+        seen.current.add(k)
+        push({ src: "server", msg: e.msg, tone: e.msg.includes("✓") ? "ok" : undefined })
       }
-    }, 5000)
-    const stop = setTimeout(() => clearInterval(t), 9 * 60_000)
-    return () => { clearInterval(t); clearTimeout(stop) }
-  }, [sub])
+      if (++n >= times) clearInterval(t)
+    }, every)
+    return () => clearInterval(t)
+  }
+
+  const Pin = ({ n, title }: { n: string; title: string }) => inspect ? <a className="pin" href={gh(n)} target="_blank" rel="noopener noreferrer" title={title}>{n}</a> : null
 
   return (
     <div className={inspect ? "inspect" : ""}>
-      <div className="demo-bar">
-        <span>🧪 Demo merchant site. It is <b>not</b> WhitePay: it embeds the <b>WhitePay Checkout SDK</b>, like any shop would.</span>
-        <button className="toggle" aria-pressed={inspect} onClick={() => setInspect((v) => !v)}>
-          <span className="dot" /> {inspect ? "Hide" : "Show"} integration points
-        </button>
-      </div>
-
-      {inspect && (
-        <aside className="legend" aria-label="Integration points">
-          <b>WhitePay in this site</b>
-          {POINTS.map((p) => (
-            <a key={p.n} href={gh(p.n)} target="_blank" rel="noopener noreferrer"><span className="num">{p.n}</span><span>{p.title}<small>{loc(p.n)}</small></span></a>
-          ))}
-        </aside>
-      )}
+      <div className="announce"><span>Pay in USDT with <b>WhitePay</b> · 0 gas · settled in ~1 second</span><span className="announce-demo">Demo store</span></div>
 
       <header className="nav">
-        <div className="brand"><span className="logo">☕</span> Chai &amp; Co.</div>
-        <nav><a href="#shop">Shop</a><a href="#how">How it's integrated</a><a href="#universal">Any website</a><a href="#security">Security</a></nav>
+        <div className="wrap nav-in">
+          <a className="brand" href="#top" aria-label="Chai & Co. home">
+            <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden><rect width="40" height="40" rx="11" fill="#2a1a10" /><path d="M11 15h16v8a7 7 0 0 1-7 7h-2a7 7 0 0 1-7-7z" fill="#e9a23b" /><path d="M27 17h2a3 3 0 0 1 0 6h-2" fill="none" stroke="#e9a23b" strokeWidth="2.4" /><path d="M16 9c-1.5 2 1.5 3 0 5M21 9c-1.5 2 1.5 3 0 5" stroke="#fbf5ea" strokeWidth="2" fill="none" strokeLinecap="round" /></svg>
+            <span>Chai <i>&amp;</i> Co.</span>
+          </a>
+          <nav className="links"><a href="#shop">Shop</a><a href="#club">Chai Club</a><a href="#story">Our story</a></nav>
+          <button className="bag" onClick={() => setDrawer(true)} aria-label={`Open bag, ${count} items`}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 8h14l-1 12H6z" /><path d="M9 8a3 3 0 0 1 6 0" /></svg>
+            <span>Bag</span>{count > 0 && <b key={count}>{count}</b>}
+          </button>
+        </div>
       </header>
 
-      <section className="hero">
-        <div>
-          <div className="eyebrow">Small-batch chai from Mumbai</div>
-          <h1>Pay in USDT.<br />No gas. No wallet pop-ups.</h1>
-          <p>Scan the WhitePay QR with your phone, confirm with your fingerprint, done. Settled on Whitechain in about a second, receipt stored on Arkiv, paid to <b>demo-store.whitepay.eth</b>.</p>
-          <div className="chips"><span>⚡ ~1 s settlement</span><span>⛽ 0 gas for you</span><span>🔏 Signed orders</span><span>🧾 On-chain receipt</span></div>
-        </div>
-        <div className="hero-card" aria-hidden>
-          <div className="steam">🫖</div>
-          <div className="price">from 0.40 <small>USDT</small></div>
-        </div>
-      </section>
-
-      {paid && (
-        <section className={`thanks ${verified}`}>
-          <div className="big">✓</div>
-          <div>
-            <h2>Thank you! Your order is paid.</h2>
-            <p>{verified === "checking" ? "Our server is confirming it on Whitechain…" : verified === "ok" ? "Our server confirmed the payment on-chain. We're packing your order." : verified === "bad" ? "We couldn't confirm it on-chain yet. We'll retry." : ""}</p>
-            {paid.explorer && <a href={paid.explorer} target="_blank" rel="noopener noreferrer">View the transaction on Whitechain ↗</a>}
+      <main id="top">
+        <section className="hero wrap">
+          <div className="hero-copy">
+            <span className="kicker">Small-batch · Brewed in Mumbai</span>
+            <h1>Chai, the way <em>Mumbai</em> makes it.</h1>
+            <p>Hand-blended Assam, cardamom and ginger, shipped worldwide. Checkout takes one scan and one fingerprint: no card, no fees, no forms.</p>
+            <div className="hero-cta">
+              <a className="btn btn-dark" href="#shop">Shop the blends</a>
+              <a className="btn btn-light" href="#club">Join Chai Club</a>
+            </div>
+            <ul className="trust"><li><b>4.9★</b> 2,600+ reviews</li><li><b>~1 s</b> checkout</li><li><b>0</b> card fees</li></ul>
+          </div>
+          <div className="hero-art">
+            <HeroArt />
+            <div className="float-card">
+              <span className="fc-ic">✓</span>
+              <div><b>Paid 2.50 USDT</b><small>with WhitePay · 0.9 s</small></div>
+            </div>
           </div>
         </section>
-      )}
 
-      <section id="shop" className="grid">
-        {PRODUCTS.map((p) => (
-          <article key={p.sku} className="product">
-            <div className="art" style={{ background: p.tint }}>{p.emoji}</div>
-            <h3>{p.name}</h3>
-            <p>{p.blurb}</p>
-            <div className="row"><div className="price">{p.price} <small>USDT</small></div></div>
-            <div className="pin-wrap">
-              {inspect && <a className="pin" href={gh("②")} target="_blank" rel="noopener noreferrer" title={`app/page.tsx: <whitepay-button>`}>②</a>}
-              {/* ── WHITEPAY INTEGRATION ② ── the checkout button: one element per product */}
-              <whitepay-button order-endpoint="/api/create-order" payload={JSON.stringify({ sku: p.sku })} label={`Pay ${p.price} USDT`} />
-            </div>
-          </article>
-        ))}
-        {!sdkReady && <div className="sdk-wait">Loading WhitePay Checkout…</div>}
-      </section>
-
-      <section className="club">
-        <div>
-          <div className="eyebrow">New · Autopay</div>
-          <h2>Chai Club: a fresh blend, every cycle</h2>
-          <p><b>0.10 USDT every 2 minutes</b> (demo speed; real plans run monthly), 3 payments. You pay the first one now; when each next one is due, WhitePay sends you a payment request to approve with one tap (or pick Autopay to approve once). Cancel anytime from WhitePay → You → Subscriptions.</p>
-          {sub && <p className="club-on">✓ Subscribed · watch each payment request and payment arrive in the console below</p>}
-        </div>
-        <div className="pin-wrap club-btn">
-          {inspect && <a className="pin" href={gh("②")} target="_blank" rel="noopener noreferrer" title="same button, mode=subscribe">②</a>}
-          <whitepay-button mode="subscribe" order-endpoint="/api/create-subscription" label="Subscribe · 0.10 USDT / 2 min" />
-        </div>
-      </section>
-
-      <section className="console" aria-live="polite">
-        {inspect && <a className="pin pin-abs" href={gh("④")} target="_blank" rel="noopener noreferrer" title="server webhook handler">③④</a>}
-        <div className="console-head"><b>Live integration console</b><span>SDK events · this shop's server · Whitechain</span></div>
-        {logs.length === 0 ? <div className="console-empty">Tap a Pay button and watch the SDK, the shop's server and the chain report in.</div> :
-          logs.map((l, i) => (
-            <div key={i} className={`line ${l.tone ?? ""}`}><span className="t">{time(l.at)}</span><span className={`src ${l.src}`}>{l.src}</span><span>{l.msg}</span></div>
+        <section className="howpay wrap" aria-label="How checkout works">
+          {[["01", "Add to bag", "Pick your blends. Prices are set by our server, never your browser."], ["02", "Scan with WhitePay", "A QR appears. Scan it, or tap Pay on this device."], ["03", "Fingerprint, done", "Settled on Whitechain in about a second, receipt saved."]].map(([n, t, d]) => (
+            <div key={n}><span>{n}</span><b>{t}</b><p>{d}</p></div>
           ))}
-      </section>
+        </section>
 
-      <section id="how" className="how">
-        <h2>Exactly where WhitePay is integrated</h2>
-        <p className="lead">Five touch points, about 20 lines. Each one links to the exact line in this store's source. Turn on <b>Show integration points</b> to see them on the page.</p>
-        <div className="flow">
-          {POINTS.map((p) => (
-            <div key={p.n} className="point">
-              <div className="point-head">
-                <span className="num">{p.n}</span>
-                <div><div className="where">{p.where}</div><div className="title">{p.title}</div></div>
-              </div>
-              <pre>{p.code}</pre>
-              <p>{p.why}</p>
-              <a href={gh(p.n)} target="_blank" rel="noopener noreferrer" className="src-link">{loc(p.n) || "source"} ↗</a>
+        <section id="shop" className="shop wrap">
+          <div className="section-head">
+            <div><span className="kicker">The shop</span><h2>Blends &amp; good things</h2></div>
+            <p>Every order ships in 48 hours. Pay in USDT from anywhere in the world.</p>
+          </div>
+          <div className="grid">
+            {PRODUCTS.map((p) => {
+              const inBag = cart.find((l) => l.sku === p.sku)?.qty ?? 0
+              return (
+                <article key={p.sku} className={`card art-${p.art}`}>
+                  <div className="card-art">{p.badge && <span className="badge">{p.badge}</span>}<ProductArt kind={p.art} /></div>
+                  <div className="card-body">
+                    <div className="rating"><span aria-hidden>★★★★★</span> {p.rating} <small>({p.reviews.toLocaleString()})</small></div>
+                    <h3>{p.name}</h3>
+                    <p>{p.tagline}</p>
+                    <div className="tags">{p.notes.map((n) => <span key={n}>{n}</span>)}</div>
+                    <div className="price-row">
+                      <div className="price">{p.price} <small>USDT</small></div>
+                      {inBag ? (
+                        <div className="stepper" aria-label={`${p.name} quantity`}><button onClick={() => setQty(p.sku, inBag - 1)} aria-label="Remove one">−</button><b>{inBag}</b><button onClick={() => setQty(p.sku, inBag + 1)} aria-label="Add one">+</button></div>
+                      ) : <button className="btn btn-dark btn-sm" onClick={() => add(p.sku)}>Add to bag</button>}
+                    </div>
+                    <div className="buy-now pin-wrap">
+                      <Pin n="②" title="<whitepay-button>: one element per product" />
+                      {/* ── WHITEPAY INTEGRATION ② ── the checkout button (same element in the bag) */}
+                      <whitepay-button order-endpoint="/api/create-order" payload={JSON.stringify({ items: [{ sku: p.sku, qty: 1 }] })} data-items={JSON.stringify([{ sku: p.sku, qty: 1 }])} label={`Buy now · ${p.price} USDT`} />
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          {!ready && <p className="sdk-wait">Loading secure checkout…</p>}
+        </section>
+
+        <section id="club" className="club wrap">
+          <div className="club-in">
+            <div className="club-art"><ClubArt /></div>
+            <div className="club-copy">
+              <span className="kicker kicker-lime">Chai Club · Subscription</span>
+              <h2>A fresh blend, every cycle. You stay in control.</h2>
+              <p>Pay for the first box now. When the next one is due, WhitePay sends you a payment request to approve with one tap, or switch on Autopay to approve once. Gas-free, and cancel anytime from WhitePay → You → Subscriptions.</p>
+              <ul><li>0.10 USDT per box <small>(demo: every 2 minutes, 3 boxes)</small></li><li>One-tap renewals, or Autopay</li><li>Cancel anytime, no questions</li></ul>
+              {sub ? <div className="club-on">✓ You're subscribed. Box 1 is paid; watch each payment request arrive in Developer view.</div> : (
+                <div className="pin-wrap club-btn">
+                  <Pin n="②" title='same button with mode="subscribe"' />
+                  <whitepay-button mode="subscribe" order-endpoint="/api/create-subscription" label="Subscribe · 0.10 USDT / box" />
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-        <div className="seq">
-          <div><b>Shopper</b> taps Pay</div><span>→</span>
-          <div><b>Shop server</b> signs order ③</div><span>→</span>
-          <div><b>WhitePay</b> stores it on Arkiv, shows QR</div><span>→</span>
-          <div><b>Phone</b> fingerprint, gasless pay</div><span>→</span>
-          <div><b>Whitechain</b> settles</div><span>→</span>
-          <div><b>Shop server</b> signed webhook + on-chain ✓ ④</div>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      <section id="universal" className="universal">
-        <h2>One SDK, any website</h2>
-        <p className="lead">The button is a standard Web Component and the server kit is plain TypeScript, so the same two pieces work on every stack.</p>
-        <div className="tabs" role="tablist">
-          {Object.keys(SNIPPETS).map((k) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{k}</button>)}
-        </div>
-        <pre className="snippet">{SNIPPETS[tab]}</pre>
-        <p className="lead">See it with zero framework: <a href="/plain.html">the same checkout on a plain HTML page</a> · <a href={`${WHITEPAY_URL}/developers`} target="_blank" rel="noopener noreferrer">full SDK docs ↗</a></p>
-      </section>
-
-      <section id="security" className="security">
-        <h2>Security, layer by layer</h2>
-        <div className="sec-grid">
-          {[
-            ["Price tampering", "Prices live on the shop's server; the shop key signs amount + order id + deadline (EIP-712). The router contract rejects any other amount."],
-            ["Forged / replayed webhooks", "Every webhook is signed by WhitePay's key with a timestamp; older than 5 min or bad signature = 401. Event ids are de-duplicated."],
-            ["Fake \"paid\" in the browser", "The browser event is only a UI hint. Fulfilment happens after the shop's server sees PaymentSettled on Whitechain."],
-            ["Tampered SDK / supply chain", "The SDK is pinned with Subresource Integrity (sha384). A changed file is refused by the browser."],
-            ["XSS & injected scripts", "Strict nonce-based CSP with 'strict-dynamic'; the SDK writes network data with textContent only and validates every field."],
-            ["Clickjacking", "frame-ancestors 'none' + X-Frame-Options DENY on the store and on WhitePay."],
-            ["SSRF via webhook URLs", "WhitePay only calls https:443 hostnames that resolve to public IPs, re-checked before every delivery, no redirects."],
-            ["Spam / brute force / drain", "Per-IP rate limits on every API, 16–32 KB body caps, JSON-only writes, cross-site POSTs blocked, relayer per-payer limits."],
-            ["Double spend / double refund", "EIP-3009 nonces are single-use on-chain; refunds go only to the original payer and are capped at what was paid."],
-            ["Key theft", "The shop key never reaches the browser; shoppers' keys never leave their phone (PIN / fingerprint encrypted)."],
-          ].map(([t, d]) => <div key={t} className="sec"><b>{t}</b><span>{d}</span></div>)}
-        </div>
-      </section>
+        <section id="story" className="story wrap">
+          <div className="section-head"><div><span className="kicker">Loved worldwide</span><h2>What our regulars say</h2></div></div>
+          <div className="reviews">
+            {REVIEWS.map((r) => (
+              <figure key={r.n}><div className="stars" aria-label="5 stars">★★★★★</div><blockquote>“{r.t}”</blockquote><figcaption><span>{r.n[0]}</span>{r.n} · {r.c}</figcaption></figure>
+            ))}
+          </div>
+          <div className="why">
+            <div><b>Why we take WhitePay</b><p>No card fees means better prices for you. Money reaches us in a second, and every payment comes with a receipt anyone can verify.</p></div>
+            <a className="btn btn-light" href="https://whitepay.vercel.app" target="_blank" rel="noopener noreferrer">Get WhitePay ↗</a>
+          </div>
+        </section>
+      </main>
 
       <footer className="foot">
-        Chai &amp; Co. is a demo merchant for WhitePay (ETHGlobal). Testnet USDT on Whitechain Sepolia. ·
-        <a href={REPO} target="_blank" rel="noopener noreferrer"> Store source ↗</a>
+        <div className="wrap foot-in">
+          <div className="brand"><span>Chai <i>&amp;</i> Co.</span></div>
+          <p>Chai &amp; Co. is a demo merchant built to show the WhitePay Checkout SDK. Testnet USDT on Whitechain Sepolia: no real money or real tea changes hands.</p>
+          <div className="foot-links"><a href="/plain.html">Plain HTML checkout</a><a href="https://whitepay.vercel.app/developers" target="_blank" rel="noopener noreferrer">Checkout SDK</a><a href="https://whitepay.vercel.app" target="_blank" rel="noopener noreferrer">WhitePay</a></div>
+        </div>
       </footer>
+
+      {/* bag drawer */}
+      <div className={`scrim ${drawer ? "on" : ""}`} onClick={() => setDrawer(false)} aria-hidden />
+      <aside className={`drawer ${drawer ? "open" : ""}`} aria-label="Your bag" aria-hidden={!drawer}>
+        <div className="drawer-head"><h3>Your bag {count > 0 && <small>({count})</small>}</h3><button className="icon-btn" onClick={() => setDrawer(false)} aria-label="Close bag">✕</button></div>
+        {cart.length === 0 ? (
+          <div className="empty"><div className="empty-art"><ProductArt kind="kit" /></div><b>Your bag is empty</b><p>Start with our bestselling Masala Chai Kit.</p><button className="btn btn-dark" onClick={() => { add("chai-kit") }}>Add Masala Chai Kit · 2.50</button></div>
+        ) : (
+          <>
+            <div className="lines">
+              {cart.map((l) => { const p = byS[l.sku]; return (
+                <div key={l.sku} className="line-item">
+                  <div className={`thumb art-${p.art}`}><ProductArt kind={p.art} /></div>
+                  <div className="li-mid"><b>{p.name}</b><small>{p.price} USDT each</small>
+                    <div className="stepper sm"><button onClick={() => setQty(l.sku, l.qty - 1)} aria-label="Remove one">−</button><b>{l.qty}</b><button onClick={() => setQty(l.sku, l.qty + 1)} aria-label="Add one">+</button></div>
+                  </div>
+                  <div className="li-end"><b>{fmt(base(p.price) * BigInt(l.qty))}</b><button className="link" onClick={() => setQty(l.sku, 0)}>Remove</button></div>
+                </div>
+              ) })}
+            </div>
+            <div className="summary">
+              <div><span>Subtotal</span><span>{fmt(total)} USDT</span></div>
+              <div><span>Shipping</span><span className="free">Free</span></div>
+              <div><span>Network fee</span><span className="free">0 · paid by WhitePay</span></div>
+              <div className="sum-total"><span>Total</span><span>{fmt(total)} USDT</span></div>
+              <div className="pin-wrap pay-wrap">
+                <Pin n="②" title="cart checkout: same button, items payload" />
+                <whitepay-button order-endpoint="/api/create-order" payload={JSON.stringify({ items: cart })} data-items={JSON.stringify(cart)} label={`Pay ${fmt(total)} USDT with WhitePay`} />
+              </div>
+              <p className="secure">🔒 Price signed by our server · you approve with your fingerprint in WhitePay</p>
+            </div>
+          </>
+        )}
+      </aside>
+
+      {/* order confirmation */}
+      {paid && (
+        <div className="modal-back" role="dialog" aria-modal="true" aria-label="Order confirmed">
+          <div className="modal">
+            <div className="confetti" aria-hidden>{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, animationDelay: `${(i % 6) * 0.08}s`, background: ["#e9a23b", "#c2562b", "#5b7a4a", "#2448ff"][i % 4] }} />)}</div>
+            <div className="ok-ring">✓</div>
+            <h3>Thank you! Order confirmed.</h3>
+            <p className="muted">Order #{paid.p.orderId.slice(2, 10).toUpperCase()} · {fmt(BigInt(paid.p.amount))} USDT</p>
+            {paid.items.length > 0 && <ul className="mini">{paid.items.map((l) => <li key={l.sku}><span>{byS[l.sku]?.name} × {l.qty}</span><b>{fmt(base(PRICE[l.sku]) * BigInt(l.qty))}</b></li>)}</ul>}
+            <div className={`verify ${verified}`}>{verified === "checking" ? <><span className="spin" /> Our server is confirming your payment on Whitechain…</> : verified === "ok" ? "✓ Payment confirmed on-chain. We're packing your order." : "We couldn't confirm it yet. We'll retry automatically."}</div>
+            <div className="modal-cta">
+              {paid.p.explorer && <a className="btn btn-light" href={paid.p.explorer} target="_blank" rel="noopener noreferrer">View receipt on Whitechain ↗</a>}
+              <button className="btn btn-dark" onClick={() => setPaid(null)}>Continue shopping</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && <div className="toast" role="status">{toast} {toast.includes("bag") && <button onClick={() => { setDrawer(true); setToast("") }}>View bag</button>}</div>}
+
+      <button className={`dev-fab ${dev ? "hide" : ""}`} onClick={() => setDev(true)} aria-label="Open developer view"><span>{"</>"}</span> Developer view{logs.length > 1 && <i>{logs.length}</i>}</button>
+      <div className={`scrim ${dev ? "on" : ""}`} onClick={() => setDev(false)} aria-hidden />
+      <DevPanel open={dev} onClose={() => setDev(false)} logs={logs} inspect={inspect} setInspect={setInspect} />
     </div>
   )
 }

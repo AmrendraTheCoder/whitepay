@@ -16,7 +16,7 @@
     {
       "name": "store",
       "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "cd apps/demo-store && npx next build && npx next start -p 3100"],
+      "runtimeArgs": ["-c", "cd apps/demo-store && npx next build && npx next start -p ${PORT:-3100}"],
       "port": 3100
     }
   ]

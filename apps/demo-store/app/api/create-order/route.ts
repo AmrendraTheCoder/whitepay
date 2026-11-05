@@ -1,28 +1,43 @@
 // ── WHITEPAY INTEGRATION ③ (server) ── sign the order with the shop's key and publish it on WhitePay.
 import { createWhitePayOrder } from "@whitepay/checkout/server"
-import type { Hex } from "viem"
+import { formatUnits, parseUnits, type Hex } from "viem"
 import { recordEvent } from "@/lib/events"
+import { PRICE, MAX_QTY } from "@/lib/catalog"
 
-// prices live on the SERVER; the browser only says which product (price tampering is impossible)
-const CATALOG: Record<string, string> = { "chai-kit": "2.50", "tote-bag": "1.20", "sticker-pack": "0.40" }
+type Line = { sku?: unknown; qty?: unknown }
+
+/** Total from the SERVER catalog. The browser only says which products and how many: prices can't be tampered with. */
+function total(payload: { sku?: unknown; items?: unknown } | undefined) {
+  const lines: Line[] = Array.isArray(payload?.items) ? (payload!.items as Line[]) : [{ sku: payload?.sku, qty: 1 }]
+  if (lines.length < 1 || lines.length > 8) return null
+  let sum = 0n
+  const desc: string[] = []
+  for (const l of lines) {
+    const sku = typeof l.sku === "string" ? l.sku : ""
+    const qty = Number(l.qty ?? 1)
+    if (!Object.hasOwn(PRICE, sku) || !Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return null
+    sum += parseUnits(PRICE[sku], 6) * BigInt(qty)
+    desc.push(`${sku}x${qty}`)
+  }
+  return { amount: formatUnits(sum, 6), note: desc.join(",").slice(0, 120) }
+}
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => null)) as { payload?: { sku?: unknown } } | null
-  const sku = typeof body?.payload?.sku === "string" ? body.payload.sku : ""
-  const amount = Object.hasOwn(CATALOG, sku) ? CATALOG[sku] : undefined
-  if (!amount) return Response.json({ error: "unknown product" }, { status: 400 })
+  const body = (await req.json().catch(() => null)) as { payload?: { sku?: unknown; items?: unknown } } | null
+  const t = total(body?.payload)
+  if (!t) return Response.json({ error: "unknown product or quantity" }, { status: 400 })
   try {
     const order = await createWhitePayOrder({
       merchantKey: process.env.STORE_MERCHANT_PK as Hex,
-      amount,
+      amount: t.amount,
       whitepayUrl: process.env.WHITEPAY_URL ?? "https://whitepay.vercel.app",
       webhook: process.env.STORE_URL?.startsWith("https://") ? `${process.env.STORE_URL}/api/webhook` : undefined,
-      note: sku,
+      note: t.note,
     })
-    recordEvent(order.orderId, `order signed by shop key, published to WhitePay (${amount} USDT)`)
+    recordEvent(order.orderId, `order signed by shop key, published to WhitePay (${t.amount} USDT · ${t.note})`)
     return Response.json(order)
   } catch (e) {
     console.error("[create-order]", (e as Error).message)
-    return Response.json({ error: "could not create the order" }, { status: 502 }) // never leak internals
+    return Response.json({ error: "could not create the order" }, { status: 502 })
   }
 }

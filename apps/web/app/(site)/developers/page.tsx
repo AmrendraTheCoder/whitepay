@@ -5,14 +5,14 @@ import { SDK_SRI } from "./sri"
 export const metadata: Metadata = { alternates: { canonical: "/developers" }, title: "Developers · Checkout SDK", description: "Accept USDT on Whitechain on any website: one script tag, one button, signed webhooks." }
 
 const ORIGIN = "https://whitepay.vercel.app"
-const SRC = `${ORIGIN}/sdk/v1.2.0/checkout.js`
+const SRC = `${ORIGIN}/sdk/v1.2.1/checkout.js`
 const Code = ({ children }: { children: string }) => <pre className="dev-code">{children}</pre>
 
 export default function Developers() {
   return (
     <main className="dev">
       <header className="dev-hero">
-        <span className="dev-pill">Checkout SDK v1.2</span>
+        <span className="dev-pill">Checkout SDK v1.2.1</span>
         <h1>Accept USDT on any website.</h1>
         <p>One script tag, one button, one server call. Shoppers scan, confirm with their fingerprint and pay with <b>zero gas</b>; you get a signed webhook and an on-chain receipt on Whitechain.</p>
         <div className="dev-cta">
@@ -24,7 +24,7 @@ export default function Developers() {
 
       <section>
         <h2>1 · Load the SDK (browser)</h2>
-        <p>Pin an exact version with Subresource Integrity: versioned files (<code>/sdk/v1.2.0/</code>) never change, and if the bytes ever differ the browser refuses to run them. <code>/sdk/v1/checkout.js</code> always serves the latest 1.x for quick prototypes (no SRI).</p>
+        <p>Pin an exact version with Subresource Integrity: versioned files (<code>/sdk/v1.2.1/</code>) never change, and if the bytes ever differ the browser refuses to run them. <code>/sdk/v1/checkout.js</code> always serves the latest 1.x for quick prototypes (no SRI).</p>
         <Code>{`<script src="${SRC}"\n        integrity="${SDK_SRI}"\n        crossorigin="anonymous" defer></script>`}</Code>
         <p>Using a Content-Security-Policy? Allow <code>{ORIGIN}</code> in <code>script-src</code> (or put your nonce on the tag), <code>connect-src</code> and <code>img-src</code>.</p>
       </section>

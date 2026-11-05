@@ -1,4 +1,4 @@
-/*! WhitePay Checkout SDK v1.2.0 · USDT on Whitechain · MIT
+/*! WhitePay Checkout SDK v1.2.1 · USDT on Whitechain · MIT
  *
  * Works on ANY website (plain HTML, React, Vue, Svelte, WordPress, Shopify custom theme):
  *
@@ -24,7 +24,7 @@
 (() => {
   "use strict"
   if (typeof window === "undefined" || customElements.get("whitepay-button")) return
-  const VERSION = "1.2.0"
+  const VERSION = "1.2.1"
   const ORIGIN = (document.currentScript && new URL(document.currentScript.src).origin) || "https://whitepay.vercel.app"
   const RE = {
     key: /^0x[0-9a-fA-F]{64}$/, uint: /^\d{1,30}$/, tx: /^0x[0-9a-fA-F]{64}$/,
@@ -82,13 +82,17 @@
     connectedCallback() {
       if (this.btn) return
       const style = h("style"); style.textContent = css
-      this.label = h("span")
-      this.btn = h("button", { class: "pay", part: "button", type: "button" }, h("span", { class: "logo" }, logo()), this.label)
+      this._labelEl = h("span")
+      this.btn = h("button", { class: "pay", part: "button", type: "button" }, h("span", { class: "logo" }, logo()), this._labelEl)
       this.root.append(style, this.btn)
       this.attributeChangedCallback()
       this.btn.addEventListener("click", () => this.start())
     }
-    attributeChangedCallback() { if (this.label) this.label.textContent = this.getAttribute("label") || "Pay with WhitePay" }
+    attributeChangedCallback() { if (this._labelEl && !this.busy) this._labelEl.textContent = this.getAttribute("label") || "Pay with WhitePay" }
+    // frameworks (React 19, Vue, Lit) may set these as properties: reflect them to attributes
+    get label() { return this.getAttribute("label") } set label(v) { v == null ? this.removeAttribute("label") : this.setAttribute("label", String(v)) }
+    get payload() { return this.getAttribute("payload") } set payload(v) { v == null ? this.removeAttribute("payload") : this.setAttribute("payload", typeof v === "string" ? v : JSON.stringify(v)) }
+    get mode() { return this.getAttribute("mode") } set mode(v) { v == null ? this.removeAttribute("mode") : this.setAttribute("mode", String(v)) }
     disconnectedCallback() { this.cleanup && this.cleanup() }
     emit(name, detail) { this.dispatchEvent(new CustomEvent(`whitepay:${name}`, { detail, bubbles: true, composed: true })) }
     fail(message) { this.emit("error", { message }); console.warn(`[WhitePay] ${message}`) }
@@ -99,7 +103,7 @@
       this.btn.setAttribute("aria-busy", "true")
       const logoEl = this.btn.querySelector(".logo"), spin = h("span", { class: "bspin", "aria-hidden": "true" })
       logoEl.replaceWith(spin)
-      this.label.textContent = "Preparing secure checkout…"
+      this._labelEl.textContent = "Preparing secure checkout…"
       try {
         const ep = new URL(this.getAttribute("order-endpoint") || "", location.href)
         if (ep.origin !== location.origin) throw new Error("order-endpoint must be on this site (same origin)")
