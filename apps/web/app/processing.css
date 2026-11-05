@@ -1,0 +1,37 @@
+.proc { position: fixed; inset: 0; z-index: 95; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px;
+  background: color-mix(in oklab, var(--bg) 92%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); animation: proc-in .25s ease-out both; }
+@keyframes proc-in { from { opacity: 0; } }
+.proc-mark { position: relative; width: 132px; height: 132px; display: grid; place-items: center; margin-bottom: 10px; }
+.proc-arc { position: absolute; inset: 0; width: 100%; height: 100%; animation: proc-spin 1.1s linear infinite; }
+.proc-arc circle { fill: none; stroke-width: 6; }
+.proc-arc .track { stroke: color-mix(in oklab, var(--text) 10%, transparent); }
+.proc-arc .arc { stroke: url(#proc-g); stroke-linecap: round; stroke-dasharray: 90 250; }
+@keyframes proc-spin { to { transform: rotate(360deg); } }
+.proc-logo { width: 84px; height: 84px; border-radius: 26px; background: #fff; display: grid; place-items: center; box-shadow: 0 10px 30px rgba(36, 72, 255, .35);
+  animation: proc-breathe 1.6s ease-in-out infinite; }
+.proc-logo svg { width: 64px; height: 64px; }
+.proc-logo path { fill: none; stroke: #2448ff; stroke-width: 58; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: proc-draw 1.6s cubic-bezier(.6, 0, .2, 1) infinite; }
+@keyframes proc-draw { 0% { stroke-dashoffset: 1; } 55%, 80% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1; } }
+@keyframes proc-breathe { 50% { transform: scale(.94); } }
+.proc.done .proc-arc { animation: none; } .proc.done .proc-arc .arc { stroke-dasharray: 340 0; transition: stroke-dasharray .4s; }
+.proc.done .proc-logo { background: var(--ok); animation: proc-pop .45s cubic-bezier(.3, 1.6, .5, 1) both; }
+@keyframes proc-pop { from { transform: scale(.7); } }
+.proc-check { width: 52px !important; height: 52px !important; }
+.proc-check path { fill: none; stroke: #fff; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: proc-tick .4s .1s ease-out forwards; }
+@keyframes proc-tick { to { stroke-dashoffset: 0; } }
+.proc-amt { font-size: 34px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.proc-title { font-size: 18px; font-weight: 800; }
+.proc-step { color: var(--muted); font-size: 14.5px; min-height: 20px; animation: proc-step .35s ease-out both; }
+@keyframes proc-step { from { opacity: 0; transform: translateY(6px); } }
+.proc-dots { display: flex; gap: 6px; margin-top: 6px; }
+.proc-dots i { width: 7px; height: 7px; border-radius: 50%; background: color-mix(in oklab, var(--text) 18%, transparent); transition: background .3s, width .3s; }
+.proc-dots i.on { background: var(--ok); } .proc-dots i.now { width: 20px; border-radius: 99px; background: var(--brand); }
+@media (prefers-reduced-motion: reduce) { .proc-arc, .proc-logo, .proc-logo path { animation: none; } .proc-logo path { stroke-dashoffset: 0; } }
+
+/* shared receipt card (subscribe + subscriptions) */
+.receipt-card { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; text-decoration: none; color: inherit; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); transition: transform .14s, border-color .2s; }
+.receipt-card:active { transform: scale(.98); } .receipt-card:hover { border-color: var(--brand); }
+.receipt-card .ic { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--ok); color: #fff; flex: none; }
+.receipt-card b { display: block; font-size: 15px; } .receipt-card .sub { font-size: 12.5px; }
+.receipt-card .go { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 800; color: var(--brand); white-space: nowrap; }

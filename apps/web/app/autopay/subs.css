@@ -1,0 +1,18 @@
+/* subscriptions page (page-local): card rhythm and action spacing */
+.sub-card { display: flex; flex-direction: column; gap: 14px; padding: 18px; }
+.sub-card .sub-card-top { display: flex; gap: 16px; align-items: center; }
+.sub-card .sub-card-head { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sub-card .sub-card-title { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sub-card > p.sub { margin: 2px 0 0; line-height: 1.45; }
+.sub-card .sub-progress { display: flex; align-items: center; gap: 12px; }
+.sub-card .sub-progress .progress { flex: 1; }
+.ap-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 2px; }
+.ap-pay { width: 100%; }
+.ap-secondary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ap-btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; border-radius: 14px;
+  font-size: 14.5px; font-weight: 700; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); transition: transform .12s, background .2s; }
+.ap-btn:active { transform: scale(.97); }
+.ap-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.ap-btn.danger { color: #ff5a6e; background: color-mix(in oklab, #ff5a6e 10%, transparent); border-color: color-mix(in oklab, #ff5a6e 35%, transparent); }
+.ap-btn.ghost { visibility: hidden; }
+.ap-btn:disabled { opacity: .5; cursor: default; }

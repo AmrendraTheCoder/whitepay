@@ -435,7 +435,7 @@ const CANCEL_ABI = [{ type: "function", name: "cancelAuthorization", stateMutabi
   { name: "authorizer", type: "address" }, { name: "nonce", type: "bytes32" }, { name: "v", type: "uint8" }, { name: "r", type: "bytes32" }, { name: "s", type: "bytes32" }], outputs: [] }] as const
 
 /** Revoke every unused cycle ON-CHAIN (USDT cancelAuthorization, gasless via the relayer), then close the mandate. */
-export async function cancelMandate(p: { mandateKey: Hex; subscriber: Address; cancels?: { cycle: number; signature: Hex }[]; signature?: Hex }) {
+export async function cancelMandate(p: { mandateKey: Hex; subscriber: Address; cancels?: { cycle: number; signature: Hex }[]; signature?: Hex; defer?: Defer }) {
   const m = await getMandate(p.mandateKey)
   if (!m) throw new Error("subscription not found")
   if (getAddress(p.subscriber) !== m.subscriber) throw new Error("only the subscriber can cancel")
@@ -446,11 +446,20 @@ export async function cancelMandate(p: { mandateKey: Hex; subscriber: Address; c
     if (!p.signature) throw new Error("missing cancellation signature")
     const who = await recoverMessageAddress({ message: reminderCancelMessage(m.key), signature: p.signature }).catch(() => null)
     if (!who || getAddress(who) !== m.subscriber) throw new Error("cancellation is not signed by the subscriber")
-    const a = arkiv()
-    const dues = await a.pub.select({ $key: true }).from(DueCycle).ownedBy(a.owner).where(eq("mandateRef", key(m.key))).limit(5).fetch()
-    await a.writer.executeBatch({ deletes: (dues.entities as any[]).map((d) => ({ entityKey: d.$key })),
-      patches: [{ schema: Mandate, entityKey: m.key, set: { status: "cancelled", nextDueAt: u64(0n), updatedAt: u64(BigInt(now())) } }] } as any, { gas: 2_000_000n })
-    notify(m.webhook, `${m.subscriptionId}:cancelled`, { event: "subscription.cancelled", mode: "reminder", mandateKey: m.key, subscriptionId: m.subscriptionId, subscriber: m.subscriber })
+    // Reminder mode pre-approves nothing: no payment can happen without a new signature from the subscriber,
+    // so the cancel is effective the moment it's verified. Record it on Arkiv after the response (with retries).
+    await later(p.defer, async () => {
+      const a = arkiv()
+      const dues = await a.pub.select({ $key: true }).from(DueCycle).ownedBy(a.owner).where(eq("mandateRef", key(m.key))).limit(5).fetch()
+      for (let i = 0; i < 3; i++) {
+        try {
+          await a.writer.executeBatch({ deletes: (dues.entities as any[]).map((d) => ({ entityKey: d.$key })),
+            patches: [{ schema: Mandate, entityKey: m.key, set: { status: "cancelled", nextDueAt: u64(0n), updatedAt: u64(BigInt(now())) } }] } as any, { gas: 2_000_000n })
+          break
+        } catch (e) { if (i === 2) throw e; await new Promise((r) => setTimeout(r, 1500)) }
+      }
+      if (m.webhook) await deliverWebhook(m.webhook, `${m.subscriptionId}:cancelled`, { event: "subscription.cancelled", mode: "reminder", mandateKey: m.key, subscriptionId: m.subscriptionId, subscriber: m.subscriber })
+    })
     return { revoked: m.cycles - m.nextCycle, txs: [] as string[] }
   }
   if (!p.cancels) throw new Error("missing cancellation signatures")

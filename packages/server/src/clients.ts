@@ -49,7 +49,9 @@ function serialize<W extends object>(w: W): W {
       if (typeof v !== "function" || !WRITES.has(String(prop))) return v
       return (...args: unknown[]) => {
         const run = tail.then(() => (v as (...a: unknown[]) => Promise<unknown>).apply(target, args))
-        tail = run.catch(() => {})
+        // a write that never settles must not block every later write on this instance:
+        // the queue moves on after 30 s (the write itself may still land; callers see its own result)
+        tail = Promise.race([run, new Promise((r) => setTimeout(r, 30_000))]).catch(() => {})
         return run
       }
     },

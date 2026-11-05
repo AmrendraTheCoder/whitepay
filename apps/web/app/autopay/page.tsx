@@ -2,6 +2,8 @@
 // Subscriptions: reminder mode (approve each payment when it's requested) and autopay (approved once).
 // Each countdown is a live "due" entity on Arkiv.
 import { useCallback, useEffect, useRef, useState } from "react"
+import { Processing } from "../processing"
+import "./subs.css"
 import type { Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { directNonce } from "@whitepay/shared"
@@ -22,6 +24,9 @@ export default function Subscriptions() {
   const [pay, setPay] = useState<MandateRow | null>(null)
   const [paid, setPaid] = useState<{ title: string; amount: string; explorer: string } | null>(null)
   const [confirm, setConfirm] = useState<MandateRow | null>(null)
+  const [proc, setProc] = useState<{ kind: "pay" | "cancel"; title: string; amount?: string; step: number; done?: boolean } | null>(null)
+  // cancelled here: keep them out of "active" even if a poll returns before Arkiv has recorded it
+  const gone = useRef(new Map<string, number>())
   const [cancelled, setCancelled] = useState<{ m: MandateRow; remaining: number; txs: string[] } | null>(null)
   const [busy, setBusy] = useState("")
   const [msg, setMsg] = useState("")
@@ -66,23 +71,28 @@ export default function Subscriptions() {
   const doPay = async (acct: PrivateKeyAccount) => {
     const m = pay!
     setPay(null); setBusy(m.key); setMsg("")
+    setProc({ kind: "pay", title: m.title, amount: `${usdt(m.amount)} USDT`, step: 0 })
     try {
       const cycle = m.nextCycle!
       // ONE signature for THIS payment only, valid only inside its window
       const signature = await acct.signTypedData(cycleAuthTypedData({ subscriber: acct.address, merchant: m.merchant as Hex, amount: BigInt(m.amount), subscriptionId: m.subscriptionId as Hex, cycle, startAt: m.startAt, period: m.period, grace: m.grace }))
-      const r = await fetch("/api/subscriptions/pay", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mandateKey: m.key, subscriber: acct.address, cycle, signature }) })
+      setProc((p) => p && { ...p, step: 1 })
+      const r = await post("/api/subscriptions/pay", { mandateKey: m.key, subscriber: acct.address, cycle, signature })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error ?? "Payment failed")
+      setProc((p) => p && { ...p, step: 2, done: true })
+      await new Promise((res) => setTimeout(res, 900))
       setPaid({ title: m.title, amount: m.amount, explorer: d.explorer })
       // the server answers as soon as the chain confirms and updates Arkiv right after: reflect it instantly
       setRows((rs) => rs?.map((x) => x.key === m.key ? { ...x, payNow: false, paidCycles: x.paidCycles + 1, nextCycle: (x.nextCycle ?? 0) + 1,
         nextDueAt: d.nextDueAt ?? 0, status: d.nextDueAt ? "active" : "completed", lastTxUrl: d.explorer } : x) ?? null)
-    } catch (e) { setMsg(friendly((e as Error).message)) } finally { setBusy("") }
+    } catch (e) { setMsg(friendly((e as Error).message)) } finally { setBusy(""); setProc(null) }
   }
 
   const doCancel = async (acct: PrivateKeyAccount) => {
     const m = cancel!
     setCancel(null); setBusy(m.key); setMsg("")
+    setProc({ kind: "cancel", title: m.title, step: 0 })
     try {
       let body: Record<string, unknown>
       if (m.mode === "reminder") {
@@ -97,12 +107,16 @@ export default function Subscriptions() {
         }
         body = { mandateKey: m.key, subscriber: acct.address, cancels }
       }
-      const r = await fetch("/api/subscriptions/cancel", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+      setProc((p) => p && { ...p, step: 1 })
+      const r = await post("/api/subscriptions/cancel", body)
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
-      setCancelled({ m, remaining: Math.max(0, m.cycles - (m.nextCycle ?? m.paidCycles)), txs: d.txs ?? [] })
+      gone.current.set(m.key, Date.now())
       setRows((rs) => rs?.map((x) => x.key === m.key ? { ...x, status: "cancelled", payNow: false } : x) ?? null)
-    } catch (e) { setMsg(friendly((e as Error).message)) } finally { setBusy("") }
+      setProc((p) => p && { ...p, step: 2, done: true })
+      await new Promise((res) => setTimeout(res, 900))
+      setCancelled({ m, remaining: Math.max(0, m.cycles - (m.nextCycle ?? m.paidCycles)), txs: d.txs ?? [] })
+    } catch (e) { setMsg(friendly((e as Error).message)) } finally { setBusy(""); setProc(null) }
   }
 
   if (wallet === undefined || (wallet && rows === null)) return <main className="shell with-nav"><TopBar back="/you" /><LogoLoader /></main>
@@ -141,15 +155,21 @@ export default function Subscriptions() {
           <SuccessCheck />
           <h1>Paid {usdt(paid.amount)} USDT</h1>
           <div className="sub">{paid.title} · settled on Whitechain, 0 gas</div>
-          <a className="chip" href={paid.explorer} target="_blank" rel="noreferrer">View on Whitechain ↗</a>
+          <a className="receipt-card" href={paid.explorer} target="_blank" rel="noreferrer">
+            <span className="ic" aria-hidden>{Icon.check(18)}</span>
+            <span className="grow"><b>{usdt(paid.amount)} USDT paid</b><span className="sub">{paid.title} · settled in ~1 s · 0 gas</span></span>
+            <span className="go">Explorer {Icon.arrow(14)}</span>
+          </a>
           <button className="btn btn-primary btn-big" onClick={() => setPaid(null)}>Done</button>
         </div>
         
       </main>
     )
 
-  const active = rows!.filter((r) => r.status === "active")
-  const past = rows!.filter((r) => r.status !== "active")
+  for (const [k, at] of gone.current) if (Date.now() - at > 120_000) gone.current.delete(k)
+  const view = rows!.map((r) => (gone.current.has(r.key) && r.status === "active" ? { ...r, status: "cancelled", payNow: false } : r))
+  const active = view.filter((r) => r.status === "active")
+  const past = view.filter((r) => r.status !== "active")
   const dueSoonest = active.reduce<number | null>((min, r) => (r.nextDueAt > 0 && (min === null || r.nextDueAt < min) ? r.nextDueAt : min), null)
   const paidTotal = rows!.reduce((sum, r) => sum + BigInt(r.amount) * BigInt(r.paidCycles), 0n)
   return (
@@ -157,7 +177,7 @@ export default function Subscriptions() {
       <TopBar back="/you" />
       <header className="page-head">
         <h1 className="page-title m-0">Subscriptions</h1>
-        <p className="sub m-0">Each countdown is a live entity on Arkiv. At zero you approve that payment, or it runs by itself on Autopay.</p>
+        <p className="sub m-0">Live countdowns. At zero you approve the payment.</p>
       </header>
 
       {rows!.length > 0 && (
@@ -214,14 +234,14 @@ export default function Subscriptions() {
               <span className="sub nowrap">{m.paidCycles} of {m.cycles} paid</span>
             </div>
 
-            {payNow && (
-              <button className="btn btn-lime btn-big" disabled={busy === m.key} onClick={() => setPay(m)}>
-                {busy === m.key ? <><span className="spinner" /> Paying…</> : `Pay ${usdt(m.amount)} USDT now`}
-              </button>
-            )}
-            <div className="btn-row">
-              {m.lastTxUrl ? <a className="chip" href={m.lastTxUrl} target="_blank" rel="noreferrer">Last payment ↗</a> : <span />}
-              <button className="chip chip-danger" disabled={busy === m.key} onClick={() => setConfirm(m)}>{busy === m.key && !payNow ? <><span className="spinner" /> Cancelling…</> : "Cancel"}</button>
+            <div className="ap-actions">
+              {payNow && (
+                <button className="btn btn-lime btn-big ap-pay" disabled={busy === m.key} onClick={() => setPay(m)}>Pay {usdt(m.amount)} USDT now</button>
+              )}
+              <div className="ap-secondary">
+                {m.lastTxUrl ? <a className="ap-btn" href={m.lastTxUrl} target="_blank" rel="noreferrer">{Icon.history(16)} Last payment</a> : <span className="ap-btn ghost" aria-hidden />}
+                <button className="ap-btn danger" disabled={busy === m.key} onClick={() => setConfirm(m)}>{Icon.close(14)} Cancel</button>
+              </div>
             </div>
           </article>
         )
@@ -259,6 +279,15 @@ export default function Subscriptions() {
           </div>
         )
       })()}
+      {proc && (
+        <Processing
+          amount={proc.amount}
+          title={proc.kind === "pay" ? `Paying ${proc.title}` : `Cancelling ${proc.title}`}
+          steps={proc.kind === "pay" ? ["Approve on your device", "Paying on Whitechain", "Paid"] : ["Confirm on your device", "Stopping future payments", "Cancelled"]}
+          step={proc.step}
+          done={proc.done}
+        />
+      )}
       {pay && <UnlockSheet title={`Pay ${usdt(pay.amount)} USDT`} subtitle={`${pay.title}: payment ${(pay.nextCycle ?? 0) + 1} of ${pay.cycles}`} onUnlocked={doPay} onCancel={() => setPay(null)} />}
       {cancel && (
         <UnlockSheet title="Cancel subscription" subtitle={cancel.mode === "reminder" ? `${cancel.title}: stop all future payment requests` : `${cancel.title}: block ${cancel.cycles - cancel.paidCycles} remaining payment(s) on-chain`} onUnlocked={doCancel} onCancel={() => setCancel(null)} />
@@ -268,12 +297,22 @@ export default function Subscriptions() {
   )
 }
 
+/** POST JSON with a 30 s timeout, so a stuck request ends in a clear message instead of an endless spinner */
+function post(url: string, body: unknown) {
+  const ctl = new AbortController()
+  const t = setTimeout(() => ctl.abort(), 30_000)
+  return fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal })
+    .catch((e) => { throw new Error((e as Error).name === "AbortError" ? "timed out" : (e as Error).message) })
+    .finally(() => clearTimeout(t))
+}
+
 function friendly(msg: string) {
   const m = msg.toLowerCase()
   if (/exceeds balance|insufficient|not enough usdt/.test(m)) return "Not enough USDT for this payment. Add USDT and try again before the window closes."
   if (/window .* closed|skipped/.test(m)) return "This payment's window closed, so it was skipped. You'll be asked for the next one."
   if (/opens in/.test(m)) return `Too early: ${msg}`
   if (/reject|denied|cancel/.test(m)) return "Cancelled in your wallet. Nothing was charged."
-  if (/fetch|network/.test(m)) return "Network problem: nothing was charged. Try again."
+  if (/timed out|timeout|abort/.test(m)) return "WhitePay took too long to answer. Nothing changed; please try again."
+  if (/fetch|network|load failed/.test(m)) return "Couldn't reach WhitePay. Nothing changed; check your connection and try again."
   return msg
 }

@@ -11,6 +11,8 @@ import { SuccessCheck, LogoLoader, Icon, Countdown } from "../ui"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, countdown, when } from "@/lib/format"
 import { enableReminderNotifications } from "@/lib/reminders"
+import { Processing } from "../processing"
+import "./subscribe.css"
 
 type PlanResp = {
   state: "open" | "subscribed" | "expired"; planKey: string; title: string; merchant: string; merchantName?: string; amount: string
@@ -27,12 +29,12 @@ function Subscribe() {
   const [verified, setVerified] = useState<boolean | null>(null)
   const [wallet, setWallet] = useState<ReturnType<typeof getWallet> | undefined>(undefined)
   const [unlock, setUnlock] = useState(false)
-  const [phase, setPhase] = useState<"idle" | "signing" | "charging" | "done" | "failed">("idle")
+  const [phase, setPhase] = useState<"idle" | "signing" | "charging" | "finishing" | "done" | "failed">("idle")
   const [progress, setProgress] = useState(0)
   const [mode, setMode] = useState<"reminder" | "autopay">("reminder")
   const [notif, setNotif] = useState("")
   const [err, setErr] = useState("")
-  const [done, setDone] = useState<{ explorer: string; nextDueAt: number | null } | null>(null)
+  const [done, setDone] = useState<{ explorer: string; nextDueAt: number | null; tx?: string } | null>(null)
   const [now] = useState(() => Date.now() / 1000) // schedule preview is anchored at page open; no per-tick re-renders
   const [loadErr, setLoadErr] = useState("")
 
@@ -97,7 +99,7 @@ function Subscribe() {
           body: JSON.stringify({ planKey, subscriber: acct.address, subscriptionId, startAt, signature }) })
         const d = await r.json()
         if (!r.ok) throw new Error(d.error ?? "Subscription failed")
-        setDone({ explorer: d.explorer, nextDueAt: d.nextDueAt }); setPhase("done")
+        setDone({ explorer: d.explorer, nextDueAt: d.nextDueAt, tx: d.firstTx }); setPhase("finishing"); setTimeout(() => setPhase("done"), 1100)
         return
       }
       const terms = termsFor({ subscriber: acct.address, merchant: plan.merchant as Hex, amount, period: plan.period, grace: plan.grace, cycles: plan.cycles, startAt, subscriptionId })
@@ -117,98 +119,102 @@ function Subscribe() {
         body: JSON.stringify({ planKey, subscriber: acct.address, subscriptionId, startAt, permit: { deadline, signature } }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error ?? "Subscription failed")
-      setDone({ explorer: d.explorer, nextDueAt: d.nextDueAt }); setPhase("done")
+      setDone({ explorer: d.explorer, nextDueAt: d.nextDueAt, tx: d.firstTx }); setPhase("finishing"); setTimeout(() => setPhase("done"), 1100)
     } catch (e) { setErr(friendly((e as Error).message, amount)); setPhase("failed") }
   }
 
   if (phase === "done" && done)
     return (
       <main className="shell"><TopBar />
-        <div className="result">
+        <div className="result sbx-done">
           <SuccessCheck />
           <h1>{mode === "reminder" ? "Subscribed" : "Autopay is on"}</h1>
-          <div className="sub">{plan.title} · {usdt(amount)} USDT {plan.periodLabel}. First payment done.</div>
-          {done.nextDueAt && <div className="timer-big"><span>{mode === "reminder" ? "We'll ask you to pay the next one in" : "Next payment in"}</span><b><Countdown to={done.nextDueAt} format={countdown} /></b></div>}
+          <div className="sub">{plan.title} · {usdt(amount)} USDT {shortPeriod(plan.periodLabel)}</div>
+          {done.nextDueAt && (
+            <div className="sbx-next">
+              <span>{mode === "reminder" ? "Next request in" : "Next payment in"}</span>
+              <b><Countdown to={done.nextDueAt} format={countdown} /></b>
+            </div>
+          )}
+          <a className="receipt-card" href={done.explorer} target="_blank" rel="noreferrer">
+            <span className="ic" aria-hidden>{Icon.check(18)}</span>
+            <span className="grow">
+              <b>First payment · {usdt(amount)} USDT</b>
+              <span className="sub">to {plan.merchantName ?? short(plan.merchant)} · tx {done.tx ? short(done.tx) : "confirmed"}</span>
+            </span>
+            <span className="go">Explorer {Icon.arrow(14)}</span>
+          </a>
           {mode === "reminder" && (
-            <button className="btn btn-lime" onClick={async () => setNotif(await enableReminderNotifications())}>
-              {Icon.bell(18)} Remind me when a payment is due
-            </button>
+            <button className="btn btn-lime" onClick={async () => setNotif(await enableReminderNotifications())}>{Icon.bell(18)} Remind me when it's due</button>
           )}
           {notif && <div className="sub">{notif}</div>}
-          <a className="chip" href={done.explorer} target="_blank" rel="noreferrer">First payment on Whitechain ↗</a>
           <a className="btn btn-primary btn-big" href="/autopay">My subscriptions</a>
         </div>
       </main>
     )
 
+  const busyNow = phase === "signing" || phase === "charging" || phase === "finishing"
   return (
-    <main className="shell">
+    <main className="shell sbx">
       <TopBar />
-      <div className="card stack">
-        <div className="row" style={{ justifyContent: "flex-start", gap: 12 }}>
-          <span className="sub-ic">{Icon.repeat(28)}</span>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 19 }}>{plan.title}</div>
-            <div className="sub">{plan.merchantName ?? short(plan.merchant)} {verified ? <span className="badge badge-ok badge-sm">{Icon.check(12)} Verified</span> : verified === false ? <span className="badge badge-warn badge-sm">Unverified shop</span> : null}</div>
+      <section className="card sbx-head">
+        <div className="sbx-shop">
+          <span className="sub-ic">{Icon.repeat(26)}</span>
+          <div className="grow">
+            <b>{plan.title}</b>
+            <span className="sub">{plan.merchantName ?? short(plan.merchant)} {verified ? <span className="badge badge-ok badge-sm">{Icon.check(12)} Verified</span> : verified === false ? <span className="badge badge-warn badge-sm">Unverified</span> : null}</span>
           </div>
         </div>
-        <div className="big-amount center">{usdt(amount)} <span style={{ fontSize: 18, color: "var(--muted)" }}>USDT {plan.periodLabel}</span></div>
-        <div className="sub center">{plan.cycles} payments · {usdt(total)} USDT total · first one now · 0 gas</div>
-      </div>
-
-      <div className="card">
-        <h2>Schedule</h2>
-        <div className="sched">
+        <div className="sbx-amt"><b>{usdt(amount)}</b><span>USDT</span><em>{shortPeriod(plan.periodLabel)}</em></div>
+        <div className="sbx-meta"><span>{plan.cycles} payments</span><span>{usdt(total)} USDT total</span><span>0 gas</span></div>
+        <ol className="sbx-tl" aria-label="Schedule">
           {schedule.map((t, i) => (
-            <div key={i} className="sched-row"><span className="dot" data-first={i === 0} /><span>{i === 0 ? "Today, on approval" : when(t)}</span><b>{usdt(amount)}</b></div>
+            <li key={i} className={i === 0 ? "now" : ""}><i aria-hidden /><b>{i === 0 ? "Today" : when(t).replace(/^.*?, /, "")}</b><span>{usdt(amount)}</span></li>
           ))}
-        </div>
-      </div>
+        </ol>
+      </section>
 
-      <div className="card stack">
-        <h2>How do you want to pay the next ones?</h2>
-        <label className={`mode-opt ${mode === "reminder" ? "on" : ""}`}>
+      <section className="card sbx-modes" role="radiogroup" aria-label="How to pay the next ones">
+        <h2>Next payments</h2>
+        <label className={`sbx-mode ${mode === "reminder" ? "on" : ""}`}>
           <input type="radio" name="mode" checked={mode === "reminder"} onChange={() => setMode("reminder")} />
-          <div><b>Ask me each time</b> <span className="badge badge-ok badge-sm">Recommended</span>
-            <div className="sub">You approve only today's {usdt(amount)} USDT now. When the next payment is due you get a reminder and approve it with one tap. Nothing is pre-approved.</div></div>
+          <span className="ic" aria-hidden>{Icon.bell(18)}</span>
+          <span className="grow"><b>Ask me each time</b><span className="sub">One tap when each one is due</span></span>
+          <span className="badge badge-ok badge-sm">Best</span>
         </label>
-        <label className={`mode-opt ${mode === "autopay" ? "on" : ""}`}>
+        <label className={`sbx-mode ${mode === "autopay" ? "on" : ""}`}>
           <input type="radio" name="mode" checked={mode === "autopay"} onChange={() => setMode("autopay")} />
-          <div><b>Autopay</b>
-            <div className="sub">Approve once now; the next payments run on schedule without asking.</div></div>
+          <span className="ic" aria-hidden>{Icon.repeat(18)}</span>
+          <span className="grow"><b>Autopay</b><span className="sub">Approve once, runs on schedule</span></span>
         </label>
-      </div>
+        <ul className="sbx-points">
+          {(mode === "reminder"
+            ? [`Only today's ${usdt(amount)} USDT now`, "Each next payment asks you first", "Cancel anytime"]
+            : [`Capped at ${usdt(total)} USDT`, "Only to this shop, on schedule", "Cancel anytime, on-chain"]
+          ).map((p) => <li key={p}><span aria-hidden>{Icon.check(14)}</span>{p}</li>)}
+        </ul>
+      </section>
 
-      <div className="card stack">
-        <h2>What you're approving</h2>
-        {mode === "reminder" ? (<>
-        <div className="guard"><b>Only this payment.</b> You sign one payment of {usdt(amount)} USDT to this shop. Nothing else is approved.</div>
-        <div className="guard"><b>Each later payment asks you first.</b> When it's due, WhitePay shows a request; you approve it (one signature) within {Math.round(plan.grace / 60)} minutes{plan.grace >= 86400 ? ` (${Math.round(plan.grace / 86400)} days)` : ""}. Ignore it and it's simply skipped.</div>
-        <div className="guard"><b>Cancel anytime.</b> One signature stops all future requests.</div>
-        </>) : (<>
-        <div className="guard"><b>One approval, hard limits.</b> You sign once. A contract made only for this subscription can send exactly {usdt(amount)} USDT to this shop once per period, at most {plan.cycles} times ({usdt(total)} USDT cap). It can't be taken early, can't be repeated, and can't go anywhere else.</div>
-        <div className="guard"><b>Cancel anytime.</b> One tap (one signature) switches the contract off on-chain, so nobody can charge the remaining payments.</div>
-        <div className="guard"><b>Missed payment = skipped.</b> If a payment can't run inside its window, it is skipped, never charged late.</div>
-        </>)}
-      </div>
+      {err && <div className="notice bad" role="alert">{err}</div>}
+      <button className="btn btn-primary btn-big sbx-cta" disabled={self || busyNow} onClick={() => setUnlock(true)}>
+        {self ? "This is your own shop" : mode === "reminder" ? `Subscribe · pay ${usdt(amount)} USDT` : `Turn on autopay · ${usdt(amount)} USDT`}
+      </button>
 
-      {phase === "signing" || phase === "charging" ? (
-        <div className="card">
-          <ul className="steps">
-            <li className={phase === "signing" ? "active" : "done"}>{phase === "signing" ? <span className="spinner" /> : <span className="tick" aria-hidden>{Icon.check(14)}</span>} {mode === "reminder" ? `${progress ? "Signed" : "Sign"} today's payment on your device (${usdt(amount)} USDT)` : `${progress ? "Approved once" : "Approve once"} on your device (cap ${usdt(total)} USDT)`}</li>
-            <li className={phase === "charging" ? "active" : ""}>{phase === "charging" ? <span className="spinner" /> : <span className="tick" style={{ opacity: .3 }}>·</span>} First payment on Whitechain, schedule saved to Arkiv</li>
-          </ul>
-        </div>
-      ) : (
-        <button className="btn btn-primary btn-big" disabled={self} onClick={() => setUnlock(true)}>
-          {self ? "This is your own shop" : mode === "reminder" ? `Subscribe · pay ${usdt(amount)} USDT now` : `Turn on autopay · ${usdt(amount)} USDT now`}
-        </button>
+      {busyNow && (
+        <Processing
+          amount={`${usdt(amount)} USDT`}
+          title={mode === "reminder" ? "Subscribing" : "Turning on autopay"}
+          steps={[mode === "reminder" ? "Approve on your device" : "Approve once on your device", "Paying on Whitechain", "Subscribed"]}
+          step={phase === "signing" ? 0 : phase === "charging" ? 1 : 2}
+          done={phase === "finishing"}
+        />
       )}
-      {err && <div className="card stack" style={{ borderColor: "var(--bad)" }}><div className="err" style={{ textAlign: "center", fontSize: 15 }}>{err}</div><div className="sub center">Nothing is charged unless the first payment succeeds.</div></div>}
-      {unlock && <UnlockSheet title={mode === "reminder" ? `Pay ${usdt(amount)} USDT` : "Approve autopay"} subtitle={mode === "reminder" ? `${plan.title}: first payment only` : `${usdt(amount)} USDT ${plan.periodLabel} · ${plan.cycles} payments`} onUnlocked={approve} onCancel={() => setUnlock(false)} />}
+      {unlock && <UnlockSheet title={mode === "reminder" ? `Pay ${usdt(amount)} USDT` : "Approve autopay"} subtitle={mode === "reminder" ? `${plan.title}: first payment only` : `${usdt(amount)} USDT ${shortPeriod(plan.periodLabel)} · ${plan.cycles} payments`} onUnlocked={approve} onCancel={() => setUnlock(false)} />}
     </main>
   )
 }
+
+const shortPeriod = (label: string) => label.replace(" (demo)", "").replace(/^every 2 minutes$/, "every 2 min")
 
 /** Turn contract / relayer errors into something a person can act on. */
 function friendly(msg: string, amount: bigint) {

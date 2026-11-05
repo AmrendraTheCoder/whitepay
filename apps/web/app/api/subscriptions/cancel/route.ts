@@ -1,6 +1,7 @@
 // Cancel autopay: the subscriber signs USDT CancelAuthorization for every unused cycle; we submit them (gasless).
 import { isAddress, isHex, type Address, type Hex } from "viem"
 import { cancelMandate } from "@whitepay/server"
+import { after } from "next/server"
 import { json, errorMessage } from "@/lib/json"
 
 export const runtime = "nodejs"
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     return json({ error: "malformed cancellation" }, { status: 400 })
   try {
     return json(await cancelMandate({ mandateKey: b.mandateKey as Hex, subscriber: b.subscriber as Address, signature: sigOk ? (b.signature as Hex) : undefined,
-      cancels: legacyOk ? b.cancels!.map((c) => ({ cycle: c.cycle, signature: c.signature as Hex })) : undefined }))
+      cancels: legacyOk ? b.cancels!.map((c) => ({ cycle: c.cycle, signature: c.signature as Hex })) : undefined, defer: after }))
   } catch (e) {
     return json({ error: errorMessage(e) }, { status: 400 })
   }
