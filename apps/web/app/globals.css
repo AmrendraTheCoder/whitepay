@@ -325,3 +325,5 @@ button { font: inherit; color: inherit; }
 @keyframes llDot { 0%, 40% { transform: translateY(0) scale(1) } 55% { transform: translateY(-46px) scale(1.15) } 70% { transform: translateY(0) scale(.9) } 80%, 100% { transform: scale(1) } }
 @keyframes llBreath { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.04) } }
 @media (prefers-reduced-motion: reduce) { .ll-w, .ll-dot, .ll-tile { animation: none !important; stroke-dashoffset: 0; } }
+.ll-tile.mini { width: 32px; height: 32px; border-radius: 10px; box-shadow: none; flex: none; }
+.ll-tile.mini svg { width: 26px; height: 26px; }

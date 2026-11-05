@@ -5,7 +5,7 @@ import { parseUnits, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { merchantSignupMessage, orderTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { BottomNav, SuccessCheck, LogoLoader } from "../ui"
+import { BottomNav, SuccessCheck, MiniLogo } from "../ui"
 import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, ago, mmss } from "@/lib/format"
@@ -20,10 +20,25 @@ export default function MerchantPage() {
   // the unlocked key is kept in memory for this session only (like a logged-in POS terminal)
   const [account, setAccount] = useState<PrivateKeyAccount | null>(null)
 
-  useEffect(() => setWallet(getWallet()), [])
+  // stale-while-revalidate: show the last known shop profile instantly, refresh in the background
+  const cacheKey = (a: string) => `whitepay.shop.${a.toLowerCase()}`
+  useEffect(() => {
+    const w = getWallet()
+    setWallet(w)
+    if (!w) return
+    try {
+      const c = JSON.parse(localStorage.getItem(cacheKey(w.address)) ?? "null")
+      if (c) { setMerchant(c.merchant); setPersonalName(c.personalName) }
+    } catch {}
+  }, [])
   const loadMerchant = useCallback(async (address: string) => {
-    const d = await fetch(`/api/merchants?address=${address}`).then((r) => r.json()).catch(() => ({}))
+    const d = await fetch(`/api/merchants?address=${address}`).then((r) => r.json()).catch(() => null)
+    if (!d) return setMerchant((m) => (m === undefined ? null : m)) // offline: keep cached view
     setMerchant(d.merchant ?? null)
+    try {
+      const prev = JSON.parse(localStorage.getItem(cacheKey(address)) ?? "{}")
+      localStorage.setItem(cacheKey(address), JSON.stringify({ ...prev, merchant: d.merchant ?? null }))
+    } catch {}
   }, [])
   useEffect(() => { if (wallet) void loadMerchant(wallet.address) }, [wallet, loadMerchant])
   // a personal name (ENS kind=person) means this is a personal wallet
@@ -31,11 +46,17 @@ export default function MerchantPage() {
   useEffect(() => {
     if (!wallet) return
     fetch(`/api/resolve?q=${wallet.address}`).then((r) => r.json())
-      .then((d) => setPersonalName(d.kind !== "merchant" && d.name ? d.name : null)).catch(() => setPersonalName(null))
+      .then((d) => {
+        const pn = d.kind !== "merchant" && d.name ? d.name : null
+        setPersonalName(pn)
+        try {
+          const prev = JSON.parse(localStorage.getItem(cacheKey(wallet.address)) ?? "{}")
+          localStorage.setItem(cacheKey(wallet.address), JSON.stringify({ ...prev, personalName: pn }))
+        } catch {}
+      }).catch(() => setPersonalName((p) => (p === undefined ? null : p)))
   }, [wallet])
 
-  if (wallet === undefined || (wallet && merchant === undefined))
-    return <main className="shell with-nav"><LogoLoader label="Opening your shop…" /><BottomNav /></main>
+  if (wallet === undefined || (wallet && merchant === undefined)) return <ShopSkeleton />
   if (!wallet)
     return (
       <main className="shell with-nav">
@@ -44,7 +65,7 @@ export default function MerchantPage() {
         <a className="btn btn-primary" href="/">Create wallet</a>
       <BottomNav /></main>
     )
-  if (!merchant && personalName === undefined) return <main className="shell with-nav"><LogoLoader label="Opening your shop…" /><BottomNav /></main>
+  if (!merchant && personalName === undefined) return <ShopSkeleton />
   if (!merchant && personalName)
     return (
       <main className="shell with-nav">
@@ -269,5 +290,40 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
       </div>
       {unlock && <UnlockSheet title="Unlock terminal" subtitle={`${amount} USDT request`} onUnlocked={create} onCancel={() => setUnlock(false)} />}
     <BottomNav /></main>
+  )
+}
+
+/** First-visit loading state: the real dashboard's shape, with the brand mark animating in the header. */
+function ShopSkeleton() {
+  return (
+    <main className="shell with-nav" aria-busy="true">
+      <div className="topbar">
+        <div className="brand"><MiniLogo /> Opening your shop…</div>
+      </div>
+      <div className="card row">
+        <div style={{ flex: 1 }}>
+          <span className="skel" style={{ width: "55%", height: 18 }} /><br />
+          <span className="skel" style={{ width: "70%", height: 13, marginTop: 8 }} />
+        </div>
+        <span className="skel" style={{ width: 72, height: 24, borderRadius: 999 }} />
+      </div>
+      <div className="card stack" style={{ alignItems: "center" }}>
+        <span className="skel" style={{ width: 120, height: 14 }} />
+        <span className="skel" style={{ width: 170, height: 52, borderRadius: 14 }} />
+        <span className="skel" style={{ width: 150, height: 12 }} />
+        <span className="skel" style={{ width: "100%", height: 58, borderRadius: 999 }} />
+      </div>
+      <div className="card">
+        <span className="skel" style={{ width: 140, height: 14 }} />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="item">
+            <span className="pic skel circle" />
+            <div className="grow"><span className="skel" style={{ width: "50%", height: 14 }} /><br /><span className="skel" style={{ width: "30%", height: 11, marginTop: 6 }} /></div>
+            <span className="skel" style={{ width: 48, height: 14 }} />
+          </div>
+        ))}
+      </div>
+      <BottomNav />
+    </main>
   )
 }

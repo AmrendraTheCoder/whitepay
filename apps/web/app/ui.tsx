@@ -199,3 +199,10 @@ export function LogoLoader({ label }: { label?: string }) {
     </div>
   )
 }
+
+/** 30px animated brand mark for headers (same motion as LogoLoader). */
+export const MiniLogo = () => (
+  <span className="ll-tile mini" aria-hidden>
+    <svg viewBox="0 0 512 512"><path className="ll-w" d="M110 168l50 176 56-128 40 92 40-92 56 128 50-176" /><circle className="ll-dot" cx="410" cy="110" r="34" /></svg>
+  </span>
+)
