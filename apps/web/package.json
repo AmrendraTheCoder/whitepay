@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@arkiv-network/sdk": "^1.0.1",
+    "@walletconnect/ethereum-provider": "^2.26.0",
     "@whitepay/server": "*",
     "@whitepay/shared": "*",
     "@worldcoin/idkit": "^4.6.0",

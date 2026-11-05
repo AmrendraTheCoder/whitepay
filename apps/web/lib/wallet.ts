@@ -27,7 +27,16 @@ type DeviceWallet = {
   passkey?: { credId: string; prfSalt: string; iv: string; ct: string }
   createdAt: number
 }
-type InjectedWallet = { kind: "injected"; address: `0x${string}`; label?: string; createdAt: number }
+/** A wallet whose keys live elsewhere (MetaMask extension or a WalletConnect app).
+ *  WhitePay still guards every payment with its OWN PIN / fingerprint before asking it to sign. */
+type InjectedWallet = {
+  kind: "injected" | "walletconnect"
+  address: `0x${string}`
+  label?: string
+  createdAt: number
+  pinCheck?: { salt: string; hash: string } // PBKDF2 verifier of the WhitePay PIN (never the PIN)
+  passkeyId?: string // WebAuthn credential used as a user-verification gate
+}
 type Stored = DeviceWallet | InjectedWallet
 type Store = { active: `0x${string}` | null; list: Stored[] }
 
@@ -64,13 +73,22 @@ const replace = (w: Stored) => {
   save(s)
 }
 
-export type WalletInfo = { address: `0x${string}`; kind: "device" | "injected"; hasPasskey: boolean; label: string }
+export type WalletInfo = {
+  address: `0x${string}`
+  kind: "device" | "injected" | "walletconnect"
+  hasPasskey: boolean
+  /** every wallet must have a WhitePay PIN before it can pay */
+  hasPin: boolean
+  label: string
+}
 const info = (w: Stored, i: number): WalletInfo => ({
   address: w.address,
   kind: w.kind,
-  hasPasskey: w.kind === "device" && !!w.passkey,
-  label: w.label ?? (w.kind === "injected" ? "Browser wallet" : `Wallet ${i + 1}`),
+  hasPasskey: w.kind === "device" ? !!w.passkey : !!w.passkeyId,
+  hasPin: w.kind === "device" ? true : !!w.pinCheck,
+  label: w.label ?? (w.kind === "walletconnect" ? "MetaMask (WalletConnect)" : w.kind === "injected" ? "Browser wallet" : `Wallet ${i + 1}`),
 })
+export const isExternal = (w?: WalletInfo | null) => !!w && w.kind !== "device"
 
 export const getWallet = (): WalletInfo | null => {
   const s = load()
@@ -228,10 +246,6 @@ const provider = (): Eip1193 => {
 }
 export const hasInjectedWallet = () => typeof window !== "undefined" && !!(window as any).ethereum
 
-/** Phone browsers (Safari/Chrome) can't see MetaMask. This link reopens the same page INSIDE the
- *  MetaMask app's browser, where window.ethereum exists and connecting works. */
-export const metamaskDeepLink = (path = "/add") =>
-  `https://metamask.app.link/dapp/${location.host}${path}`
 export const isMobile = () => typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 
 /** Connect MetaMask/Rabby/... and add it as a wallet (address only; keys stay in that wallet). */
@@ -280,9 +294,100 @@ export async function injectedSigner(address: `0x${string}`): Promise<Signer> {
   }
 }
 
+// ------------------------------------------------ WalletConnect (stays in Chrome)
+export async function connectWalletConnect() {
+  const { wcConnect } = await import("./walletconnect")
+  const address = getAddress(await wcConnect())
+  const s = load()
+  if (!s.list.some((w) => same(w.address, address))) s.list.push({ kind: "walletconnect", address, createdAt: Date.now() })
+  s.active = address
+  save(s)
+  return address
+}
+
+/** Signer for an external wallet: asks the wallet (extension or WalletConnect app) to sign. */
+export async function externalSigner(w: WalletInfo): Promise<Signer> {
+  if (w.kind === "injected") return injectedSigner(w.address)
+  const { wcEnsureSession } = await import("./walletconnect")
+  const p = await wcEnsureSession()
+  const accounts = (await p.request({ method: "eth_accounts" })) as string[]
+  if (!accounts.some((a) => same(a, w.address))) throw new Error(`Connected wallet is not ${w.address.slice(0, 6)}…${w.address.slice(-4)}; reconnect it under You`)
+  await ensureWhitechain(p as unknown as Eip1193)
+  const client = createWalletClient({ chain: whitechainSepolia, transport: custom(p as any), account: w.address })
+  return {
+    address: w.address,
+    signTypedData: ((td: any) => client.signTypedData(td)) as Signer["signTypedData"],
+    signMessage: ((m: any) => client.signMessage(m)) as Signer["signMessage"],
+  }
+}
+
+// ------------------------------------------ WhitePay PIN / fingerprint for external wallets
+function extEntry(address: string): InjectedWallet {
+  const w = load().list.find((x) => same(x.address, address))
+  if (!w || w.kind === "device") throw new Error("Not an external wallet")
+  return w
+}
+async function pinHash(pin: string, salt: Uint8Array) {
+  const base = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"])
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: salt as BufferSource, iterations: PBKDF2_ITERS, hash: "SHA-256" }, base, 256)
+  return b64(bits)
+}
+/** Set the WhitePay PIN that guards payments from an external wallet. */
+export async function setExternalPin(address: string, pin: string) {
+  if (!validPin(pin)) throw new Error("PIN must be 6 digits")
+  const w = extEntry(address)
+  const salt = rand(16)
+  replace({ ...w, pinCheck: { salt: b64(salt), hash: await pinHash(pin, salt) } })
+}
+/** Check the WhitePay PIN (same 5-tries lockout as device wallets). */
+export async function verifyExternalPin(address: string, pin: string) {
+  const w = extEntry(address)
+  if (!w.pinCheck) throw new Error("Set a WhitePay PIN for this wallet first")
+  const wait = pinLockout(w.address)
+  if (wait) throw new Error(`Too many wrong PINs. Try again in ${Math.ceil(wait / 60000)} min`)
+  if ((await pinHash(pin, unb64(w.pinCheck.salt))) === w.pinCheck.hash) { localStorage.removeItem(LOCK(w.address)); return }
+  const l = JSON.parse(localStorage.getItem(LOCK(w.address)) ?? "{}") as { tries?: number }
+  const tries = (l.tries ?? 0) + 1
+  localStorage.setItem(LOCK(w.address), JSON.stringify(tries >= MAX_TRIES ? { tries: 0, until: Date.now() + LOCKOUT_MS } : { tries }))
+  throw new Error(tries >= MAX_TRIES ? "Too many wrong PINs. Locked for 5 minutes" : `Wrong PIN (${MAX_TRIES - tries} tries left)`)
+}
+/** Add fingerprint / Face ID as the payment check for an external wallet (needs the PIN once). */
+export async function enableExternalPasskey(address: string, pin: string) {
+  await verifyExternalPin(address, pin)
+  const w = extEntry(address)
+  const cred = (await navigator.credentials.create({
+    publicKey: {
+      challenge: rand(32) as BufferSource,
+      rp: { name: "WhitePay" },
+      user: { id: rand(16) as BufferSource, name: `whitepay-${w.address.slice(2, 8)}`, displayName: "WhitePay payments" },
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "preferred" },
+      timeout: 60_000,
+    },
+  })) as PublicKeyCredential | null
+  if (!cred) throw new Error("Fingerprint setup was cancelled")
+  replace({ ...w, passkeyId: b64(cred.rawId) })
+}
+/** Fingerprint / Face ID check (user verification required) before an external wallet signs. */
+export async function verifyExternalPasskey(address: string) {
+  const w = extEntry(address)
+  if (!w.passkeyId) throw new Error("Fingerprint not set up")
+  const a = await navigator.credentials.get({
+    publicKey: {
+      challenge: rand(32) as BufferSource,
+      allowCredentials: [{ type: "public-key", id: unb64(w.passkeyId) as BufferSource }],
+      userVerification: "required",
+      timeout: 60_000,
+    },
+  })
+  if (!a) throw new Error("Fingerprint cancelled")
+}
+
 /** Remove the active wallet from this device (device keys are deleted). */
 export function removeWallet(address = getWallet()?.address) {
   const s = load()
+  const w = s.list.find((x) => same(x.address, address))
+  if (w?.kind === "walletconnect") import("./walletconnect").then((m) => m.wcDisconnect()).catch(() => {})
   s.list = s.list.filter((w) => !same(w.address, address))
   if (same(s.active, address)) s.active = s.list[0]?.address ?? null
   save(s)

@@ -4,7 +4,7 @@ import { BottomNav, Icon, avatarColor, prettyName, useWalletData, AccountBadge, 
 import { ClaimName } from "../claim-name"
 import { PinPad } from "../components"
 import {
-  enablePasskey, passkeySupported, removeWallet, listWallets, setActiveWallet, connectInjectedWallet, hasInjectedWallet, metamaskDeepLink, type WalletInfo,
+  enablePasskey, passkeySupported, removeWallet, listWallets, setActiveWallet, type WalletInfo,
 } from "@/lib/wallet"
 import { useTheme, type Theme } from "@/lib/prefs"
 import { short } from "@/lib/format"
@@ -39,10 +39,9 @@ export default function You() {
   if (!wallet) return <main className="shell"><a className="btn btn-primary" href="/">Create your wallet</a></main>
 
   const switchTo = (a: string) => { setActiveWallet(a); location.reload() }
-  const connect = async () => {
-    if (!hasInjectedWallet()) { location.href = metamaskDeepLink("/you"); return }
-    try { await connectInjectedWallet(); location.reload() } catch (e) { setMsg((e as Error).message.split("\n")[0]) }
-  }
+  // connecting (extension or WalletConnect) + setting its WhitePay PIN happens in the add-wallet flow
+  const connect = () => { location.href = "/add?connect=1" }
+
 
   return (
     <main className="shell with-nav">
@@ -52,7 +51,7 @@ export default function You() {
         <div className="id">{account === "business" ? "Shop ID" : "WhitePay ID"}: {name === undefined ? <span className="skel" style={{ width: 160, height: 16 }} /> : <b>{name ?? "not claimed yet"}</b>}</div>
         <button className="addr chip" style={{ background: "rgba(255,255,255,.14)", border: 0, color: "#fff" }}
           onClick={() => { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1400) }}>
-          {copied ? "Copied ✓" : `${short(wallet.address)} · ${wallet.kind === "injected" ? "browser wallet" : "this device"}`}
+          {copied ? "Copied ✓" : `${short(wallet.address)} · ${wallet.kind === "walletconnect" ? "MetaMask app" : wallet.kind === "injected" ? "browser extension" : "this device"}`}
         </button>
         <a className="qrbtn" href="/receive" aria-label="My QR code">{Icon.receive(44)}</a>
       </div>
@@ -91,11 +90,11 @@ export default function You() {
           const on = w.address.toLowerCase() === wallet.address.toLowerCase()
           return (
             <button key={w.address} className="wallet-row" onClick={() => !on && switchTo(w.address)}>
-              <span className="pic" style={{ background: avatarColor(w.address) }}>{w.kind === "injected" ? Icon.shield(22) : w.label.slice(-1)}</span>
+              <span className="pic" style={{ background: avatarColor(w.address) }}>{w.kind !== "device" ? Icon.shield(22) : w.label.slice(-1)}</span>
               <div>
                 <div style={{ fontWeight: 700 }}>{w.label}</div>
                 <div className="sub">{types[w.address] ?? "…"}</div>
-                <div className="sub">{short(w.address)} · {w.kind === "injected" ? "MetaMask / browser" : w.hasPasskey ? "fingerprint + PIN" : "PIN"}</div>
+                <div className="sub">{short(w.address)} · {w.kind === "walletconnect" ? "MetaMask app" : w.kind === "injected" ? "browser extension" : "this device"} · {w.hasPasskey ? "fingerprint + PIN" : w.hasPin ? "PIN" : "PIN not set"}</div>
               </div>
               <span className={`radio ${on ? "on" : ""}`} aria-label={on ? "Active" : "Switch"} />
             </button>
@@ -133,10 +132,10 @@ export default function You() {
 
       <button className="btn btn-ghost" style={{ color: "var(--bad)" }}
         onClick={() => {
-          const warn = wallet.kind === "device" ? "Remove this wallet from the device? Its funds are lost unless you have the key." : "Disconnect this browser wallet from WhitePay?"
+          const warn = wallet.kind === "device" ? "Remove this wallet from the device? Its funds are lost unless you have the key." : "Disconnect MetaMask from WhitePay?"
           if (confirm(warn)) { removeWallet(wallet.address); location.href = "/" }
         }}>
-        {wallet.kind === "device" ? "Remove this wallet from device" : "Disconnect browser wallet"}
+        {wallet.kind === "device" ? "Remove this wallet from device" : "Disconnect MetaMask"}
       </button>
 
       {askPin && (

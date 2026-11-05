@@ -3,11 +3,14 @@ import { useCallback, useEffect, useState } from "react"
 import { isHex, type Hex } from "viem"
 import { PinPad } from "./components"
 import { Icon } from "./ui"
-import { createWallet, enablePasskey, passkeySupported, connectInjectedWallet, hasInjectedWallet, metamaskDeepLink } from "@/lib/wallet"
+import { createWallet, enablePasskey, passkeySupported, connectInjectedWallet, hasInjectedWallet, connectWalletConnect, setExternalPin, enableExternalPasskey } from "@/lib/wallet"
+import { wcConfigured } from "@/lib/walletconnect"
 
 // -------------------------------------------------------------- onboarding
 export function Onboard({ onDone, adding = false }: { onDone: () => void; adding?: boolean }) {
-  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio">("intro")
+  // ext* steps: an external wallet was just connected and gets its own WhitePay PIN / fingerprint
+  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio">("intro")
+  const [extAddr, setExtAddr] = useState("")
   const [first, setFirst] = useState("")
   const [pin, setPin] = useState("")
   const [err, setErr] = useState("")
@@ -18,11 +21,26 @@ export function Onboard({ onDone, adding = false }: { onDone: () => void; adding
   const [injected, setInjected] = useState(false)
   useEffect(() => { passkeySupported().then(setBioOk); setInjected(hasInjectedWallet()) }, [])
 
-  const connect = async () => {
-    // no wallet in this browser (e.g. Safari/Chrome on a phone): reopen this page inside MetaMask
-    if (!hasInjectedWallet()) { location.href = metamaskDeepLink(location.pathname + location.search); return }
+  /** Connect MetaMask without leaving Chrome: extension if present (desktop), otherwise WalletConnect. */
+  const connect = async (via: "extension" | "walletconnect") => {
     setBusy(true); setErr("")
-    try { await connectInjectedWallet(); onDone() } catch (e) { setErr((e as Error).message.split("\n")[0]) } finally { setBusy(false) }
+    try {
+      const addr = via === "extension" ? await connectInjectedWallet() : await connectWalletConnect()
+      setExtAddr(addr)
+      setStep("extpin")
+    } catch (e) {
+      const m = (e as Error).message
+      setErr(/reject|denied|closed|4001/i.test(m) ? "Connection cancelled" : m.split("\n")[0])
+    } finally { setBusy(false) }
+  }
+  const onExtFirst = useCallback((p: string) => { setFirst(p); setStep("extconfirm"); setErr("") }, [])
+  const onExtConfirm = useCallback(async (p: string) => {
+    if (p !== first) { setErr("PINs didn't match. Try again."); setStep("extpin"); return }
+    try { await setExternalPin(extAddr, p); setPin(p); setStep("extbio") } catch (e) { setErr((e as Error).message); setStep("extpin") }
+  }, [first, extAddr])
+  const enableExtBio = async () => {
+    setBusy(true); setErr("")
+    try { await enableExternalPasskey(extAddr, pin); onDone() } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
 
   const onFirst = useCallback((p: string) => { setFirst(p); setStep("confirm"); setErr("") }, [])
@@ -56,10 +74,19 @@ export function Onboard({ onDone, adding = false }: { onDone: () => void; adding
             Your key stays on this phone, encrypted and unlocked only by your fingerprint or a 6-digit PIN, just like UPI.
           </div>
           <button className="btn btn-primary btn-big" onClick={() => setStep("pin")}>{adding ? "Create another wallet" : "Create my wallet"}</button>
-          <button className="btn btn-ghost" onClick={connect} disabled={busy}>
-            {busy ? <span className="spinner" /> : null} {injected ? "Connect existing wallet (MetaMask…)" : "Open in MetaMask app to connect"}
+          {injected && (
+            <button className="btn btn-ghost" onClick={() => connect("extension")} disabled={busy}>
+              {busy ? <span className="spinner" /> : null} Connect browser extension (MetaMask)
+            </button>
+          )}
+          <button className="btn btn-ghost" onClick={() => connect("walletconnect")} disabled={busy || !wcConfigured()}>
+            {busy ? <span className="spinner" /> : null} Connect MetaMask app (WalletConnect)
           </button>
-          {!injected && <div className="sub" style={{ textAlign: "center" }}>This opens WhitePay inside the MetaMask app. Tap Connect there; your MetaMask address is added as a WhitePay wallet.</div>}
+          <div className="sub" style={{ textAlign: "center" }}>
+            {wcConfigured()
+              ? "WhitePay stays open in this browser. MetaMask opens only to approve, then you come back here."
+              : "WalletConnect isn't configured on this server yet."}
+          </div>
           {err && step === "intro" && <div className="err">{err}</div>}
           <button className="chip" style={{ alignSelf: "center" }} onClick={() => setShowImport((s) => !s)}>
             {showImport ? "Hide" : "Use an existing test key"}
@@ -92,6 +119,24 @@ export function Onboard({ onDone, adding = false }: { onDone: () => void; adding
           ) : (
             <div className="sub">This browser doesn't support biometric key protection. PIN only.</div>
           )}
+          <button className="btn btn-ghost" onClick={onDone}>{bioOk ? "Skip for now" : "Continue"}</button>
+          <div className="err">{err}</div>
+        </div>
+      )}
+      {(step === "extpin" || step === "extconfirm") && (
+        <div className="stack" style={{ marginTop: 24 }}>
+          <div style={{ textAlign: "center", fontSize: 24, fontWeight: 700 }}>{step === "extpin" ? "Set your WhitePay PIN" : "Confirm your PIN"}</div>
+          <div className="sub" style={{ textAlign: "center" }}>Connected {extAddr.slice(0, 6)}…{extAddr.slice(-4)}. WhitePay asks for this PIN before MetaMask signs any payment.</div>
+          <PinPad key={step} onComplete={step === "extpin" ? onExtFirst : onExtConfirm} />
+          <div className="err">{err}</div>
+        </div>
+      )}
+      {step === "extbio" && (
+        <div className="stack" style={{ textAlign: "center", marginTop: 30 }}>
+          <div style={{ margin: "0 auto", width: 96, height: 96, borderRadius: "50%", display: "grid", placeItems: "center", background: "var(--brand)", color: "#fff" }}>{Icon.finger(48)}</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>Confirm payments with your fingerprint?</div>
+          <div className="sub">Before MetaMask is asked to sign, WhitePay checks your fingerprint or Face ID. Your PIN always works too.</div>
+          {bioOk && <button className="btn btn-primary btn-big" onClick={enableExtBio} disabled={busy}>{busy ? <span className="spinner" /> : null} Enable fingerprint</button>}
           <button className="btn btn-ghost" onClick={onDone}>{bioOk ? "Skip for now" : "Continue"}</button>
           <div className="err">{err}</div>
         </div>
