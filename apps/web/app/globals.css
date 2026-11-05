@@ -342,9 +342,9 @@ button { font: inherit; color: inherit; }
 .dev-table td:first-child { white-space: nowrap; color: inherit; } .dev-list { padding-left: 18px; } .dev-foot { margin-top: 40px; color: var(--muted); font-size: 13px; }
 
 /* neon "Personal" account tag */
-.badge-neon { color: #39ff14; background: rgba(8, 20, 6, .55); border: 1px solid #39ff14; letter-spacing: .04em; text-transform: uppercase; font-size: 11px;
-  text-shadow: 0 0 6px rgba(57,255,20,.9), 0 0 14px rgba(57,255,20,.55);
-  box-shadow: 0 0 8px rgba(57,255,20,.55), inset 0 0 8px rgba(57,255,20,.25); animation: neon-flicker 4s infinite; }
+.badge-neon { color: var(--lime); background: rgba(27, 33, 8, .55); border: 1.5px solid var(--lime); letter-spacing: .04em; text-transform: uppercase; font-size: 11px;
+  text-shadow: 0 0 6px rgba(221,240,90,.85), 0 0 14px rgba(221,240,90,.45);
+  box-shadow: 0 0 8px rgba(221,240,90,.55), inset 0 0 8px rgba(221,240,90,.2); animation: neon-flicker 4s infinite; }
 @keyframes neon-flicker { 0%, 92%, 100% { opacity: 1 } 93% { opacity: .55 } 94% { opacity: 1 } 96% { opacity: .7 } }
 @media (prefers-reduced-motion: reduce) { .badge-neon { animation: none; } }
 
