@@ -39,8 +39,8 @@ export async function POST(req: Request) {
   try {
     const base = { planKey: b.planKey as Hex, subscriber: b.subscriber as Address, subscriptionId: b.subscriptionId as Hex, startAt: b.startAt }
     const r = b.permit
-      ? await subscribe({ ...base, permit: { deadline: b.permit.deadline, signature: b.permit.signature as Hex } })
-      : await subscribeReminder({ ...base, signature: b.signature as Hex })
+      ? await subscribe({ ...base, permit: { deadline: b.permit.deadline, signature: b.permit.signature as Hex }, defer: after })
+      : await subscribeReminder({ ...base, signature: b.signature as Hex, defer: after })
     return json(r)
   } catch (e) {
     if (e instanceof PolicyError) return json({ error: e.message, code: e.code }, { status: 403 })

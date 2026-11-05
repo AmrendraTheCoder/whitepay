@@ -12,6 +12,7 @@ import {
   type Order,
 } from "@whitepay/shared"
 import { arkiv, wc } from "./clients"
+import { cached } from "./cache"
 import { config } from "./config"
 import { orderDigest, signOrder } from "./orders"
 
@@ -62,7 +63,7 @@ export async function preparePaymentRequest(p: CreatePaymentRequestParams) {
     order = p.signed.order
     merchantSig = p.signed.merchantSig
     digest = orderDigest(order)
-    const m = await wc().pub.readContract({ address: config.registry, abi: REGISTRY_ABI, functionName: "get", args: [order.merchant] })
+    const m = await registryGet(order.merchant)
     if (!m.active) throw new Error("merchant is not registered/active")
     const signer = await recoverTypedDataAddress({ ...orderTypedData(config.router, order), signature: merchantSig })
     if (signer.toLowerCase() !== m.signer.toLowerCase()) throw new Error("order not signed by the merchant's registered key")
@@ -122,10 +123,17 @@ export type Rejected = { ok: false; reason: string; view?: RequestView }
 /** Fetch a request by entity key (what the payer's app does after scanning the QR). */
 /** A QR/link may carry the Arkiv entity key (older) or the order digest (instant QRs). Resolve to the entity key. */
 export async function resolveRequestRef(ref: Hex): Promise<Hex | null> {
-  const a = arkiv()
-  const r = await a.pub.select({ $key: true }).from(PayRequest).ownedBy(a.owner).where(eq("digest", ref.toLowerCase())).limit(1).fetch()
-  return ((r.entities as any[])[0]?.$key as Hex | undefined) ?? null
+  // digest -> entity key never changes once found: cache it (10 min) so each poll skips this query
+  return cached(`reqref:${ref.toLowerCase()}`, 600_000, async () => {
+    const a = arkiv()
+    const r = await a.pub.select({ $key: true }).from(PayRequest).ownedBy(a.owner).where(eq("digest", ref.toLowerCase())).limit(1).fetch()
+    return ((r.entities as any[])[0]?.$key as Hex | undefined) ?? null
+  }, (v) => !!v)
 }
+
+/** MerchantRegistry.get, cached 30 s: it changes only when a shop registers or is (de)activated */
+export const registryGet = (merchant: Address) =>
+  cached(`registry:${merchant.toLowerCase()}`, 30_000, () => wc().pub.readContract({ address: config.registry, abi: REGISTRY_ABI, functionName: "get", args: [merchant] }))
 
 export async function fetchRequest(ref: Hex): Promise<RequestView | null> {
   const byDigest = await resolveRequestRef(ref).catch(() => null)
@@ -175,7 +183,7 @@ export async function verifyRequest(view: RequestView | null): Promise<Verified 
     return { ok: false, reason: "tampered request: fields do not match the signed digest", view }
 
   // 3. authenticity: signature must come from the merchant's registered signer ON-CHAIN
-  const m = await wc().pub.readContract({ address: config.registry, abi: REGISTRY_ABI, functionName: "get", args: [view.merchant] })
+  const m = await registryGet(view.merchant)
   if (!m.active) return { ok: false, reason: "merchant not active in MerchantRegistry", view }
   let signer: Address
   try {
@@ -304,4 +312,28 @@ export async function getReceipt(receiptKey: Hex) {
     if (err instanceof NoEntityFoundError) return null
     throw err
   }
+}
+
+const PAYMENT_SETTLED = { type: "event", name: "PaymentSettled", inputs: [
+  { name: "paymentId", type: "bytes32", indexed: true }, { name: "orderId", type: "bytes32", indexed: true },
+  { name: "merchant", type: "address", indexed: true }, { name: "payer", type: "address", indexed: false },
+  { name: "payout", type: "address", indexed: false }, { name: "amount", type: "uint256", indexed: false } ] } as const
+const PAYMENTS_ABI = [{ type: "function", name: "payments", stateMutability: "view", inputs: [{ name: "paymentId", type: "bytes32" }], outputs: [
+  { name: "payer", type: "address" }, { name: "merchant", type: "address" }, { name: "amount", type: "uint128" },
+  { name: "refunded", type: "uint128" }, { name: "paidAt", type: "uint64" }, { name: "refundCount", type: "uint32" } ] }] as const
+
+/**
+ * Was this order paid? Read from the router itself (the source of truth), so a status poll says "paid"
+ * the moment the chain confirms, without waiting for the Arkiv receipt that is written after the response.
+ * One cheap view call per 1.5 s per order (cached); the tx hash lookup runs only once it is paid.
+ */
+export async function paidOnChain(digest: Hex): Promise<{ txHash: Hex; payer: Address } | null> {
+  const p = await cached(`paidp:${digest}`, 1_500, () =>
+    wc().pub.readContract({ address: config.router, abi: PAYMENTS_ABI, functionName: "payments", args: [digest] }))
+  if (p[0] === "0x0000000000000000000000000000000000000000") return null
+  return cached(`paidtx:${digest}`, 600_000, async () => {
+    const latest = await wc().pub.getBlockNumber()
+    const logs = await wc().pub.getLogs({ address: config.router, event: PAYMENT_SETTLED, args: { paymentId: digest }, fromBlock: latest > 2000n ? latest - 2000n : 0n, toBlock: latest })
+    return { txHash: (logs[0]?.transactionHash ?? "0x") as Hex, payer: getAddress(p[0]) }
+  })
 }

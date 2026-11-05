@@ -91,7 +91,7 @@ export async function getPlan(ref: Hex) {
  * v2 subscribe: the subscriber gave ONE signature, an EIP-2612 permit to their subscription's clone
  * (address derived from all the terms). We deploy the clone, apply the permit and charge cycle 1 in one tx.
  */
-export async function subscribe(p: { planKey: Hex; subscriber: Address; subscriptionId: Hex; startAt: number; permit: { deadline: number; signature: Hex } }) {
+export async function subscribe(p: { planKey: Hex; subscriber: Address; subscriptionId: Hex; startAt: number; permit: { deadline: number; signature: Hex }; defer?: Defer }) {
   const pv = await getPlan(p.planKey)
   if (!pv) throw new Error("this plan has expired or does not exist")
   if (pv.single && pv.status !== "open") throw new Error("this checkout plan was already used")
@@ -130,7 +130,7 @@ export async function subscribe(p: { planKey: Hex; subscriber: Address; subscrip
   const rc = await pub.waitForTransactionReceipt({ hash: txHash })
   if (rc.status !== "success") throw new Error("starting the subscription reverted")
   const first = { txHash, block: rc.blockNumber, explorer: `${config.explorer}/tx/${txHash}` }
-  const receipt = await settleOnArkiv({ merchant: plan.merchant, merchantName: pv.merchantName, payer: subscriber, amount: plan.amount, paymentId: cycleMemo(p.subscriptionId, 0), txHash, block: rc.blockNumber, kind: "autopay" }).catch(() => null)
+  await later(p.defer, () => settleOnArkiv({ merchant: plan.merchant, merchantName: pv.merchantName, payer: subscriber, amount: plan.amount, paymentId: cycleMemo(p.subscriptionId, 0), txHash, block: rc.blockNumber, kind: "autopay" }))
 
   const a = arkiv()
   const last = plan.cycles === 1
@@ -155,7 +155,7 @@ export async function subscribe(p: { planKey: Hex; subscriber: Address; subscrip
 
   notify(pv.webhook, `${p.subscriptionId}:0`, { event: "subscription.started", mandateKey: mk.key, planKey: p.planKey, subscriptionId: p.subscriptionId, vault,
     merchant: plan.merchant, subscriber, amount: plan.amount.toString(), cycle: 1, cycles: plan.cycles, txHash, explorer: first.explorer, nextDueAt: last ? null : nextDue })
-  return { mandateKey: mk.key as Hex, vault, arkivTx: res.txHash, firstTx: txHash, explorer: first.explorer, receiptKey: receipt?.receiptKey, nextDueAt: last ? null : nextDue }
+  return { mandateKey: mk.key as Hex, vault, arkivTx: res.txHash, firstTx: txHash, explorer: first.explorer, nextDueAt: last ? null : nextDue }
 }
 
 /** Plan checks shared by both modes. */
@@ -180,7 +180,14 @@ const REMINDER_TAIL = 86_400
  * Reminder mode (default): the subscriber signs ONLY the first payment now. Every later payment is
  * requested when due and approved by the subscriber with one signature (payReminderCycle).
  */
-export async function subscribeReminder(p: { planKey: Hex; subscriber: Address; subscriptionId: Hex; startAt: number; signature: Hex }) {
+/** Run bookkeeping after the HTTP response (routes pass next/server `after`); without it, run inline. */
+export type Defer = (task: () => Promise<unknown>) => void
+const later = async (defer: Defer | undefined, task: () => Promise<unknown>) => {
+  const safe = () => task().catch((e) => console.error("[autopay] background task failed", (e as Error).message.split("\n")[0]))
+  if (defer) defer(safe); else await safe()
+}
+
+export async function subscribeReminder(p: { planKey: Hex; subscriber: Address; subscriptionId: Hex; startAt: number; signature: Hex; defer?: Defer }) {
   const { pv, subscriber, grace } = await loadPlanForSubscribe(p.planKey, p.subscriber, p.startAt)
   const { plan } = pv
   const td = cycleAuthTypedData({ subscriber, merchant: plan.merchant, amount: plan.amount, subscriptionId: p.subscriptionId, cycle: 0, startAt: p.startAt, period: plan.period, grace })
@@ -190,28 +197,29 @@ export async function subscribeReminder(p: { planKey: Hex; subscriber: Address; 
   try {
     first = await chargeCycle({ subscriber, merchant: plan.merchant, amount: plan.amount, subscriptionId: p.subscriptionId, startAt: p.startAt, period: plan.period, grace, cycle: 0, signature: p.signature })
   } catch (err) { throw new Error(friendlyChainError(shortErr(err))) }
-  const receipt = await settleOnArkiv({ merchant: plan.merchant, merchantName: pv.merchantName, payer: subscriber, amount: plan.amount, paymentId: cycleMemo(p.subscriptionId, 0), txHash: first.txHash, block: first.block, kind: "autopay" }).catch(() => null)
-
-  const a = arkiv()
   const last = plan.cycles === 1
   const nextDue = cycleDueAt(p.startAt, plan.period, 1)
   const endsAt = cycleDueAt(p.startAt, plan.period, plan.cycles - 1) + grace + REMINDER_TAIL
-  const [mk] = await a.pub.predictEntityKeys({ owner: a.owner, count: 1 })
-  await a.writer.executeBatch({
-    creates: [
-      { schema: Mandate, salt: mk.salt, expiration: expiry(Math.max(endsAt - now(), 3600) + 7 * 86_400), values: {
-        subscriber: addr(subscriber), merchant: addr(plan.merchant), merchantName: pv.merchantName, title: pv.title, planRef: key(pv.planKey),
-        subscriptionId: p.subscriptionId.toLowerCase(), amount: plan.amount, period: u64(BigInt(plan.period)), grace: u64(BigInt(grace)),
-        cycles: plan.cycles, startAt: u64(BigInt(p.startAt)), paidCycles: 1, nextDueAt: u64(BigInt(last ? 0 : nextDue)), nextCycle: last ? plan.cycles : 1,
-        missedCycles: 0, mode: "reminder", status: last ? "completed" : "active", webhook: pv.webhook, lastTx: first.txHash, updatedAt: u64(BigInt(now())),
-      } as any },
-      ...(last ? [] : [dueCreate(mk.key, subscriber, plan.merchant, plan.amount, 1, nextDue, nextDue + grace + REMINDER_TAIL - now())]),
-    ],
-    patches: pv.single ? [{ schema: SubPlan, entityKey: pv.planKey, set: { status: "subscribed", mandateRef: key(mk.key) } }] : [],
-  } as any, { gas: 4_000_000n })
-  notify(pv.webhook, `${p.subscriptionId}:0`, { event: "subscription.started", mode: "reminder", mandateKey: mk.key, planKey: p.planKey, subscriptionId: p.subscriptionId,
-    merchant: plan.merchant, subscriber, amount: plan.amount.toString(), cycle: 1, cycles: plan.cycles, txHash: first.txHash, explorer: first.explorer, nextDueAt: last ? null : nextDue })
-  return { mandateKey: mk.key as Hex, mode: "reminder" as const, firstTx: first.txHash, explorer: first.explorer, receiptKey: receipt?.receiptKey, nextDueAt: last ? null : nextDue }
+  // The first payment is final on-chain: answer now. Arkiv bookkeeping (~3 writes) runs after the response.
+  // The mandate is created FIRST and its real key is used for the due entity (no nonce-based key prediction,
+  // which breaks when other writes land in between).
+  await later(p.defer, async () => {
+    const a = arkiv()
+    const mandate = await a.writer.createEntity(Mandate, {
+      subscriber: addr(subscriber), merchant: addr(plan.merchant), merchantName: pv.merchantName, title: pv.title, planRef: key(pv.planKey),
+      subscriptionId: p.subscriptionId.toLowerCase(), amount: plan.amount, period: u64(BigInt(plan.period)), grace: u64(BigInt(grace)),
+      cycles: plan.cycles, startAt: u64(BigInt(p.startAt)), paidCycles: 1, nextDueAt: u64(BigInt(last ? 0 : nextDue)), nextCycle: last ? plan.cycles : 1,
+      missedCycles: 0, mode: "reminder", status: last ? "completed" : "active", webhook: pv.webhook, lastTx: first.txHash, updatedAt: u64(BigInt(now())),
+    } as any, { expiration: expiry(Math.max(endsAt - now(), 3600) + 7 * 86_400) }, { gas: 1_500_000n })
+    await a.writer.executeBatch({
+      creates: last ? [] : [dueCreate(mandate.entityKey, subscriber, plan.merchant, plan.amount, 1, nextDue, nextDue + grace + REMINDER_TAIL - now())],
+      patches: pv.single ? [{ schema: SubPlan, entityKey: pv.planKey, set: { status: "subscribed", mandateRef: key(mandate.entityKey) } }] : [],
+    } as any, { gas: 3_000_000n })
+    await settleOnArkiv({ merchant: plan.merchant, merchantName: pv.merchantName, payer: subscriber, amount: plan.amount, paymentId: cycleMemo(p.subscriptionId, 0), txHash: first.txHash, block: first.block, kind: "autopay" }).catch(() => null)
+    if (pv.webhook) await deliverWebhook(pv.webhook, `${p.subscriptionId}:0`, { event: "subscription.started", mode: "reminder", mandateKey: mandate.entityKey, planKey: p.planKey,
+      subscriptionId: p.subscriptionId, merchant: plan.merchant, subscriber, amount: plan.amount.toString(), cycle: 1, cycles: plan.cycles, txHash: first.txHash, explorer: first.explorer, nextDueAt: last ? null : nextDue })
+  })
+  return { mode: "reminder" as const, subscriptionId: p.subscriptionId, firstTx: first.txHash, explorer: first.explorer, nextDueAt: last ? null : nextDue }
 }
 
 const dueCreate = (mandateKey: Hex, subscriber: Address, merchant: Address, amount: bigint, cycle: number, dueAt: number, ttl: number) => ({
@@ -228,7 +236,7 @@ async function dueOf(mandateKey: Hex) {
 }
 
 /** Reminder mode: the subscriber approves the payment that was requested (one signature). */
-export async function payReminderCycle(p: { mandateKey: Hex; subscriber: Address; cycle: number; signature: Hex }) {
+export async function payReminderCycle(p: { mandateKey: Hex; subscriber: Address; cycle: number; signature: Hex; defer?: Defer }) {
   const m = await getMandate(p.mandateKey)
   if (!m) throw new Error("subscription not found")
   if (getAddress(p.subscriber) !== m.subscriber) throw new Error("only the subscriber can pay this")
@@ -245,10 +253,13 @@ export async function payReminderCycle(p: { mandateKey: Hex; subscriber: Address
   try {
     r = await chargeCycle({ subscriber: m.subscriber, merchant: m.merchant, amount: m.amount, subscriptionId: m.subscriptionId, startAt: m.startAt, period: m.period, grace: m.grace, cycle: p.cycle, signature: p.signature })
   } catch (err) { throw new Error(friendlyChainError(shortErr(err))) }
-  await settleOnArkiv({ merchant: m.merchant, merchantName: m.merchantName, payer: m.subscriber, amount: m.amount, paymentId: cycleMemo(m.subscriptionId, p.cycle), txHash: r.txHash, block: r.block, kind: "autopay" }).catch(() => null)
-  await advanceReminder(m, d.key, p.cycle, { paid: true, txHash: r.txHash })
-  notify(m.webhook, `${m.subscriptionId}:${p.cycle}`, { event: p.cycle + 1 >= m.cycles ? "subscription.completed" : "subscription.charged", mode: "reminder", mandateKey: m.key,
-    subscriptionId: m.subscriptionId, merchant: m.merchant, subscriber: m.subscriber, amount: m.amount.toString(), cycle: p.cycle + 1, cycles: m.cycles, txHash: r.txHash, explorer: r.explorer })
+  // paid on-chain: answer now; schedule the next request, write the receipt and notify the shop afterwards
+  await later(p.defer, async () => {
+    await advanceReminder(m, d.key, p.cycle, { paid: true, txHash: r.txHash })
+    await settleOnArkiv({ merchant: m.merchant, merchantName: m.merchantName, payer: m.subscriber, amount: m.amount, paymentId: cycleMemo(m.subscriptionId, p.cycle), txHash: r.txHash, block: r.block, kind: "autopay" }).catch(() => null)
+    if (m.webhook) await deliverWebhook(m.webhook, `${m.subscriptionId}:${p.cycle}`, { event: p.cycle + 1 >= m.cycles ? "subscription.completed" : "subscription.charged", mode: "reminder", mandateKey: m.key,
+      subscriptionId: m.subscriptionId, merchant: m.merchant, subscriber: m.subscriber, amount: m.amount.toString(), cycle: p.cycle + 1, cycles: m.cycles, txHash: r.txHash, explorer: r.explorer })
+  })
   return { txHash: r.txHash, explorer: r.explorer, nextDueAt: p.cycle + 1 >= m.cycles ? null : cycleDueAt(m.startAt, m.period, p.cycle + 1) }
 }
 

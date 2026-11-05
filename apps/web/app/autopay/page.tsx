@@ -38,8 +38,9 @@ export default function Subscriptions() {
     if (typeof Notification !== "undefined") setNotif(Notification.permission)
     if (!w) return
     void load(w.address)
-    const t1 = setInterval(() => setNow(Date.now() / 1000), 500)
-    const t2 = setInterval(() => load(w.address), 8_000)
+    // 1 s is enough for second-level countdowns; skip work entirely while the tab is hidden
+    const t1 = setInterval(() => { if (document.visibilityState === "visible") setNow(Date.now() / 1000) }, 1000)
+    const t2 = setInterval(() => { if (document.visibilityState === "visible") void load(w.address) }, 8_000)
     return () => { clearInterval(t1); clearInterval(t2) }
   }, [load])
 
@@ -71,7 +72,9 @@ export default function Subscriptions() {
       const d = await r.json()
       if (!r.ok) throw new Error(d.error ?? "Payment failed")
       setPaid({ title: m.title, amount: m.amount, explorer: d.explorer })
-      await load(acct.address)
+      // the server answers as soon as the chain confirms and updates Arkiv right after: reflect it instantly
+      setRows((rs) => rs?.map((x) => x.key === m.key ? { ...x, payNow: false, paidCycles: x.paidCycles + 1, nextCycle: (x.nextCycle ?? 0) + 1,
+        nextDueAt: d.nextDueAt ?? 0, status: d.nextDueAt ? "active" : "completed", lastTxUrl: d.explorer } : x) ?? null)
     } catch (e) { setMsg(friendly((e as Error).message)) } finally { setBusy("") }
   }
 

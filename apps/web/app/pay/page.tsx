@@ -5,7 +5,7 @@ import { hashTypedData, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { SuccessCheck, LogoLoader } from "../ui"
+import { SuccessCheck, LogoLoader, Countdown } from "../ui"
 import { getWallet } from "@/lib/wallet"
 import { usdt, initials, mmss } from "@/lib/format"
 
@@ -26,7 +26,7 @@ export default function PayPage() {
 function Pay() {
   const key = useSearchParams().get("req") ?? ""
   const [data, setData] = useState<ReqResp | null>(null)
-  const [now, setNow] = useState(() => Date.now() / 1000)
+  const [, refresh] = useState(0) // re-render once, exactly when the request expires
   const [unlock, setUnlock] = useState(false)
   const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "done" | "failed">("idle")
   const [result, setResult] = useState<{ explorer?: string; error?: string; code?: string }>({})
@@ -46,10 +46,12 @@ function Pay() {
     void load()
     return () => { stop = true }
   }, [key])
+  const deadline = data?.state === "pending" ? Number(data.order.deadline) : 0
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now() / 1000), 500)
-    return () => clearInterval(t)
-  }, [])
+    if (!deadline) return
+    const t = setTimeout(() => refresh((n) => n + 1), Math.max(0, deadline * 1000 - Date.now()) + 50)
+    return () => clearTimeout(t)
+  }, [deadline])
 
   if (wallet === undefined) return <main className="shell"><LogoLoader /></main>
   if (!wallet)
@@ -87,7 +89,7 @@ function Pay() {
 
   const pending = data.state === "pending" ? data : null
   const req = (data as any).request ?? {}
-  const left = pending ? Number(pending.order.deadline) - now : 0
+  const left = pending ? Number(pending.order.deadline) - Date.now() / 1000 : 0
   const expired = !!pending && left <= 0
 
   const pay = async (account: PrivateKeyAccount) => {
@@ -166,7 +168,7 @@ function Pay() {
         <div className="sub" style={{ textAlign: "center", marginTop: 14 }}>You are paying</div>
         <div className="big-amount">{usdt(req.amount)} <span style={{ fontSize: 20, color: "var(--muted)" }}>USDT</span></div>
         <div className="sub" style={{ textAlign: "center" }}>
-          {expired ? <span className="badge badge-bad">Expired</span> : <>Request expires in <span className="countdown">{mmss(left)}</span></>}
+          {expired ? <span className="badge badge-bad">Expired</span> : <>Request expires in <Countdown to={Number(pending!.order.deadline)} /></>}
         </div>
       </div>
 

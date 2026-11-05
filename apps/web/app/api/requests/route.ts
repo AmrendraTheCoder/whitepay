@@ -7,6 +7,7 @@ import { REQUEST_TTL } from "@whitepay/shared"
 import { json, errorMessage, CORS, preflight } from "@/lib/json"
 
 export const runtime = "nodejs"
+export const maxDuration = 60 // room for the after() bookkeeping (Arkiv receipt, webhook)
 
 type Body = {
   order: { merchant: string; amount: string; orderId: string; deadline: string }

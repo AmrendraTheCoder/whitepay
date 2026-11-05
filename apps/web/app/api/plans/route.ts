@@ -5,6 +5,7 @@ import { after } from "next/server"
 import { json, errorMessage, CORS, preflight } from "@/lib/json"
 
 export const runtime = "nodejs"
+export const maxDuration = 60 // room for the after() bookkeeping (Arkiv receipt, webhook)
 export const OPTIONS = preflight
 
 type Body = { plan: { merchant: string; amount: string; period: number; cycles: number; planId: string; expiresAt: string }; merchantSig: string; title: string; periodKey: string; single?: boolean; webhook?: string }

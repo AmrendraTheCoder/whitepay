@@ -1,6 +1,7 @@
 "use client"
 import { useMemo } from "react"
 import { DueBanner } from "../due-banner"
+import { AvatarRings } from "../avatar-rings"
 import { Onboard } from "../onboard"
 import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp, LogoLoader } from "../ui"
 import { usdt } from "@/lib/format"
@@ -34,7 +35,7 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
         <a className="search" href="/send">{Icon.search()} Pay friends and merchants</a>
         {name === undefined
           ? <span className="avatar-btn skel circle" aria-label="Loading profile" />
-          : <a className="avatar-btn" href="/you" aria-label="Your profile">{name ? initial(name) : Icon.user(22)}</a>}
+          : <AvatarRings address={wallet.address}><a className="avatar-btn" href="/you" aria-label="Your profile">{name ? initial(name) : Icon.user(22)}</a></AvatarRings>}
       </div>
 
       <div className="hero">

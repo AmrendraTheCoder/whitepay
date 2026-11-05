@@ -370,3 +370,17 @@ button { font: inherit; color: inherit; }
 .mode-opt { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1.5px solid var(--line); border-radius: 16px; cursor: pointer; }
 .mode-opt.on { border-color: var(--brand); background: color-mix(in oklab, var(--brand) 8%, transparent); } .mode-opt input { margin-top: 4px; accent-color: var(--brand); }
 .autopay-card.due-now { border-color: var(--lime); box-shadow: 0 0 22px rgba(221,240,90,.25); }
+
+/* ---------- avatar autopay timer rings ---------- */
+.avatar-wrap { position: relative; display: grid; place-items: center; flex: none; text-decoration: none; }
+.avatar-wrap > .avatar-btn { grid-area: 1 / 1; }
+.avatar-rings { grid-area: 1 / 1; pointer-events: none; transform: rotate(-90deg); overflow: visible; }
+.avatar-rings circle { fill: none; stroke-width: 3; }
+.avatar-rings .track { stroke: currentColor; opacity: .16; }
+.avatar-rings .bar { stroke: currentColor; stroke-linecap: round; animation-name: ring-drain; animation-timing-function: linear; animation-fill-mode: forwards;
+  filter: drop-shadow(0 0 3px currentColor); }
+.avatar-rings .bar.due { animation-name: ring-drain, ring-pulse; animation-iteration-count: 1, infinite; animation-timing-function: linear, ease-in-out; }
+@keyframes ring-drain { from { stroke-dashoffset: var(--from); } to { stroke-dashoffset: var(--c); } }
+@keyframes ring-pulse { 50% { opacity: .35; } }
+.avatar-due-dot { position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; background: #ff4d6d; border: 2px solid var(--bg); box-shadow: 0 0 8px #ff4d6d; }
+@media (prefers-reduced-motion: reduce) { .avatar-rings .bar { animation: none; } }

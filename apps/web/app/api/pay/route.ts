@@ -40,33 +40,23 @@ export async function POST(req: Request) {
       },
     })
 
-    let receiptKey: Hex | null = null
-    try {
-      const s = await settleOnArkiv({
-        request: view!,
-        merchant: v.order.merchant,
-        merchantName: view!.merchantName,
-        payer: auth.from as Address,
-        amount: v.order.amount,
-        paymentId: paid.paymentId,
-        txHash: paid.txHash,
-        block: paid.block,
-      })
-      receiptKey = s.receiptKey
-    } catch (e) {
-      // money already moved on-chain; the receipt can be re-indexed from the PaymentSettled event
-      console.error("arkiv settle failed", errorMessage(e))
-    }
-
-    // notify the merchant's server (it should still verify on-chain with the tx hash)
-    if (view!.webhook) {
-      const payload = {
+    // The money is final once the chain confirms (above, ~1 s). Answer NOW; the Arkiv receipt (~5-7 s) and the
+    // merchant webhook happen after the response. Status polls see "paid" from the chain meanwhile.
+    after(async () => {
+      let receiptKey: Hex | null = null
+      try {
+        const s = await settleOnArkiv({ request: view!, merchant: v.order.merchant, merchantName: view!.merchantName, payer: auth.from as Address,
+          amount: v.order.amount, paymentId: paid.paymentId, txHash: paid.txHash, block: paid.block })
+        receiptKey = s.receiptKey
+      } catch (e) {
+        console.error("arkiv settle failed", errorMessage(e)) // re-indexable from the PaymentSettled event
+      }
+      if (view!.webhook) await deliverWebhook(view!.webhook, receiptKey ?? paid.txHash, {
         event: "payment.settled", entityKey, orderId: v.order.orderId, merchant: v.order.merchant, payer: auth.from,
         amount: v.order.amount.toString(), txHash: paid.txHash, explorer: paid.explorer, receiptKey, paidAt: Math.floor(Date.now() / 1000),
-      }
-      after(() => deliverWebhook(view!.webhook!, receiptKey ?? paid.txHash, payload).then(() => {}))
-    }
-    return json({ txHash: paid.txHash, explorer: paid.explorer, gasUsed: paid.gasUsed, receiptKey, amount: v.order.amount })
+      })
+    })
+    return json({ txHash: paid.txHash, explorer: paid.explorer, gasUsed: paid.gasUsed, amount: v.order.amount })
   } catch (e) {
     if (e instanceof PolicyError) return json({ error: e.message, code: e.code }, { status: 403 })
     return json({ error: errorMessage(e) }, { status: 500 })

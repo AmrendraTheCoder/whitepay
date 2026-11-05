@@ -1,3 +1,4 @@
+import { cached } from "./cache"
 // Merchant sign-up (UPI: merchant onboarding by the acquiring PSP).
 //  1. The merchant's device signs a sign-up message (proves it controls the address; non-custodial).
 //  2. WhitePay registers it in MerchantRegistry on Whitechain: payout = signer = the merchant's own key.
@@ -55,7 +56,9 @@ async function findProfile(field: "address" | "label", value: string) {
   return page.entities.length ? toView(page.entities[0]) : null
 }
 
-export const getMerchantByAddress = (address: Address) => findProfile("address", address)
+/** cached 30 s (only when found, so a shop that just signed up is never stuck as "not found") */
+export const getMerchantByAddress = (address: Address) =>
+  cached(`merchant:${address.toLowerCase()}`, 30_000, () => findProfile("address", address), (v) => !!v)
 export const getMerchantByLabel = (label: string) => findProfile("label", label.toLowerCase())
 
 export function validateLabel(label: string): string | null {

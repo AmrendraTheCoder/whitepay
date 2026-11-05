@@ -7,7 +7,7 @@ import type { PrivateKeyAccount } from "viem/accounts"
 import { cycleDueAt, cycleAuthTypedData, termsFor, autopayPermitTypedData, AUTOPAY_FACTORY, AUTOPAY_FACTORY_ABI, USDT_PERMIT_ABI } from "@whitepay/shared/autopay"
 import { whitechainSepolia, USDT_ADDRESS } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { SuccessCheck, LogoLoader, Icon } from "../ui"
+import { SuccessCheck, LogoLoader, Icon, Countdown } from "../ui"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, countdown, when } from "@/lib/format"
 import { enableReminderNotifications } from "@/lib/reminders"
@@ -33,14 +33,13 @@ function Subscribe() {
   const [notif, setNotif] = useState("")
   const [err, setErr] = useState("")
   const [done, setDone] = useState<{ explorer: string; nextDueAt: number | null } | null>(null)
-  const [now, setNow] = useState(() => Date.now() / 1000)
+  const [now] = useState(() => Date.now() / 1000) // schedule preview is anchored at page open; no per-tick re-renders
   const [loadErr, setLoadErr] = useState("")
 
   useEffect(() => {
     setWallet(getWallet())
-    const t = setInterval(() => setNow(Date.now() / 1000), 500)
-    if (!planKey) { setLoadErr("This subscription link has no plan id. Scan the shop's QR again."); return () => clearInterval(t) }
-    if (!/^0x[0-9a-fA-F]{64}$/.test(planKey)) { setLoadErr("This subscription link is damaged (the plan id isn't valid). Ask the shop for a new QR."); return () => clearInterval(t) }
+    if (!planKey) { setLoadErr("This subscription link has no plan id. Scan the shop's QR again."); return }
+    if (!/^0x[0-9a-fA-F]{64}$/.test(planKey)) { setLoadErr("This subscription link is damaged (the plan id isn't valid). Ask the shop for a new QR."); return }
     let tries = 0
     const load = () => fetch(`/api/plans/${planKey}`).then(async (r) => {
       const p = (await r.json().catch(() => ({}))) as PlanResp
@@ -52,7 +51,7 @@ function Subscribe() {
       if (p.merchant) fetch(`/api/merchants?address=${p.merchant}`).then((r) => r.json()).then((d) => setVerified(!!d.merchant?.verified)).catch(() => {})
     }).catch(() => setLoadErr("You're offline or WhitePay is unreachable. Check your connection and try again."))
     void load()
-    return () => clearInterval(t)
+    return undefined
   }, [planKey])
 
   if (loadErr)
@@ -129,7 +128,7 @@ function Subscribe() {
           <SuccessCheck />
           <h1>{mode === "reminder" ? "Subscribed" : "Autopay is on"}</h1>
           <div className="sub">{plan.title} · {usdt(amount)} USDT {plan.periodLabel}. First payment done.</div>
-          {done.nextDueAt && <div className="timer-big"><span>{mode === "reminder" ? "We'll ask you to pay the next one in" : "Next payment in"}</span><b>{countdown(done.nextDueAt - now)}</b></div>}
+          {done.nextDueAt && <div className="timer-big"><span>{mode === "reminder" ? "We'll ask you to pay the next one in" : "Next payment in"}</span><b><Countdown to={done.nextDueAt} format={countdown} /></b></div>}
           {mode === "reminder" && (
             <button className="btn btn-lime" onClick={async () => setNotif(await enableReminderNotifications())}>
               🔔 Remind me when a payment is due

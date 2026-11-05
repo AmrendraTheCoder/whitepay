@@ -2,7 +2,7 @@ export { config } from "./config"
 export { wc, arkiv } from "./clients"
 export { signOrder, orderDigest, newOrderId, type SignedOrder } from "./orders"
 export {
-  createPaymentRequest, preparePaymentRequest, publishPaymentRequest, resolveRequestRef,
+  createPaymentRequest, preparePaymentRequest, publishPaymentRequest, resolveRequestRef, paidOnChain, registryGet,
   fetchRequest,
   verifyRequest,
   settleOnArkiv,
@@ -20,4 +20,5 @@ export { isLabelAvailable, validateEnsLabel, issueSubname, revokeSubname, setTex
 export { rpContext, worldStatus, claimPersonName, getPersonByAddress, verifyMerchantHuman, verifyStepUp, checkStepUpToken, worldConfigured, WORLD_ACTIONS } from "./world"
 export { refundInfo, relayRefund, REFUND_ABI, type RefundInfo } from "./refunds"
 export { assertSafeWebhookUrl, deliverWebhook, webhookSignerAddress, webhookMessage, isPrivateIp } from "./webhooks"
-export { createPlan, getPlan, subscribe, subscribeReminder, payReminderCycle, runKeeper, cancelMandate, getMandate, listMandates, remainingCycles, type PlanView, type MandateView } from "./autopay"
+export { createPlan, getPlan, subscribe, subscribeReminder, payReminderCycle, type Defer, runKeeper, cancelMandate, getMandate, listMandates, remainingCycles, type PlanView, type MandateView } from "./autopay"
+export { cached, invalidate } from "./cache"

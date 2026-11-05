@@ -1,7 +1,6 @@
 "use client"
 // Shop dashboard: publish a subscription plan (signed on this device) and watch subscribers' countdowns.
 import { useCallback, useEffect, useState } from "react"
-import QRCode from "qrcode"
 import { parseUnits, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { PERIODS, planTypedData, MAX_CYCLES, type PeriodKey } from "@whitepay/shared/autopay"
@@ -39,7 +38,7 @@ export function PlansCard({ merchant, account, setAccount }: { merchant: { addre
         plan: { ...plan, amount: plan.amount.toString(), expiresAt: plan.expiresAt.toString() }, merchantSig, title: title.trim(), periodKey }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
-      setLink({ url: d.subscribeUrl, qr: await QRCode.toDataURL(d.subscribeUrl, { margin: 1, width: 480 }) })
+      setLink({ url: d.subscribeUrl, qr: await (await import("qrcode")).default.toDataURL(d.subscribeUrl, { margin: 1, width: 480 }) })
     } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
 

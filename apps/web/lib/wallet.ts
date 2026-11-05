@@ -268,6 +268,11 @@ export async function connectInjectedWallet() {
 /** EIP-712 domains carry chainId 1874, so the wallet must be on Whitechain Sepolia to sign. */
 async function ensureWhitechain(eth: Eip1193) {
   const chainId = numberToHex(whitechainSepolia.id)
+  // eth_chainId is answered locally (extension) or from the WalletConnect session: no wallet pop-up.
+  // Only ask to switch when it's actually on another chain; over WalletConnect every switch request
+  // opens MetaMask, which used to cost an extra redirect before EVERY signature.
+  const current = await eth.request({ method: "eth_chainId" }).catch(() => null)
+  if (typeof current === "string" && BigInt(current) === BigInt(whitechainSepolia.id)) return
   try {
     await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] })
   } catch (e: any) {

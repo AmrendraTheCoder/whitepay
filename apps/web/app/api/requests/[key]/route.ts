@@ -1,7 +1,7 @@
 // Payer: what the app calls after scanning. Fetches the Arkiv entity and runs the 4 checks.
 // Merchant: polls the same endpoint for live status (pending -> paid | depleted).
 import { isHex, type Hex } from "viem"
-import { fetchRequest, verifyRequest, getReceipt, getMerchantByAddress, arkiv } from "@whitepay/server"
+import { fetchRequest, verifyRequest, getReceipt, getMerchantByAddress, arkiv, paidOnChain, cached } from "@whitepay/server"
 import { EXPLORER_URL } from "@whitepay/shared"
 import { json as rawJson, errorMessage, CORS, preflight } from "@/lib/json"
 
@@ -14,15 +14,26 @@ export const runtime = "nodejs"
 export async function GET(_req: Request, ctx: { params: Promise<{ key: string }> }) {
   const { key } = await ctx.params
   if (!isHex(key) || key.length !== 66) return json({ state: "invalid", reason: "not a WhitePay request key" }, { status: 400 })
+  // every open checkout polls every 2 s: answer identical polls within 1.5 s from one shared lookup
+  const body = await cached(`status:${key.toLowerCase()}`, 1_500, () => status(key as Hex))
+  return json(body, body.state === "error" ? { status: 502 } : undefined)
+}
+
+async function status(key: Hex): Promise<Record<string, any>> {
   try {
     const view = await fetchRequest(key as Hex)
     // instant QRs are addressed by the order digest and appear on Arkiv a few seconds after the QR is shown:
     // "publishing" = keep polling. Callers stop on their own deadline (the QR's countdown).
-    if (!view) return json({ state: "publishing", reason: "This request is being published, or it expired" })
+    if (!view) return { state: "publishing", reason: "This request is being published, or it expired" }
 
+    // paid on-chain but the Arkiv receipt is still being written (it's done after the payer's response)
+    if (view.status !== "paid") {
+      const chain = await paidOnChain(view.digest).catch(() => null)
+      if (chain) return { state: "paid", request: publicView({ ...view, status: "paid" }), receipt: { txHash: chain.txHash, payer: chain.payer, explorer: `${EXPLORER_URL}/tx/${chain.txHash}`, source: "chain" } }
+    }
     if (view.status === "paid") {
       const receipt = view.receiptRef ? await getReceipt(view.receiptRef as Hex) : null
-      return json({
+      return ({
         state: "paid",
         request: publicView(view),
         receipt: receipt && { ...receipt, explorer: `${EXPLORER_URL}/tx/${receipt.txHash}` },
@@ -30,8 +41,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string }>
     }
 
     const [v, profile] = await Promise.all([verifyRequest(view), getMerchantByAddress(view.merchant)])
-    if (!v.ok) return json({ state: "invalid", reason: v.reason, request: publicView(view) })
-    return json({
+    if (!v.ok) return ({ state: "invalid", reason: v.reason, request: publicView(view) })
+    return ({
       state: "pending",
       verifiedMerchant: v.verifiedMerchant,
       merchantDisplayName: profile?.displayName,
@@ -46,7 +57,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string }>
       digest: v.digest,
     })
   } catch (e) {
-    return json({ state: "error", reason: errorMessage(e) }, { status: 502 })
+    return { state: "error", reason: errorMessage(e) }
   }
 }
 

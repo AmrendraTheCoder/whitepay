@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { getWallet } from "@/lib/wallet"
-import { usdt } from "@/lib/format"
+import { usdt, mmss } from "@/lib/format"
 
 const P = { width: 28, height: 28, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const
 export const Icon = {
@@ -207,3 +207,14 @@ export const MiniLogo = () => (
     <svg viewBox="0 0 512 512"><path className="ll-w" d="M110 168l50 176 56-128 40 92 40-92 56 128 50-176" /><circle className="ll-dot" cx="410" cy="110" r="34" /></svg>
   </span>
 )
+
+/** Self-updating countdown: re-renders only this <span> once a second (not the whole page), pauses in hidden tabs. */
+export function Countdown({ to, format = mmss, done = "0:00" }: { to: number; format?: (s: number) => string; done?: string }) {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => { if (document.visibilityState === "visible") tick((n) => n + 1) }, 1000)
+    return () => clearInterval(t)
+  }, [])
+  const left = to - Date.now() / 1000
+  return <span className="countdown">{left > 0 ? format(left) : done}</span>
+}

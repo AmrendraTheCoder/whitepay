@@ -29,9 +29,29 @@ const makeArkiv = () => {
   const writer = privateKeyToAccount(config.keys.arkivWriter())
   return {
     pub: createArkivPublic({ chain, transport: http() }),
-    writer: createArkivWallet({ chain, transport: http(), account: writer }),
+    writer: serialize(createArkivWallet({ chain, transport: http(), account: writer })),
     /** every WhitePay entity is owned by this address; reads MUST filter on it */
     owner: writer.address,
   }
 }
 export const arkiv = () => (_arkiv ??= makeArkiv())
+
+/**
+ * Every WhitePay Arkiv write comes from ONE account, so concurrent writes race for its nonce and one fails
+ * ("Execution error without revert data"). Queue them per instance; reads are untouched.
+ */
+function serialize<W extends object>(w: W): W {
+  let tail: Promise<unknown> = Promise.resolve()
+  const WRITES = new Set(["createEntity", "executeBatch", "patchEntity", "deleteEntity", "extendEntity", "updateEntity"])
+  return new Proxy(w, {
+    get(target, prop, recv) {
+      const v = Reflect.get(target, prop, recv)
+      if (typeof v !== "function" || !WRITES.has(String(prop))) return v
+      return (...args: unknown[]) => {
+        const run = tail.then(() => (v as (...a: unknown[]) => Promise<unknown>).apply(target, args))
+        tail = run.catch(() => {})
+        return run
+      }
+    },
+  })
+}

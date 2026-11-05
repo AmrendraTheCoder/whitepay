@@ -1,11 +1,10 @@
 "use client"
 import { useCallback, useEffect, useRef, useState } from "react"
-import QRCode from "qrcode"
 import { formatUnits, parseUnits, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { merchantSignupMessage, orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { BottomNav, SuccessCheck, MiniLogo } from "../ui"
+import { BottomNav, SuccessCheck, MiniLogo, Countdown } from "../ui"
 import { WorldVerify } from "../world"
 import { PlansCard } from "./plans"
 import { getWallet } from "@/lib/wallet"
@@ -192,7 +191,6 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
   const [qr, setQr] = useState("")
   const [status, setStatus] = useState<"pending" | "paid" | "depleted">("pending")
   const [paidTx, setPaidTx] = useState("")
-  const [now, setNow] = useState(() => Date.now() / 1000)
   const [rows, setRows] = useState<Row[] | null>(null)
   const [total, setTotal] = useState("0")
   const [unlock, setUnlock] = useState(false)
@@ -203,8 +201,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
     fetch(`/api/receipts?merchant=${merchant.address}`).then((r) => r.json()).then((d) => { setRows(d.rows ?? []); setTotal(d.total ?? "0") }), [merchant.address])
   useEffect(() => {
     void loadReceipts()
-    const t = setInterval(() => setNow(Date.now() / 1000), 500)
-    return () => { clearInterval(t); clearInterval(poll.current) }
+    return () => clearInterval(poll.current)
   }, [loadReceipts])
 
   const create = async (acct: PrivateKeyAccount) => {
@@ -228,7 +225,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
       setReq(d); setStatus("pending"); setPaidTx("")
-      setQr(await QRCode.toDataURL(d.payUrl, { margin: 1, width: 600, errorCorrectionLevel: "M" }))
+      setQr(await (await import("qrcode")).default.toDataURL(d.payUrl, { margin: 1, width: 600, errorCorrectionLevel: "M" }))
       clearInterval(poll.current)
       poll.current = setInterval(async () => {
         const s = await fetch(`/api/requests/${d.entityKey}`).then((x) => x.json()).catch(() => null)
@@ -241,7 +238,6 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
   }
 
   const validAmount = /^\d+(\.\d{1,6})?$/.test(amount) && Number(amount) > 0
-  const left = req ? Number(req.deadline) - now : 0
 
   return (
     <main className="shell with-nav">
@@ -279,7 +275,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
           <div className="big-amount">{usdt(req.amount)} <span style={{ fontSize: 20, color: "var(--muted)" }}>USDT</span></div>
           <div className="qr-wrap"><img src={qr} alt="Payment QR" /></div>
           <div className="row" style={{ justifyContent: "center", gap: 10 }}>
-            <span className="spinner" /> <span>Waiting for payment · <span className="countdown">{mmss(left)}</span></span>
+            <span className="spinner" /> <span>Waiting for payment · <Countdown to={Number(req.deadline)} /></span>
           </div>
           <div className="sub mono">Arkiv entity {short(req.entityKey)}</div>
           <a className="sub" href={req.payUrl} target="_blank" rel="noreferrer">Open payment link</a>
