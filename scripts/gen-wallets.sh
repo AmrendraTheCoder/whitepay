@@ -24,12 +24,12 @@ set_key() {
   fi
 }
 
-for v in DEPLOYER_PK RELAYER_PKS ORDER_SIGNER_PK CUSTOMER_PK MERCHANT_PK; do set_key "$v"; done
+for v in DEPLOYER_PK RELAYER_PKS ORDER_SIGNER_PK CUSTOMER_PK MERCHANT_PK ARKIV_WRITER_PK; do set_key "$v"; done
 chmod 600 .env
 
 echo
 echo "Public addresses (safe to share):"
-for v in DEPLOYER_PK RELAYER_PKS ORDER_SIGNER_PK CUSTOMER_PK MERCHANT_PK; do
+for v in DEPLOYER_PK RELAYER_PKS ORDER_SIGNER_PK CUSTOMER_PK MERCHANT_PK ARKIV_WRITER_PK; do
   pk=$(grep "^${v}=" .env | head -1 | cut -d= -f2- | cut -d, -f1)
   printf '  %-16s %s\n' "${v%_PK*}" "$(cast wallet address --private-key "$pk")"
 done

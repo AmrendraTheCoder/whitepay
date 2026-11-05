@@ -72,7 +72,95 @@ export const RECEIVE_WITH_AUTHORIZATION_TYPES = {
   ],
 } as const
 
+/** Typed-data for the merchant's order signature (viem signTypedData / hashTypedData input). */
+export const orderTypedData = (router: Address, order: Order) =>
+  ({ domain: routerDomain(router), types: ORDER_TYPES, primaryType: "Order", message: order }) as const
+
+/** Typed-data the PAYER signs on their device (fingerprint/PIN unlocks the key). to = router, nonce = order digest. */
+export const receiveAuthTypedData = (p: {
+  from: Address
+  to: Address
+  value: bigint
+  validAfter: bigint
+  validBefore: bigint
+  nonce: Hex
+}) =>
+  ({
+    domain: USDT_DOMAIN,
+    types: RECEIVE_WITH_AUTHORIZATION_TYPES,
+    primaryType: "ReceiveWithAuthorization",
+    message: p,
+  }) as const
+
+/** QR payload for a dynamic merchant QR / payment link. */
+export const requestUri = (entityKey: Hex) => `whitepay://pay?req=${entityKey}`
+export const parseRequestUri = (uri: string): Hex | null => {
+  const m = uri.match(/[?&]req=(0x[0-9a-fA-F]{64})/)
+  return m ? (m[1] as Hex) : null
+}
+
+export const ROUTER_ABI = [
+  {
+    type: "function", name: "payOrder", stateMutability: "nonpayable",
+    inputs: [
+      { name: "o", type: "tuple", components: [
+        { name: "merchant", type: "address" }, { name: "amount", type: "uint256" },
+        { name: "orderId", type: "bytes32" }, { name: "deadline", type: "uint64" } ] },
+      { name: "merchantSig", type: "bytes" },
+      { name: "a", type: "tuple", components: [
+        { name: "from", type: "address" }, { name: "validAfter", type: "uint256" },
+        { name: "validBefore", type: "uint256" }, { name: "v", type: "uint8" },
+        { name: "r", type: "bytes32" }, { name: "s", type: "bytes32" } ] },
+    ],
+    outputs: [{ name: "paymentId", type: "bytes32" }],
+  },
+  {
+    type: "function", name: "payDirect", stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" }, { name: "amount", type: "uint256" }, { name: "memo", type: "bytes32" },
+      { name: "a", type: "tuple", components: [
+        { name: "from", type: "address" }, { name: "validAfter", type: "uint256" },
+        { name: "validBefore", type: "uint256" }, { name: "v", type: "uint8" },
+        { name: "r", type: "bytes32" }, { name: "s", type: "bytes32" } ] },
+    ],
+    outputs: [],
+  },
+  { type: "function", name: "directNonce", stateMutability: "view",
+    inputs: [{ name: "to", type: "address" }, { name: "memo", type: "bytes32" }], outputs: [{ type: "bytes32" }] },
+  { type: "event", name: "PaymentSettled", inputs: [
+    { name: "paymentId", type: "bytes32", indexed: true }, { name: "orderId", type: "bytes32", indexed: true },
+    { name: "merchant", type: "address", indexed: true }, { name: "payer", type: "address", indexed: false },
+    { name: "payout", type: "address", indexed: false }, { name: "amount", type: "uint256", indexed: false } ] },
+  { type: "event", name: "DirectPayment", inputs: [
+    { name: "from", type: "address", indexed: true }, { name: "to", type: "address", indexed: true },
+    { name: "amount", type: "uint256", indexed: false }, { name: "memo", type: "bytes32", indexed: false } ] },
+  { type: "error", name: "OrderExpired", inputs: [] },
+  { type: "error", name: "OrderAlreadyPaid", inputs: [] },
+  { type: "error", name: "BadMerchantSignature", inputs: [] },
+  { type: "error", name: "MerchantInactive", inputs: [] },
+  { type: "error", name: "NotRelayer", inputs: [] },
+] as const
+
+export const REGISTRY_ABI = [
+  { type: "function", name: "get", stateMutability: "view",
+    inputs: [{ name: "merchant", type: "address" }],
+    outputs: [{ type: "tuple", components: [
+      { name: "payout", type: "address" }, { name: "signer", type: "address" }, { name: "ensNode", type: "bytes32" },
+      { name: "active", type: "bool" }, { name: "verified", type: "bool" } ] }] },
+] as const
+
+export const ERC20_ABI = [
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "a", type: "address" }], outputs: [{ type: "uint256" }] },
+] as const
+
 // ---------------------------------------------------- UPI-derived rules
+/** Lifetime of a payment in progress (seconds). Arkiv expiry and on-chain deadline both use these. */
+export const REQUEST_TTL = {
+  p2mQr: 5 * 60,
+  invoiceMax: 30 * 60,
+  min: 60,
+} as const
+
 export const COLLECT_EXPIRY = {
   defaultMinutes: 30,
   minMinutes: 1,

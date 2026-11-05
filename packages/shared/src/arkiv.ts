@@ -22,16 +22,23 @@ export const Receipt = defineSchema("whitepay.receipt", {
   memo: bytes().optional(), // encrypted envelope only
 })
 
+/** A payment in progress. Lives only for its TTL (Arkiv expiration == on-chain order deadline).
+ *  Carries the full signed order so a payer can verify it without trusting Arkiv:
+ *  recompute `digest` from (merchant, amount, orderId, deadline) and check `merchantSig`
+ *  against the MerchantRegistry signer on Whitechain. */
 export const PayRequest = defineSchema("whitepay.request", {
+  kind: str().indexed(), // "p2m_qr" | "invoice"
   merchant: addr().indexed(),
-  payer: addr().indexed(),
   amount: u256().indexed(),
   token: addr(),
   status: str().indexed(), // "pending" | "paid" | "declined" | "cancelled"
   requestedAt: u64().indexed(),
-  validUntil: u64(), // UI countdown; Arkiv expiration enforces it
-  orderId: str().indexed(),
-  merchantName: str().optional(),
+  deadline: u64(), // == order.deadline == Arkiv expiry (approx, block-rounded)
+  orderId: str().indexed(), // bytes32 hex
+  digest: str().indexed(), // EIP-712 order digest == router paymentId == EIP-3009 nonce
+  merchantSig: bytes(), // 65-byte order signature
+  merchantName: str().optional(), // ENS name shown to the payer
+  payer: addr().indexed().optional(), // set for invoices; unknown for a dynamic QR until paid
   receiptRef: key().optional(),
   note: str().optional(), // <=128 bytes, public
 })
