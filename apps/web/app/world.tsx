@@ -1,7 +1,7 @@
 "use client"
 // "Verify with World ID" button: gets a backend-signed RP context, opens the IDKit widget,
 // sends the proof to OUR backend for verification. Cancel / reject / backend denial => onDenied.
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { IDKitRequestWidget, proofOfHuman, type IDKitResult } from "@worldcoin/idkit"
 
 type Ctx = { action: string; app_id: `app_${string}`; environment: "staging" | "production"; rp_context: any }
@@ -27,7 +27,9 @@ export function WorldVerify({
   const [ctx, setCtx] = useState<Ctx | null>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [backendData, setBackendData] = useState<any>(null)
+  // refs, not state: the widget calls onSuccess/onError right after handleVerify, before a re-render
+  const backendData = useRef<any>(null)
+  const backendError = useRef<string | null>(null)
 
   const start = async () => {
     setBusy(true)
@@ -35,6 +37,8 @@ export function WorldVerify({
       const r = await fetch(`/api/world/context?action=${action}`)
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
+      backendData.current = null
+      backendError.current = null
       setCtx(d)
       setOpen(true)
     } catch (e) {
@@ -54,7 +58,7 @@ export function WorldVerify({
           open={open}
           onOpenChange={(o) => {
             setOpen(o)
-            if (!o && !backendData) onDenied("World ID verification was cancelled")
+            if (!o && !backendData.current) onDenied(backendError.current ?? "World ID verification was cancelled")
           }}
           app_id={ctx.app_id}
           action={ctx.action}
@@ -64,11 +68,17 @@ export function WorldVerify({
           preset={proofOfHuman({ signal })}
           handleVerify={async (result) => {
             // throws => widget shows failure; backend is the only judge of validity
-            const data = await verify(result)
-            setBackendData(data)
+            try {
+              backendData.current = await verify(result)
+            } catch (e) {
+              backendError.current = (e as Error).message
+              throw e
+            }
           }}
-          onSuccess={() => onVerified(backendData)}
-          onError={(code) => onDenied(code === "user_rejected" ? "You declined the World ID request" : `World ID error: ${code}`)}
+          onSuccess={() => onVerified(backendData.current)}
+          onError={(code) => onDenied(
+            backendError.current ?? (code === "user_rejected" ? "You declined the World ID request" : `World ID error: ${code}`),
+          )}
         />
       )}
     </>

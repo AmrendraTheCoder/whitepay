@@ -26,6 +26,7 @@ export async function POST(req: Request) {
     }
     return json({ error: "unknown purpose" }, { status: 400 })
   } catch (e) {
+    console.error(`[world] ${new URL(req.url).pathname} denied:`, errorMessage(e))
     return json({ error: errorMessage(e), denied: true }, { status: 403 })
   }
 }

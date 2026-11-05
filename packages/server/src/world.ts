@@ -54,8 +54,12 @@ export async function verifyProof(result: IDKitResultLike, action: Action, signa
     body: JSON.stringify(result),
   })
   const body = (await res.json().catch(() => ({}))) as { success?: boolean; environment?: string; code?: string; detail?: string }
-  if (!res.ok || !body.success) throw new Error(`World ID rejected the proof: ${body.code ?? body.detail ?? res.status}`)
-  if (body.environment && body.environment !== e.environment) throw new Error(`proof environment ${body.environment} != ${e.environment}`)
+  if (!res.ok || !body.success) {
+    console.error("[world] portal verify failed", res.status, JSON.stringify(body).slice(0, 500))
+    throw new Error(`World ID rejected the proof: ${body.code ?? body.detail ?? res.status}`)
+  }
+  if (body.environment && body.environment !== e.environment)
+    throw new Error(`World ID ${body.environment} proof, but server expects ${e.environment} (set WORLD_ENV)`)
 
   const item = result.responses?.[0]
   if (!item?.nullifier) throw new Error("proof has no nullifier")

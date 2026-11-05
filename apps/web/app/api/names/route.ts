@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     const r = await claimPersonName({ label: String(b.label), address: b.address as Address, issuedAt: Number(b.issuedAt), signature: b.signature as Hex, result: b.result })
     return json(r)
   } catch (e) {
+    console.error(`[world] ${new URL(req.url).pathname} denied:`, errorMessage(e))
     return json({ error: errorMessage(e), denied: true }, { status: 403 })
   }
 }
