@@ -1,45 +1,87 @@
 "use client"
-// Device wallet, UPI-style: the private key never leaves the phone and is stored ENCRYPTED.
-//  - Fingerprint / Face ID: a passkey with the WebAuthn PRF extension yields a 32-byte secret
-//    that only this authenticator can produce -> AES-GCM key. (UPI: device binding + biometric.)
-//  - PIN (fallback, always set): PBKDF2(310k, SHA-256) -> AES-GCM. 5 wrong tries => 5 min lockout.
-// No seed phrase is shown; the user never sees the key.
+// Wallets on this device, UPI-style. Two kinds:
+//  - "device": the private key never leaves the phone and is stored ENCRYPTED.
+//      Fingerprint / Face ID: a passkey with the WebAuthn PRF extension yields a 32-byte secret that only
+//      this authenticator can produce -> AES-GCM key. PIN (always set): PBKDF2(310k) -> AES-GCM, 5 wrong
+//      tries => 5 min lockout. No seed phrase is shown.
+//  - "injected": an existing browser wallet (MetaMask, Rabby, ...). We store only its address; it signs
+//      the same gasless EIP-712 messages, so it still needs no WBT.
+// Several wallets can live on one device; one is active.
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
-import { isHex, type Hex } from "viem"
+import { createWalletClient, custom, getAddress, isHex, numberToHex, type Hex } from "viem"
+import { whitechainSepolia } from "@whitepay/shared"
 
-const STORE = "whitepay.wallet.v1"
-const LOCK = "whitepay.pinlock.v1"
+const STORE = "whitepay.wallets.v2"
+const LEGACY = "whitepay.wallet.v1"
+const LOCK = (a: string) => `whitepay.pinlock.${a.toLowerCase()}`
 const PBKDF2_ITERS = 310_000
 const MAX_TRIES = 5
 const LOCKOUT_MS = 5 * 60_000
 
 type Blob = { salt: string; iv: string; ct: string }
-type Stored = {
+type DeviceWallet = {
+  kind: "device"
   address: `0x${string}`
+  label?: string
   pin: Blob
   passkey?: { credId: string; prfSalt: string; iv: string; ct: string }
   createdAt: number
 }
+type InjectedWallet = { kind: "injected"; address: `0x${string}`; label?: string; createdAt: number }
+type Stored = DeviceWallet | InjectedWallet
+type Store = { active: `0x${string}` | null; list: Stored[] }
+
+/** Anything that can sign our gasless messages: an unlocked device key or a browser wallet. */
+export type Signer = Pick<PrivateKeyAccount, "address" | "signTypedData" | "signMessage">
 
 const enc = new TextEncoder()
 const dec = new TextDecoder()
 const b64 = (u: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(u as ArrayBuffer)))
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
 const rand = (n: number) => crypto.getRandomValues(new Uint8Array(n))
+const same = (a?: string | null, b?: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase()
 
-const read = (): Stored | null => {
+function load(): Store {
   try {
     const raw = localStorage.getItem(STORE)
-    return raw ? (JSON.parse(raw) as Stored) : null
-  } catch {
-    return null
-  }
+    if (raw) return JSON.parse(raw) as Store
+    const legacy = localStorage.getItem(LEGACY) // migrate the single-wallet format
+    if (legacy) {
+      const w = { kind: "device", ...JSON.parse(legacy) } as DeviceWallet
+      const s: Store = { active: w.address, list: [w] }
+      localStorage.setItem(STORE, JSON.stringify(s))
+      localStorage.removeItem(LEGACY)
+      return s
+    }
+  } catch {}
+  return { active: null, list: [] }
 }
-const write = (s: Stored) => localStorage.setItem(STORE, JSON.stringify(s))
+const save = (s: Store) => localStorage.setItem(STORE, JSON.stringify(s))
+const activeEntry = (s = load()) => s.list.find((w) => same(w.address, s.active)) ?? s.list[0] ?? null
+const replace = (w: Stored) => {
+  const s = load()
+  s.list = s.list.map((x) => (same(x.address, w.address) ? w : x))
+  save(s)
+}
 
-export const getWallet = () => {
-  const s = read()
-  return s ? { address: s.address, hasPasskey: !!s.passkey } : null
+export type WalletInfo = { address: `0x${string}`; kind: "device" | "injected"; hasPasskey: boolean; label: string }
+const info = (w: Stored, i: number): WalletInfo => ({
+  address: w.address,
+  kind: w.kind,
+  hasPasskey: w.kind === "device" && !!w.passkey,
+  label: w.label ?? (w.kind === "injected" ? "Browser wallet" : `Wallet ${i + 1}`),
+})
+
+export const getWallet = (): WalletInfo | null => {
+  const s = load()
+  const w = activeEntry(s)
+  return w ? info(w, s.list.indexOf(w)) : null
+}
+export const listWallets = (): WalletInfo[] => load().list.map(info)
+export function setActiveWallet(address: string) {
+  const s = load()
+  const w = s.list.find((x) => same(x.address, address))
+  if (w) save({ ...s, active: w.address })
 }
 
 // ------------------------------------------------------------------ PIN
@@ -53,7 +95,6 @@ async function pinKey(pin: string, salt: Uint8Array) {
     ["encrypt", "decrypt"],
   )
 }
-
 async function seal(key: CryptoKey, pk: Hex) {
   const iv = rand(12)
   const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, enc.encode(pk))
@@ -68,39 +109,49 @@ async function open(key: CryptoKey, iv: string, ct: string): Promise<Hex> {
 
 export const validPin = (pin: string) => /^\d{6}$/.test(pin)
 
-/** Create a fresh device wallet protected by a 6-digit PIN. */
+/** Create (or import) a device wallet protected by a 6-digit PIN, and make it active. */
 export async function createWallet(pin: string, importPk?: Hex) {
   if (!validPin(pin)) throw new Error("PIN must be 6 digits")
   const pk = importPk ?? generatePrivateKey()
   const account = privateKeyToAccount(pk)
+  const s = load()
+  if (s.list.some((w) => same(w.address, account.address))) throw new Error("That wallet is already on this device")
   const salt = rand(16)
   const sealed = await seal(await pinKey(pin, salt), pk)
-  write({ address: account.address, pin: { salt: b64(salt), ...sealed }, createdAt: Date.now() })
+  s.list.push({ kind: "device", address: account.address, pin: { salt: b64(salt), ...sealed }, createdAt: Date.now() })
+  s.active = account.address
+  save(s)
   return account.address
 }
 
-export function pinLockout(): number {
+export function pinLockout(address = getWallet()?.address ?? ""): number {
   try {
-    const l = JSON.parse(localStorage.getItem(LOCK) ?? "{}") as { tries?: number; until?: number }
+    const l = JSON.parse(localStorage.getItem(LOCK(address)) ?? "{}") as { until?: number }
     return l.until && l.until > Date.now() ? l.until - Date.now() : 0
   } catch {
     return 0
   }
 }
 
+function activeDevice(): DeviceWallet {
+  const w = activeEntry()
+  if (!w) throw new Error("No wallet on this device")
+  if (w.kind !== "device") throw new Error("This wallet is a browser wallet; confirm in your wallet app")
+  return w
+}
+
 export async function unlockWithPin(pin: string): Promise<PrivateKeyAccount> {
-  const s = read()
-  if (!s) throw new Error("No wallet on this device")
-  const wait = pinLockout()
+  const w = activeDevice()
+  const wait = pinLockout(w.address)
   if (wait) throw new Error(`Too many wrong PINs. Try again in ${Math.ceil(wait / 60000)} min`)
   try {
-    const pk = await open(await pinKey(pin, unb64(s.pin.salt)), s.pin.iv, s.pin.ct)
-    localStorage.removeItem(LOCK)
+    const pk = await open(await pinKey(pin, unb64(w.pin.salt)), w.pin.iv, w.pin.ct)
+    localStorage.removeItem(LOCK(w.address))
     return privateKeyToAccount(pk)
   } catch {
-    const l = JSON.parse(localStorage.getItem(LOCK) ?? "{}") as { tries?: number }
+    const l = JSON.parse(localStorage.getItem(LOCK(w.address)) ?? "{}") as { tries?: number }
     const tries = (l.tries ?? 0) + 1
-    localStorage.setItem(LOCK, JSON.stringify(tries >= MAX_TRIES ? { tries: 0, until: Date.now() + LOCKOUT_MS } : { tries }))
+    localStorage.setItem(LOCK(w.address), JSON.stringify(tries >= MAX_TRIES ? { tries: 0, until: Date.now() + LOCKOUT_MS } : { tries }))
     throw new Error(tries >= MAX_TRIES ? "Too many wrong PINs. Locked for 5 minutes" : `Wrong PIN (${MAX_TRIES - tries} tries left)`)
   }
 }
@@ -131,16 +182,14 @@ async function prfSecret(credId: Uint8Array, prfSalt: Uint8Array): Promise<Uint8
   if (!out) throw new Error("This device's fingerprint/Face ID can't protect keys (no PRF). Use your PIN.")
   return new Uint8Array(out)
 }
-
 const prfKey = (secret: Uint8Array) =>
   crypto.subtle.importKey("raw", secret as BufferSource, { name: "AES-GCM" }, false, ["encrypt", "decrypt"])
 
-/** Add fingerprint/Face ID unlock. Needs the PIN once to decrypt the key. */
+/** Add fingerprint/Face ID unlock to the active device wallet. Needs the PIN once. */
 export async function enablePasskey(pin: string) {
-  const s = read()
-  if (!s) throw new Error("No wallet on this device")
+  const w = activeDevice()
   const account = await unlockWithPin(pin)
-  const pk = await openPinPk(pin, s)
+  const pk = await open(await pinKey(pin, unb64(w.pin.salt)), w.pin.iv, w.pin.ct)
   const prfSalt = rand(32)
   const cred = (await navigator.credentials.create({
     publicKey: {
@@ -160,21 +209,76 @@ export async function enablePasskey(pin: string) {
   const credId = new Uint8Array(cred.rawId)
   const secret = await prfSecret(credId, prfSalt) // second prompt: derive the encryption secret
   const sealed = await seal(await prfKey(secret), pk)
-  write({ ...s, passkey: { credId: b64(credId), prfSalt: b64(prfSalt), ...sealed } })
-}
-
-async function openPinPk(pin: string, s: Stored) {
-  return open(await pinKey(pin, unb64(s.pin.salt)), s.pin.iv, s.pin.ct)
+  replace({ ...w, passkey: { credId: b64(credId), prfSalt: b64(prfSalt), ...sealed } })
 }
 
 export async function unlockWithPasskey(): Promise<PrivateKeyAccount> {
-  const s = read()
-  if (!s?.passkey) throw new Error("Fingerprint not set up")
-  const secret = await prfSecret(unb64(s.passkey.credId), unb64(s.passkey.prfSalt))
-  return privateKeyToAccount(await open(await prfKey(secret), s.passkey.iv, s.passkey.ct))
+  const w = activeDevice()
+  if (!w.passkey) throw new Error("Fingerprint not set up")
+  const secret = await prfSecret(unb64(w.passkey.credId), unb64(w.passkey.prfSalt))
+  return privateKeyToAccount(await open(await prfKey(secret), w.passkey.iv, w.passkey.ct))
 }
 
-export function removeWallet() {
-  localStorage.removeItem(STORE)
-  localStorage.removeItem(LOCK)
+// --------------------------------------------------- browser wallet (EIP-1193)
+type Eip1193 = { request: (a: { method: string; params?: unknown[] }) => Promise<any> }
+const provider = (): Eip1193 => {
+  const eth = (globalThis as any).ethereum as Eip1193 | undefined
+  if (!eth) throw new Error("No browser wallet found. Open this page in MetaMask's browser or install a wallet extension.")
+  return eth
+}
+export const hasInjectedWallet = () => typeof window !== "undefined" && !!(window as any).ethereum
+
+/** Connect MetaMask/Rabby/... and add it as a wallet (address only; keys stay in that wallet). */
+export async function connectInjectedWallet() {
+  const accounts = (await provider().request({ method: "eth_requestAccounts" })) as string[]
+  if (!accounts?.length) throw new Error("No account was shared")
+  const address = getAddress(accounts[0])
+  const s = load()
+  if (!s.list.some((w) => same(w.address, address))) s.list.push({ kind: "injected", address, createdAt: Date.now() })
+  s.active = address
+  save(s)
+  return address
+}
+
+/** EIP-712 domains carry chainId 1874, so the wallet must be on Whitechain Sepolia to sign. */
+async function ensureWhitechain(eth: Eip1193) {
+  const chainId = numberToHex(whitechainSepolia.id)
+  try {
+    await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] })
+  } catch (e: any) {
+    if (e?.code !== 4902 && !/unrecognized|not added|unknown chain/i.test(String(e?.message))) throw e
+    await eth.request({
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId,
+        chainName: whitechainSepolia.name,
+        nativeCurrency: whitechainSepolia.nativeCurrency,
+        rpcUrls: whitechainSepolia.rpcUrls.default.http,
+        blockExplorerUrls: [whitechainSepolia.blockExplorers!.default.url],
+      }],
+    })
+  }
+}
+
+/** Signer backed by the browser wallet. It only signs messages: the payer still pays no gas. */
+export async function injectedSigner(address: `0x${string}`): Promise<Signer> {
+  const eth = provider()
+  const accounts = (await eth.request({ method: "eth_requestAccounts" })) as string[]
+  if (!accounts.some((a) => same(a, address))) throw new Error(`Switch your wallet to ${address.slice(0, 6)}…${address.slice(-4)} and try again`)
+  await ensureWhitechain(eth)
+  const client = createWalletClient({ chain: whitechainSepolia, transport: custom(eth), account: address })
+  return {
+    address,
+    signTypedData: ((td: any) => client.signTypedData(td)) as Signer["signTypedData"],
+    signMessage: ((m: any) => client.signMessage(m)) as Signer["signMessage"],
+  }
+}
+
+/** Remove the active wallet from this device (device keys are deleted). */
+export function removeWallet(address = getWallet()?.address) {
+  const s = load()
+  s.list = s.list.filter((w) => !same(w.address, address))
+  if (same(s.active, address)) s.active = s.list[0]?.address ?? null
+  save(s)
+  if (address) localStorage.removeItem(LOCK(address))
 }

@@ -40,7 +40,17 @@ export default function Transactions() {
         <span className="badge badge-brand">Settled on Whitechain</span>
       </div>
 
-      {rows === null && <div className="empty">Loading from Arkiv…</div>}
+      {rows === null && (
+        <div className="list">
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className="item">
+              <span className="pic skel circle" />
+              <div className="grow"><span className="skel" style={{ width: "60%", height: 16 }} /><br /><span className="skel" style={{ width: "35%", height: 12, marginTop: 8 }} /></div>
+              <span className="skel" style={{ width: 54, height: 16 }} />
+            </div>
+          ))}
+        </div>
+      )}
       {rows?.length === 0 && <div className="empty">No transactions yet.</div>}
       {months.map((m) => (
         <section key={`${m.year}-${m.label}`}>

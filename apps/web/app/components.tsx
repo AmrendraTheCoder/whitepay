@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import type { PrivateKeyAccount } from "viem/accounts"
-import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout } from "@/lib/wallet"
+import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout, injectedSigner } from "@/lib/wallet"
 
 export function TopBar({ right, back = "/" }: { right?: React.ReactNode; back?: string | null }) {
   return (
@@ -67,7 +67,7 @@ export function UnlockSheet({
   onCancel: () => void
 }) {
   const w = getWallet()
-  const [mode, setMode] = useState<"passkey" | "pin">(w?.hasPasskey ? "passkey" : "pin")
+  const [mode, setMode] = useState<"passkey" | "pin" | "wallet">(w?.kind === "injected" ? "wallet" : w?.hasPasskey ? "passkey" : "pin")
   const [err, setErr] = useState("")
   const [busy, setBusy] = useState(false)
 
@@ -84,7 +84,23 @@ export function UnlockSheet({
     }
   }
 
+  const tryWallet = async () => {
+    if (!w) return
+    setBusy(true)
+    setErr("")
+    try {
+      // a browser wallet only signs messages here; it is never asked to send a transaction
+      onUnlocked((await injectedSigner(w.address)) as unknown as PrivateKeyAccount)
+    } catch (e) {
+      const m = (e as Error).message
+      setErr(/reject|denied|4001/i.test(m) ? "Request rejected in your wallet" : m.split("\n")[0])
+    } finally {
+      setBusy(false)
+    }
+  }
+
   useEffect(() => {
+    if (mode === "wallet") void tryWallet()
     if (mode === "passkey") void tryPasskey()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -107,7 +123,11 @@ export function UnlockSheet({
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <h3>{title}</h3>
         {subtitle && <div className="sub" style={{ textAlign: "center" }}>{subtitle}</div>}
-        {mode === "passkey" ? (
+        {mode === "wallet" ? (
+          <button className="btn btn-primary btn-big" onClick={tryWallet} disabled={busy}>
+            {busy ? <span className="spinner" /> : null} Confirm in your wallet
+          </button>
+        ) : mode === "passkey" ? (
           <button className="btn btn-primary btn-big" onClick={tryPasskey} disabled={busy}>
             {busy ? <span className="spinner" /> : null} Confirm with fingerprint
           </button>

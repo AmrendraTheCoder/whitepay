@@ -24,6 +24,8 @@ export const Icon = {
   bolt: (s = 18) => <svg {...P} width={s} height={s}><path d="m13 2-9 12h7l-1 8 9-12h-7z" /></svg>,
   arrow: (s = 20) => <svg {...P} width={s} height={s}><path d="M5 12h14m-6-6 6 6-6 6" /></svg>,
   shield: (s = 22) => <svg {...P} width={s} height={s}><path d="M12 3 5 6v5.5c0 4.5 3 8 7 9.5 4-1.5 7-5 7-9.5V6z" /><path d="m9 12 2 2 4-4" /></svg>,
+  eye: (s = 20) => <svg {...P} width={s} height={s}><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></svg>,
+  eyeOff: (s = 20) => <svg {...P} width={s} height={s}><path d="M3 3l18 18M10.6 5.6A9.8 9.8 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-3.2 3.9M6.4 6.5A17 17 0 0 0 2.5 12S6 18.5 12 18.5a9 9 0 0 0 4.4-1.1M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>,
   finger: (s = 22) => <svg {...P} width={s} height={s}><path d="M7.5 18.5c1-1.8 1.5-3.8 1.5-6a3 3 0 0 1 6 0c0 1.2-.1 2.3-.3 3.4M12 12.5c0 3.3-.8 6.2-2.4 8.5M18 16c.3-1.2.5-2.3.5-3.5a6.5 6.5 0 0 0-11.7-3.9M5.6 15.5c.3-1 .4-2 .4-3" /></svg>,
 }
 
