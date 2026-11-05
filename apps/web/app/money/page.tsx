@@ -1,6 +1,6 @@
 "use client"
 import { useMemo, useState } from "react"
-import { BottomNav, Icon, Identicon, useWalletData, Toast, type Activity } from "../ui"
+import { Icon, Identicon, useWalletData, Toast, type Activity } from "../ui"
 import { usdt, short } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 import { USDT_ADDRESS, EXPLORER_URL } from "@whitepay/shared"
@@ -139,7 +139,7 @@ export default function Money() {
         <a className="menu-row" href={`${EXPLORER_URL}/address/${USDT_ADDRESS}`} target="_blank" rel="noreferrer"><span className="ic">{Icon.shield()}</span>About USDT on Whitechain<span className="chev">{Icon.chev()}</span></a>
       </div>
 
-      <BottomNav />
+      
     </main>
   )
 }

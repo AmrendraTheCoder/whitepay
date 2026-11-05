@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { BottomNav, Icon, avatarColor, prettyName, useWalletData, AccountBadge, LogoLoader, Identicon } from "../ui"
+import { Icon, avatarColor, prettyName, useWalletData, AccountBadge, LogoLoader, Identicon } from "../ui"
 import { PinPad } from "../components"
 import {
   enablePasskey, passkeySupported, removeWallet, listWallets, setActiveWallet, type WalletInfo,
@@ -148,7 +148,7 @@ export default function You() {
           </div>
         </div>
       )}
-      <BottomNav />
+      
     </main>
   )
 }

@@ -496,3 +496,56 @@ a, button, .item, .tile, .chip-card, .menu-row, .wallet-row, .fchip { touch-acti
 .addr-full { font-size: 13px; word-break: break-all; text-align: center; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); cursor: pointer; }
 .ways { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--muted); } .ways b { color: var(--text); } .ways a { color: var(--brand-soft); }
 .add-body { animation: rise .3s ease-out both; }
+
+/* =====================================================================================
+   Tab switching: one persistent tab bar (root layout) + directional page entrance
+   ===================================================================================== */
+html[data-nav-dir="fwd"] .shell.with-nav { animation: tab-in-fwd .28s cubic-bezier(.2, .8, .2, 1); }
+html[data-nav-dir="back"] .shell.with-nav { animation: tab-in-back .28s cubic-bezier(.2, .8, .2, 1); }
+@keyframes tab-in-fwd { from { opacity: .4; transform: translateX(24px); } }
+@keyframes tab-in-back { from { opacity: .4; transform: translateX(-24px); } }
+/* tab bar polish: label weight follows state, icon nudges up when active, no layout shift */
+.navitem { min-height: 54px; border-radius: 20px; text-decoration: none; transition: color .2s; }
+.navitem .lbl { transition: opacity .2s, transform .25s cubic-bezier(.2, .8, .2, 1); }
+.navitem:not(.on) .lbl { opacity: .78; }
+.navitem.on .ic { transform: translateY(-1px); }
+.navitem:focus-visible { outline: 2px solid var(--lime); outline-offset: -4px; }
+.bottomnav { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-nav-dir] .shell.with-nav { animation: none; }
+  .nav-pill { transition: none; }
+}
+
+/* =====================================================================================
+   Shop tab: header card, sliding segmented control, charge, grouped payments
+   ===================================================================================== */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.shop-hero { border-radius: 24px; padding: 18px; background: radial-gradient(120% 140% at 100% 0%, color-mix(in oklab, var(--brand) 32%, transparent), transparent 60%), var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 16px; }
+.shop-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.shop-id-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.shop-name { font-size: 19px; font-weight: 800; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; letter-spacing: -0.01em; }
+.shop-name .badge { font-size: 11px; padding: 3px 8px; }
+.shop-ens { all: unset; cursor: pointer; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shop-ens:hover { color: var(--text); } .shop-ens:focus-visible { outline: 2px solid var(--lime); border-radius: 6px; }
+.shop-stats { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; border-radius: 16px; overflow: hidden; background: var(--line); }
+.shop-stats div { background: color-mix(in oklab, var(--surface-2) 70%, var(--surface)); padding: 12px; display: flex; flex-direction: column-reverse; gap: 2px; }
+.shop-stats dt { font-size: 12px; color: var(--muted); }
+.shop-stats dd { margin: 0; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; white-space: nowrap; }
+.shop-stats dd small { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.shop-seg { position: sticky; top: 8px; z-index: 15; display: grid; grid-template-columns: repeat(3, 1fr); padding: 4px; border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-2) 85%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid var(--line); }
+.shop-seg-pill { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 3); border-radius: 999px; background: var(--text);
+  transform: translateX(calc(var(--i) * 100%)); transition: transform .32s cubic-bezier(.3, 1.25, .5, 1); }
+.shop-seg button { position: relative; z-index: 1; border: 0; background: transparent; padding: 10px 0; border-radius: 999px; font: inherit; font-size: 14px; font-weight: 700;
+  color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: color .2s; -webkit-tap-highlight-color: transparent; }
+.shop-seg button[aria-selected="true"] { color: var(--bg); }
+.shop-seg button:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+.seg-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--lime); color: #1b2108; font-size: 11px; display: inline-grid; place-items: center; }
+.shop-panel { animation: shop-panel-in .22s cubic-bezier(.2, .8, .2, 1); display: flex; flex-direction: column; gap: 16px; }
+@keyframes shop-panel-in { from { opacity: 0; transform: translateY(6px); } }
+.quick-amts { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.quick-amts .fchip { padding: 8px 16px; }
+.pay-group + .pay-group { margin-top: 12px; }
+.pay-day { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 12px 0 4px; }
+.charge-live .qr-wrap { animation: pop .3s ease-out; }
+@media (prefers-reduced-motion: reduce) { .shop-seg-pill { transition: none; } .shop-panel, .charge-live .qr-wrap { animation: none; } }

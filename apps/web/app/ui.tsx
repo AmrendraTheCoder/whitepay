@@ -2,6 +2,7 @@
 // Shared GPay-style building blocks: icons, avatar colors, bottom nav, Scan QR pill, data hook.
 import { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
+import Link from "next/link"
 import { getWallet } from "@/lib/wallet"
 import { usdt, mmss } from "@/lib/format"
 import { keccak256, toBytes } from "viem"
@@ -46,29 +47,48 @@ export const initial = (name?: string, fallback = "?") => {
 export const prettyName = (name?: string, address?: string) =>
   name ? name.replace(/\.whitepay\.eth$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ""
 
+// Tabs and the routes that belong to each (sub-pages keep their tab lit).
+export const TABS = [
+  { href: "/app", label: "Home", match: ["/app"] },
+  { href: "/money", label: "Money", match: ["/money", "/transactions"] },
+  { href: "/merchant", label: "Shop", match: ["/merchant"] },
+  { href: "/you", label: "You", match: ["/you", "/autopay"] },
+] as const
+const TAB_ICON = { "/app": () => Icon.home(), "/money": () => Icon.money(), "/merchant": () => Icon.shop(24), "/you": () => Icon.user() } as const
+export const tabIndex = (path: string) => TABS.findIndex((t) => t.match.some((m) => path === m || path.startsWith(m + "/")))
+
+/** Tab bar. Rendered ONCE from the root layout (TabBarHost), so it survives navigation: the pill slides
+ *  between tabs and switching is a client-side route change (prefetched), not a page reload. */
 export function BottomNav() {
   const path = usePathname()
-  const items = [
-    { href: "/app", label: "Home", icon: Icon.home() },
-    { href: "/money", label: "Money", icon: Icon.money() },
-    { href: "/merchant", label: "Shop", icon: Icon.shop(24) },
-    { href: "/you", label: "You", icon: Icon.user() },
-  ]
-  const active = Math.max(0, items.findIndex((i) => path === i.href || (i.href !== "/app" && path.startsWith(i.href))))
+  const active = Math.max(0, tabIndex(path))
+  const go = (idx: number) => {
+    if (idx === active) { window.scrollTo({ top: 0, behavior: "smooth" }); return } // re-tap = scroll to top
+    // tell the incoming page which way to slide in; cleared after the animation
+    document.documentElement.dataset.navDir = idx > active ? "fwd" : "back"
+    window.setTimeout(() => { delete document.documentElement.dataset.navDir }, 450)
+    try { navigator.vibrate?.(8) } catch {}
+  }
   return (
     <nav className="bottomnav" aria-label="Main">
-      <div className="in" style={{ ["--i" as string]: active, ["--n" as string]: items.length }}>
+      <div className="in" style={{ ["--i" as string]: active, ["--n" as string]: TABS.length }}>
         <span className="nav-pill" aria-hidden />
-        {items.map((i, idx) => (
-          <a key={i.href} href={i.href} className={`navitem ${idx === active ? "on" : ""}`} aria-current={idx === active ? "page" : undefined}
-            onClick={() => { try { navigator.vibrate?.(8) } catch {} }}>
-            <span className="ic">{i.icon}</span>
-            <span className="lbl">{i.label}</span>
-          </a>
+        {TABS.map((t, idx) => (
+          <Link key={t.href} href={t.href} prefetch className={`navitem ${idx === active ? "on" : ""}`}
+            aria-current={idx === active ? "page" : undefined} onClick={() => go(idx)}>
+            <span className="ic">{TAB_ICON[t.href]()}</span>
+            <span className="lbl">{t.label}</span>
+          </Link>
         ))}
       </div>
     </nav>
   )
+}
+
+/** Mounted in the root layout: shows the tab bar only on tab routes (never on the marketing site or full-screen flows). */
+export function TabBarHost() {
+  const path = usePathname()
+  return tabIndex(path) >= 0 ? <BottomNav /> : null
 }
 
 export const ScanFab = () => (

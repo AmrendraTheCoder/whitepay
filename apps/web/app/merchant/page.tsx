@@ -4,7 +4,7 @@ import { formatUnits, parseUnits, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { merchantSignupMessage, orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { BottomNav, SuccessCheck, MiniLogo, Countdown } from "../ui"
+import { SuccessCheck, MiniLogo, Countdown, Identicon } from "../ui"
 import { WorldVerify } from "../world"
 import { PlansCard } from "./plans"
 import { getWallet } from "@/lib/wallet"
@@ -64,7 +64,7 @@ export default function MerchantPage() {
         <TopBar />
         <div className="card stack"><h2>Merchant mode</h2><div className="sub">Create a WhitePay wallet first. It becomes your shop's payout and signing key.</div></div>
         <a className="btn btn-primary" href="/app">Create wallet</a>
-      <BottomNav /></main>
+      </main>
     )
   if (!merchant && personalName === undefined) return <ShopSkeleton />
   if (!merchant && personalName)
@@ -78,7 +78,7 @@ export default function MerchantPage() {
           <a className="btn btn-primary btn-big" href="/add?type=business">Create a business wallet</a>
           <div className="sub" style={{ textAlign: "center" }}>Already have one? Switch wallets in <a href="/you" style={{ color: "var(--brand-soft)", fontWeight: 700 }}>You</a>.</div>
         </div>
-        <BottomNav />
+        
       </main>
     )
   if (!merchant) return <Signup address={wallet.address} account={account} setAccount={setAccount} onDone={() => loadMerchant(wallet.address)} />
@@ -146,7 +146,7 @@ function Signup({ address, account, setAccount, onDone }: {
           {worldMsg && <div className="sub">{worldMsg}</div>}
           <button className="btn btn-ghost" onClick={onDone}>Skip, open my shop unverified</button>
         </div>
-        <BottomNav />
+        
       </main>
     )
 
@@ -179,12 +179,21 @@ function Signup({ address, account, setAccount, onDone }: {
       <div className="err">{err}</div>
       <div className="sub" style={{ textAlign: "center" }}>New shops start unverified. Verify with World ID to get the ✓ badge.</div>
       {unlock && <UnlockSheet title="Sign shop registration" subtitle={`${label}.whitepay.eth`} onUnlocked={submit} onCancel={() => setUnlock(false)} />}
-    <BottomNav /></main>
+    </main>
   )
 }
 
+type ShopTab = "charge" | "payments" | "plans"
+const SHOP_TABS: { id: ShopTab; label: string }[] = [{ id: "charge", label: "Charge" }, { id: "payments", label: "Payments" }, { id: "plans", label: "Plans" }]
+const QUICK = ["0.50", "1", "2", "5", "10"]
+const dayKey = (t: number) => { const d = new Date(t * 1000); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() }
+const dayLabel = (k: number) => { const today = dayKey(Date.now() / 1000); return k === today ? "Today" : k === today - 864e5 ? "Yesterday" : new Date(k).toLocaleDateString([], { day: "numeric", month: "short" }) }
+
 function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merchant; account: PrivateKeyAccount | null; setAccount: (a: PrivateKeyAccount | null) => void; onChange: () => void }) {
+  void onChange
+  const [tab, setTabState] = useState<ShopTab>("charge")
   const [amount, setAmount] = useState("")
+  const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState("")
   const [req, setReq] = useState<Created | null>(null)
@@ -195,7 +204,21 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
   const [total, setTotal] = useState("0")
   const [unlock, setUnlock] = useState(false)
   const [refundRow, setRefundRow] = useState<Row | null>(null)
+  const [copied, setCopied] = useState(false)
   const poll = useRef<ReturnType<typeof setInterval>>(undefined)
+
+  // section lives in the URL hash (#payments) so a refresh or shared link opens the same view
+  useEffect(() => {
+    const read = () => { const h = location.hash.slice(1); if (h === "charge" || h === "payments" || h === "plans") setTabState(h) }
+    read(); window.addEventListener("hashchange", read)
+    return () => window.removeEventListener("hashchange", read)
+  }, [])
+  const setTab = (t: ShopTab) => { setTabState(t); history.replaceState(null, "", `#${t}`) }
+  const onTabKey = (e: React.KeyboardEvent, i: number) => {
+    const n = e.key === "ArrowRight" ? (i + 1) % SHOP_TABS.length : e.key === "ArrowLeft" ? (i + SHOP_TABS.length - 1) % SHOP_TABS.length : -1
+    if (n < 0) return
+    e.preventDefault(); setTab(SHOP_TABS[n].id); (document.getElementById(`shop-tab-${SHOP_TABS[n].id}`) as HTMLElement | null)?.focus()
+  }
 
   const loadReceipts = useCallback(() =>
     fetch(`/api/receipts?merchant=${merchant.address}`).then((r) => r.json()).then((d) => { setRows(d.rows ?? []); setTotal(d.total ?? "0") }), [merchant.address])
@@ -219,7 +242,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({
           order: { merchant: order.merchant, amount: order.amount.toString(), orderId: order.orderId, deadline: order.deadline.toString() },
-          merchantSig,
+          merchantSig, note: note.trim() || undefined,
         }),
       })
       const d = await r.json()
@@ -230,92 +253,151 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
       poll.current = setInterval(async () => {
         const s = await fetch(`/api/requests/${d.entityKey}`).then((x) => x.json()).catch(() => null)
         if (!s) return
-        if (s.state === "paid") { setStatus("paid"); setPaidTx(s.receipt?.explorer ?? ""); clearInterval(poll.current); void loadReceipts() }
+        if (s.state === "paid") { setStatus("paid"); setPaidTx(s.receipt?.explorer ?? ""); clearInterval(poll.current); void loadReceipts(); try { navigator.vibrate?.([18, 40, 28]) } catch {} }
         // instant QRs report "publishing" until Arkiv has them; past the deadline (+30 s grace) the QR is expired
         if (s.state === "depleted" || (s.state === "publishing" && Date.now() / 1000 > Number(d.deadline) + 30)) { setStatus("depleted"); clearInterval(poll.current) }
       }, 2000)
     } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
+  const newCharge = () => { clearInterval(poll.current); setReq(null); setStatus("pending"); setAmount(""); setNote("") }
 
   const validAmount = /^\d+(\.\d{1,6})?$/.test(amount) && Number(amount) > 0
+  const today = dayKey(Date.now() / 1000)
+  const todays = (rows ?? []).filter((r) => dayKey(r.paidAt) === today)
+  const todayNet = todays.reduce((s, r) => s + BigInt(r.amount) - BigInt(r.refunded ?? "0"), 0n)
+  const groups = (rows ?? []).reduce<{ k: number; items: Row[] }[]>((g, r) => {
+    const k = dayKey(r.paidAt); const last = g[g.length - 1]
+    if (last && last.k === k) last.items.push(r); else g.push({ k, items: [r] })
+    return g
+  }, [])
 
   return (
     <main className="shell with-nav">
-      <TopBar back={null} right={<a className="chip" href="/app">Customer mode</a>} />
-      <div className="card row">
-        <div>
-          <div style={{ fontWeight: 700 }}>{merchant.displayName}</div>
-          <div className="sub">{merchant.ensName}</div>
+      <TopBar back={null} right={<div className="row" style={{ gap: 8 }}>
+        {account && <button className="chip" onClick={() => { endSession(); setAccount(null) }} aria-label="Lock terminal">Lock</button>}
+        <a className="chip" href="/app">Personal</a>
+      </div>} />
+
+      <section className="shop-hero" aria-label="Your shop">
+        <div className="shop-id">
+          <Identicon seed={merchant.address} name={merchant.displayName} size={52} />
+          <div className="shop-id-text">
+            <div className="shop-name">{merchant.displayName} {merchant.verified ? <span className="badge badge-ok">✓ Verified</span> : <span className="badge badge-warn">Unverified</span>}</div>
+            <button className="shop-ens" onClick={() => { navigator.clipboard?.writeText(merchant.ensName); setCopied(true); setTimeout(() => setCopied(false), 1400) }} aria-label={`Copy ${merchant.ensName}`}>
+              {copied ? "Copied ✓" : merchant.ensName}
+            </button>
+          </div>
         </div>
-        {merchant.verified ? <span className="badge badge-ok">✓ Verified</span> : <span className="badge badge-warn">Unverified</span>}
+        <dl className="shop-stats">
+          <div><dt>Today</dt><dd>{rows === null ? <span className="skel" style={{ width: 70, height: 22 }} /> : `${usdt(todayNet.toString())}`}<small> USDT</small></dd></div>
+          <div><dt>Payments today</dt><dd>{rows === null ? <span className="skel" style={{ width: 30, height: 22 }} /> : todays.length}</dd></div>
+          <div><dt>All time</dt><dd>{rows === null ? <span className="skel" style={{ width: 30, height: 22 }} /> : total}</dd></div>
+        </dl>
+      </section>
+
+      <div className="shop-seg" role="tablist" aria-label="Shop sections" style={{ ["--i" as string]: SHOP_TABS.findIndex((t) => t.id === tab) }}>
+        <span className="shop-seg-pill" aria-hidden />
+        {SHOP_TABS.map((t, i) => (
+          <button key={t.id} id={`shop-tab-${t.id}`} role="tab" aria-selected={tab === t.id} aria-controls={`shop-panel-${t.id}`} tabIndex={tab === t.id ? 0 : -1}
+            onClick={() => setTab(t.id)} onKeyDown={(e) => onTabKey(e, i)}>
+            {t.label}{t.id === "payments" && todays.length > 0 && <span className="seg-badge">{todays.length}</span>}
+          </button>
+        ))}
       </div>
 
-      {!req || status !== "pending" ? (
-        <div className="card stack">
-          {status === "paid" && req && (
-            <div className="result" style={{ padding: "8px 0" }}>
-              <SuccessCheck />
-              <h1>Received {usdt(req.amount)} USDT</h1>
-              {paidTx && <a className="chip" href={paidTx} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
+      {tab === "charge" && (
+        <div id="shop-panel-charge" role="tabpanel" aria-labelledby="shop-tab-charge" className="shop-panel">
+          {req && status === "pending" ? (
+            <div className="card stack charge-live">
+              <div className="sub" style={{ textAlign: "center" }}>Ask the customer to scan</div>
+              <div className="big-amount">{usdt(req.amount)} <span style={{ fontSize: 20, color: "var(--muted)" }}>USDT</span></div>
+              {note.trim() && <div className="sub" style={{ textAlign: "center" }}>“{note.trim()}”</div>}
+              <div className="qr-wrap"><img src={qr} alt={`Payment QR for ${usdt(req.amount)} USDT`} /></div>
+              <div className="row" style={{ justifyContent: "center", gap: 10 }} role="status">
+                <span className="spinner" /> <span>Waiting for payment · <Countdown to={Number(req.deadline)} /></span>
+              </div>
+              <div className="row" style={{ justifyContent: "center", gap: 8 }}>
+                <a className="chip" href={req.payUrl} target="_blank" rel="noreferrer">Open link</a>
+                <button className="chip" onClick={() => navigator.clipboard?.writeText(req.payUrl)}>Copy link</button>
+              </div>
+              <button className="btn btn-ghost" onClick={newCharge}>Cancel</button>
+            </div>
+          ) : status === "paid" && req ? (
+            <div className="card stack" role="status">
+              <div className="result" style={{ padding: "8px 0" }}>
+                <SuccessCheck />
+                <h1>Received {usdt(req.amount)} USDT</h1>
+                {paidTx && <a className="chip" href={paidTx} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
+              </div>
+              <button className="btn btn-primary btn-big" onClick={newCharge}>New charge</button>
+            </div>
+          ) : (
+            <div className="card stack">
+              {status === "depleted" && <div className="badge badge-warn" style={{ alignSelf: "center" }}>Last QR expired unpaid</div>}
+              <label className="sr-only" htmlFor="charge-amount">Amount in USDT</label>
+              <input id="charge-amount" className="amount-input" inputMode="decimal" placeholder="0.00" value={amount} autoComplete="off"
+                onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1"))} />
+              <div className="sub" style={{ textAlign: "center" }}>USDT · QR valid for 5 minutes</div>
+              <div className="quick-amts" role="group" aria-label="Quick amounts">
+                {QUICK.map((q) => <button key={q} className={`fchip ${amount === q ? "on" : ""}`} onClick={() => setAmount(q)}>{q}</button>)}
+              </div>
+              <input className="input" placeholder="Note for the customer (optional)" value={note} maxLength={60} onChange={(e) => setNote(e.target.value)} aria-label="Note for the customer" />
+              <button className="btn btn-primary btn-big" onClick={() => (account ? create(account) : setUnlock(true))} disabled={busy || !validAmount}>
+                {busy ? <><span className="spinner" /> Creating QR…</> : validAmount ? `Charge ${usdt(parseUnits(amount, 6).toString())} USDT` : "Enter an amount"}
+              </button>
+              <div className="err" role="alert">{err}</div>
             </div>
           )}
-          {status === "depleted" && <div className="badge badge-warn" style={{ alignSelf: "center" }}>Last request expired unpaid and was removed from Arkiv</div>}
-          <h2>New payment request</h2>
-          <input className="amount-input" inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} />
-          <div className="sub" style={{ textAlign: "center" }}>USDT · QR valid for 5 minutes</div>
-          <button className="btn btn-primary btn-big" onClick={() => (account ? create(account) : setUnlock(true))} disabled={busy || !validAmount}>
-            {busy ? <><span className="spinner" /> Signing order & writing to Arkiv…</> : account ? "Show QR" : "Unlock & show QR"}
-          </button>
-          <div className="err">{err}</div>
-          {account && <button className="chip" style={{ alignSelf: "center" }} onClick={() => { endSession(); setAccount(null) }}>Lock terminal</button>}
-        </div>
-      ) : (
-        <div className="card stack" style={{ textAlign: "center" }}>
-          <div className="sub">Ask the customer to scan</div>
-          <div className="big-amount">{usdt(req.amount)} <span style={{ fontSize: 20, color: "var(--muted)" }}>USDT</span></div>
-          <div className="qr-wrap"><img src={qr} alt="Payment QR" /></div>
-          <div className="row" style={{ justifyContent: "center", gap: 10 }}>
-            <span className="spinner" /> <span>Waiting for payment · <Countdown to={Number(req.deadline)} /></span>
-          </div>
-          <div className="sub mono">Arkiv entity {short(req.entityKey)}</div>
-          <a className="sub" href={req.payUrl} target="_blank" rel="noreferrer">Open payment link</a>
-          <button className="btn btn-ghost" onClick={() => { clearInterval(poll.current); setReq(null) }}>Cancel</button>
         </div>
       )}
 
-      <div className="card">
-        <div className="row">
-          <h2>Received (from Arkiv)</h2>
-          <span className="row" style={{ gap: 8 }}>
-            <span className="sub">{total} total</span>
-            <button className="chip" onClick={() => exportCsv(merchant)} aria-label="Download payments as CSV">CSV ↓</button>
-          </span>
-        </div>
-        <div className="list">
-          {rows === null && <div className="empty">Loading…</div>}
-          {rows?.length === 0 && <div className="empty">No payments yet.</div>}
-          {rows?.map((r) => {
-            const refunded = BigInt(r.refunded ?? "0")
-            const canRefund = r.kind !== "p2p" && !!r.paymentId && refunded < BigInt(r.amount)
-            return (
-              <div key={r.key} className="item">
-                <a href={r.explorer} target="_blank" rel="noreferrer" style={{ flex: 1, color: "inherit", textDecoration: "none" }}>
-                  <div className="t">{short(r.payer)}</div>
-                  <div className="sub">{ago(r.paidAt)} · {r.kind === "p2p" ? "direct" : "QR"}{refunded > 0n ? ` · refunded ${usdt(refunded.toString())}` : ""}</div>
-                </a>
-                <div style={{ textAlign: "right" }}>
-                  <div className="amt" style={{ color: refunded >= BigInt(r.amount) ? "var(--muted)" : "var(--ok)", textDecoration: refunded >= BigInt(r.amount) ? "line-through" : undefined }}>+{usdt(r.amount)}</div>
-                  {canRefund && <button className="chip" style={{ marginTop: 4, fontSize: 12 }} onClick={() => setRefundRow(r)}>Refund</button>}
+      {tab === "payments" && (
+        <div id="shop-panel-payments" role="tabpanel" aria-labelledby="shop-tab-payments" className="shop-panel">
+          <div className="card">
+            <div className="row">
+              <h2 style={{ margin: 0 }}>Payments</h2>
+              <button className="chip" onClick={() => exportCsv(merchant)} aria-label="Download payments as CSV">Export CSV</button>
+            </div>
+            {rows === null && <div className="list" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="item"><span className="pic skel circle" /><div className="grow"><span className="skel" style={{ width: "50%", height: 14 }} /></div></div>)}</div>}
+            {rows?.length === 0 && <div className="empty">No payments yet. Charge your first customer from the Charge tab.</div>}
+            {groups.map((g) => (
+              <div key={g.k} className="pay-group">
+                <div className="pay-day">{dayLabel(g.k)}</div>
+                <div className="list">
+                  {g.items.map((r) => {
+                    const refunded = BigInt(r.refunded ?? "0")
+                    const full = refunded >= BigInt(r.amount)
+                    const canRefund = r.kind !== "p2p" && !!r.paymentId && !full
+                    return (
+                      <div key={r.key} className="item">
+                        <Identicon seed={r.payer} size={40} />
+                        <a href={r.explorer} target="_blank" rel="noreferrer" className="grow" style={{ color: "inherit", textDecoration: "none" }}>
+                          <div className="t">{short(r.payer)}</div>
+                          <div className="sub">{new Date(r.paidAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {r.kind === "p2p" ? "Direct" : r.kind === "autopay" ? "Subscription" : "QR"}{refunded > 0n ? ` · refunded ${usdt(refunded.toString())}` : ""}</div>
+                        </a>
+                        <div style={{ textAlign: "right" }}>
+                          <div className={`amt ${full ? "" : "pos"}`} style={full ? { color: "var(--muted)", textDecoration: "line-through" } : undefined}>+{usdt(r.amount)}</div>
+                          {canRefund && <button className="chip" style={{ marginTop: 4, fontSize: 12 }} onClick={() => setRefundRow(r)}>Refund</button>}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
-            )
-          })}
+            ))}
+          </div>
         </div>
-      </div>
-      <PlansCard merchant={merchant} account={account} setAccount={setAccount} />
+      )}
+
+      {tab === "plans" && (
+        <div id="shop-panel-plans" role="tabpanel" aria-labelledby="shop-tab-plans" className="shop-panel">
+          <PlansCard merchant={merchant} account={account} setAccount={setAccount} />
+        </div>
+      )}
+
       {unlock && <UnlockSheet title="Unlock terminal" subtitle={`${amount} USDT request`} onUnlocked={create} onCancel={() => setUnlock(false)} />}
       {refundRow && <RefundSheet row={refundRow} account={account} setAccount={setAccount} onClose={(done) => { setRefundRow(null); if (done) void loadReceipts() }} />}
-    <BottomNav /></main>
+    </main>
   )
 }
 
@@ -424,7 +506,7 @@ function ShopSkeleton() {
           </div>
         ))}
       </div>
-      <BottomNav />
+      
     </main>
   )
 }

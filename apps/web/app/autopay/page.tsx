@@ -7,7 +7,7 @@ import type { PrivateKeyAccount } from "viem/accounts"
 import { directNonce } from "@whitepay/shared"
 import { cancelAuthTypedData, cancelMandateTypedData, cycleMemo, cycleAuthTypedData, reminderCancelMessage } from "@whitepay/shared/autopay"
 import { TopBar, UnlockSheet } from "../components"
-import { BottomNav, Icon, LogoLoader, SuccessCheck } from "../ui"
+import { Icon, LogoLoader, SuccessCheck } from "../ui"
 import { getWallet } from "@/lib/wallet"
 import { enableReminderNotifications } from "@/lib/reminders"
 import { usdt, short, countdown, ago } from "@/lib/format"
@@ -105,8 +105,8 @@ export default function Subscriptions() {
     } catch (e) { setMsg(friendly((e as Error).message)) } finally { setBusy("") }
   }
 
-  if (wallet === undefined || (wallet && rows === null)) return <main className="shell with-nav"><TopBar back="/you" /><LogoLoader /><BottomNav /></main>
-  if (!wallet) return <main className="shell with-nav"><TopBar /><div className="card">Create a wallet first.</div><BottomNav /></main>
+  if (wallet === undefined || (wallet && rows === null)) return <main className="shell with-nav"><TopBar back="/you" /><LogoLoader /></main>
+  if (!wallet) return <main className="shell with-nav"><TopBar /><div className="card">Create a wallet first.</div></main>
 
   if (cancelled) {
     const { m, remaining, txs } = cancelled
@@ -129,7 +129,7 @@ export default function Subscriptions() {
           {txs[0] && <a className="chip" href={txs[0]} target="_blank" rel="noreferrer">Cancellation on Whitechain ↗</a>}
           <button className="btn btn-primary btn-big" onClick={() => setCancelled(null)}>Done</button>
         </div>
-        <BottomNav />
+        
       </main>
     )
   }
@@ -144,7 +144,7 @@ export default function Subscriptions() {
           <a className="chip" href={paid.explorer} target="_blank" rel="noreferrer">View on Whitechain ↗</a>
           <button className="btn btn-primary btn-big" onClick={() => setPaid(null)}>Done</button>
         </div>
-        <BottomNav />
+        
       </main>
     )
 
@@ -222,7 +222,7 @@ export default function Subscriptions() {
       {cancel && (
         <UnlockSheet title="Cancel subscription" subtitle={cancel.mode === "reminder" ? `${cancel.title}: stop all future payment requests` : `${cancel.title}: block ${cancel.cycles - cancel.paidCycles} remaining payment(s) on-chain`} onUnlocked={doCancel} onCancel={() => setCancel(null)} />
       )}
-      <BottomNav />
+      
     </main>
   )
 }

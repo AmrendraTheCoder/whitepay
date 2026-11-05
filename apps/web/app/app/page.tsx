@@ -3,7 +3,7 @@ import { useMemo } from "react"
 import { DueBanner } from "../due-banner"
 import { AvatarRings } from "../avatar-rings"
 import { Onboard } from "../onboard"
-import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp, LogoLoader, Identicon } from "../ui"
+import { Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp, LogoLoader, Identicon } from "../ui"
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 
@@ -99,7 +99,7 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
         <a className="menu-row" href="/receive"><span className="ic">{Icon.receive(24)}</span>Your QR code<span className="chev">{Icon.chev()}</span></a>
       </div>
 
-      <BottomNav />
+      
     </main>
   )
 }

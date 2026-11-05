@@ -3,6 +3,7 @@ import { Manrope } from "next/font/google"
 import "./globals.css"
 import { headers } from "next/headers"
 import { THEME_BOOT } from "@/lib/theme-boot"
+import { TabBarHost } from "./ui"
 
 // Whitechain uses a geometric grotesk; Manrope is the closest open match.
 const sans = Manrope({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-sans", display: "swap" })
@@ -39,7 +40,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
-      <body>{children}</body>
+      <body>{children}<TabBarHost /></body>
     </html>
   )
 }
