@@ -5,7 +5,7 @@ import { TopBar, PinPad } from "./components"
 import { createWallet, enablePasskey, getWallet, passkeySupported, removeWallet } from "@/lib/wallet"
 import { usdt, short, ago } from "@/lib/format"
 
-type Receipt = { key: string; merchantName?: string; merchant: string; amount: string; paidAt: number; explorer: string }
+type Receipt = { key: string; merchantName?: string; merchant: string; payer: string; amount: string; paidAt: number; explorer: string; kind: string }
 
 export default function Home() {
   const [wallet, setWallet] = useState<ReturnType<typeof getWallet>>(null)
@@ -107,7 +107,7 @@ function Wallet({ wallet, onChange }: { wallet: NonNullable<ReturnType<typeof ge
 
   useEffect(() => {
     fetch(`/api/balance?address=${wallet.address}`).then((r) => r.json()).then((b) => !b.error && setBal(b))
-    fetch(`/api/receipts?payer=${wallet.address}`).then((r) => r.json()).then((d) => setRows(d.rows ?? []))
+    fetch(`/api/receipts?account=${wallet.address}`).then((r) => r.json()).then((d) => setRows(d.rows ?? []))
   }, [wallet.address])
 
   return (
@@ -129,21 +129,28 @@ function Wallet({ wallet, onChange }: { wallet: NonNullable<ReturnType<typeof ge
       </div>
 
       <a className="btn btn-primary btn-big" href="/scan">⌗ Scan & Pay</a>
+      <div className="actions">
+        <a className="btn btn-ghost" href="/receive">↓ Receive</a>
+        <a className="btn btn-ghost" href="/send">↑ Pay a person</a>
+      </div>
 
       <div className="card">
-        <h2>Recent payments</h2>
+        <h2>Recent activity</h2>
         <div className="list">
           {rows === null && <div className="empty">Loading from Arkiv…</div>}
           {rows?.length === 0 && <div className="empty">No payments yet. Scan a merchant QR to pay.</div>}
-          {rows?.map((r) => (
-            <a key={r.key} className="item" href={r.explorer} target="_blank" rel="noreferrer">
-              <div>
-                <div className="t">{r.merchantName ?? short(r.merchant)}</div>
-                <div className="sub">{ago(r.paidAt)} · receipt on Arkiv</div>
-              </div>
-              <div className="amt">−{usdt(r.amount)}</div>
-            </a>
-          ))}
+          {rows?.map((r) => {
+            const incoming = r.merchant.toLowerCase() === wallet.address.toLowerCase()
+            return (
+              <a key={r.key} className="item" href={r.explorer} target="_blank" rel="noreferrer">
+                <div>
+                  <div className="t">{incoming ? `From ${short(r.payer)}` : r.merchantName ?? short(r.merchant)}</div>
+                  <div className="sub">{ago(r.paidAt)} · {r.kind === "p2p" ? "person" : "merchant QR"} · receipt on Arkiv</div>
+                </div>
+                <div className="amt" style={incoming ? { color: "var(--ok)" } : undefined}>{incoming ? "+" : "−"}{usdt(r.amount)}</div>
+              </a>
+            )
+          })}
         </div>
       </div>
 

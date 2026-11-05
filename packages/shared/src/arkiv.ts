@@ -4,7 +4,7 @@
 //  - $createdAt is not filterable, so each schema carries its own indexed u64 unix-seconds timestamp.
 //  - Amounts are u256 USDT base units (6 decimals).
 //  - Everything is public: no PII in clear text; encrypted envelopes only in bytes columns.
-import { defineSchema, addr, u64, u256, str, key, bytes, i32 } from "@arkiv-network/sdk/schema"
+import { defineSchema, addr, u64, u256, str, key, bytes, i32, bool } from "@arkiv-network/sdk/schema"
 
 export const Receipt = defineSchema("whitepay.receipt", {
   merchant: addr().indexed(),
@@ -18,7 +18,8 @@ export const Receipt = defineSchema("whitepay.receipt", {
   wcBlock: u64(),
   refunded: u256().default(0n),
   requestRef: key().indexed().optional(),
-  merchantName: str().indexed().optional(), // ENS name, e.g. chai-shop.whitepay.eth
+  merchantName: str().indexed().optional(), // payee display/ENS name, e.g. chai-shop.whitepay.eth
+  kind: str().indexed().optional(), // "p2m" (merchant order) | "p2p" (person push); `merchant` = payee for p2p
   memo: bytes().optional(), // encrypted envelope only
 })
 
@@ -62,6 +63,19 @@ export const Daily = defineSchema("whitepay.daily", {
   txCount: i32(),
   refunds: u256().default(0n),
   updatedAt: u64(),
+})
+
+/** Public merchant directory (UPI "merchant whitelist"): who a payee is, shown before paying.
+ *  Written by the WhitePay backend after a merchant signs up and is registered on-chain. */
+export const MerchantProfile = defineSchema("whitepay.merchant", {
+  address: addr().indexed(),
+  label: str().indexed(), // ENS label, e.g. "chai-shop"
+  ensName: str().indexed(), // full name, e.g. "chai-shop.whitepay.eth"
+  displayName: str(),
+  category: str().optional(),
+  registeredAt: u64().indexed(),
+  verified: bool().default(false), // set after World ID verification of the owner
+  registryTx: str().optional(),
 })
 
 export const ARKIV_CHAIN_ID = 7794095

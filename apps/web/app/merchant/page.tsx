@@ -1,14 +1,112 @@
 "use client"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import QRCode from "qrcode"
-import { DEMO_MERCHANT } from "@whitepay/shared"
-import { TopBar } from "../components"
+import { parseUnits, toHex, type Hex } from "viem"
+import type { PrivateKeyAccount } from "viem/accounts"
+import { merchantSignupMessage, orderTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
+import { TopBar, UnlockSheet } from "../components"
+import { getWallet } from "@/lib/wallet"
 import { usdt, short, ago, mmss } from "@/lib/format"
 
-type Created = { entityKey: string; payUrl: string; amount: string; deadline: string; arkivTx: string }
-type Row = { key: string; payer: string; amount: string; paidAt: number; explorer: string }
+type Merchant = { address: string; label: string; ensName: string; displayName: string; category?: string; verified: boolean; active: boolean }
+type Created = { entityKey: string; payUrl: string; amount: string; deadline: string }
+type Row = { key: string; payer: string; amount: string; paidAt: number; explorer: string; kind: string }
 
-export default function Merchant() {
+export default function MerchantPage() {
+  const [wallet, setWallet] = useState<ReturnType<typeof getWallet> | undefined>(undefined)
+  const [merchant, setMerchant] = useState<Merchant | null | undefined>(undefined)
+  // the unlocked key is kept in memory for this session only (like a logged-in POS terminal)
+  const [account, setAccount] = useState<PrivateKeyAccount | null>(null)
+
+  useEffect(() => setWallet(getWallet()), [])
+  const loadMerchant = useCallback(async (address: string) => {
+    const d = await fetch(`/api/merchants?address=${address}`).then((r) => r.json()).catch(() => ({}))
+    setMerchant(d.merchant ?? null)
+  }, [])
+  useEffect(() => { if (wallet) void loadMerchant(wallet.address) }, [wallet, loadMerchant])
+
+  if (wallet === undefined || (wallet && merchant === undefined))
+    return <main className="shell"><TopBar /><div className="card row"><span className="spinner" /> Loading merchant profile…</div></main>
+  if (!wallet)
+    return (
+      <main className="shell">
+        <TopBar />
+        <div className="card stack"><h2>Merchant mode</h2><div className="sub">Create a WhitePay wallet first. It becomes your shop's payout and signing key.</div></div>
+        <a className="btn btn-primary" href="/">Create wallet</a>
+      </main>
+    )
+  if (!merchant) return <Signup address={wallet.address} account={account} setAccount={setAccount} onDone={() => loadMerchant(wallet.address)} />
+  return <Dashboard merchant={merchant} account={account} setAccount={setAccount} />
+}
+
+function Signup({ address, account, setAccount, onDone }: {
+  address: string; account: PrivateKeyAccount | null; setAccount: (a: PrivateKeyAccount) => void; onDone: () => void
+}) {
+  const [displayName, setDisplayName] = useState("")
+  const [label, setLabel] = useState("")
+  const [category, setCategory] = useState("")
+  const [avail, setAvail] = useState<{ available: boolean; reason?: string } | null>(null)
+  const [unlock, setUnlock] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState("")
+
+  useEffect(() => {
+    setAvail(null)
+    if (!label) return
+    if (!LABEL_RE.test(label)) { setAvail({ available: false, reason: "3-32 chars: a-z, 0-9, hyphen" }); return }
+    const t = setTimeout(() => fetch(`/api/merchants?label=${label}`).then((r) => r.json()).then(setAvail).catch(() => {}), 350)
+    return () => clearTimeout(t)
+  }, [label])
+
+  const submit = async (acct: PrivateKeyAccount) => {
+    setUnlock(false); setAccount(acct); setBusy(true); setErr("")
+    try {
+      const issuedAt = Math.floor(Date.now() / 1000)
+      const signature = await acct.signMessage({ message: merchantSignupMessage({ label, displayName: displayName.trim(), address: acct.address, issuedAt }) })
+      const r = await fetch("/api/merchants", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label, displayName: displayName.trim(), category: category.trim() || undefined, address: acct.address, issuedAt, signature }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error)
+      onDone()
+    } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
+  }
+
+  const ok = displayName.trim().length > 1 && avail?.available
+  return (
+    <main className="shell">
+      <TopBar right={<a className="chip" href="/">Customer mode</a>} />
+      <div className="card stack">
+        <div style={{ fontSize: 22, fontWeight: 800 }}>Accept USDT payments</div>
+        <div className="sub">Your shop gets a WhitePay name and a QR. Customers pay with no gas; money lands in this wallet ({short(address)}) instantly.</div>
+      </div>
+      <div className="card stack">
+        <h2>Business name</h2>
+        <input className="input" placeholder="Chai Point, Bandra" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={60} />
+        <h2>Your handle</h2>
+        <div className="row" style={{ gap: 6 }}>
+          <input className="input" placeholder="chai-point" value={label} autoCapitalize="none"
+            onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
+          <span className="sub" style={{ whiteSpace: "nowrap" }}>.whitepay.eth</span>
+        </div>
+        <div className="sub" style={{ minHeight: 18 }}>
+          {avail === null ? "" : avail.available ? <span style={{ color: "var(--ok)" }}>✓ {label}.whitepay.eth is available</span> : <span style={{ color: "var(--bad)" }}>{avail.reason === "taken" ? "Already taken" : avail.reason}</span>}
+        </div>
+        <h2>Category (optional)</h2>
+        <input className="input" placeholder="Food & beverage" value={category} onChange={(e) => setCategory(e.target.value)} maxLength={60} />
+      </div>
+      <button className="btn btn-primary btn-big" disabled={!ok || busy} onClick={() => (account ? submit(account) : setUnlock(true))}>
+        {busy ? <><span className="spinner" /> Registering on Whitechain…</> : "Register my shop"}
+      </button>
+      <div className="err">{err}</div>
+      <div className="sub" style={{ textAlign: "center" }}>New shops start unverified. Verify with World ID to get the ✓ badge.</div>
+      {unlock && <UnlockSheet title="Sign shop registration" subtitle={`${label}.whitepay.eth`} onUnlocked={submit} onCancel={() => setUnlock(false)} />}
+    </main>
+  )
+}
+
+function Dashboard({ merchant, account, setAccount }: { merchant: Merchant; account: PrivateKeyAccount | null; setAccount: (a: PrivateKeyAccount | null) => void }) {
   const [amount, setAmount] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState("")
@@ -18,22 +116,36 @@ export default function Merchant() {
   const [paidTx, setPaidTx] = useState("")
   const [now, setNow] = useState(() => Date.now() / 1000)
   const [rows, setRows] = useState<Row[] | null>(null)
-  const [total, setTotal] = useState<string>("0")
+  const [total, setTotal] = useState("0")
+  const [unlock, setUnlock] = useState(false)
   const poll = useRef<ReturnType<typeof setInterval>>(undefined)
 
-  const loadReceipts = () =>
-    fetch(`/api/receipts?merchant=${DEMO_MERCHANT.address}`).then((r) => r.json()).then((d) => { setRows(d.rows ?? []); setTotal(d.total ?? "0") })
-
+  const loadReceipts = useCallback(() =>
+    fetch(`/api/receipts?merchant=${merchant.address}`).then((r) => r.json()).then((d) => { setRows(d.rows ?? []); setTotal(d.total ?? "0") }), [merchant.address])
   useEffect(() => {
     void loadReceipts()
     const t = setInterval(() => setNow(Date.now() / 1000), 500)
     return () => { clearInterval(t); clearInterval(poll.current) }
-  }, [])
+  }, [loadReceipts])
 
-  const create = async () => {
-    setBusy(true); setErr("")
+  const create = async (acct: PrivateKeyAccount) => {
+    setUnlock(false); setAccount(acct); setBusy(true); setErr("")
     try {
-      const r = await fetch("/api/requests", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ amount }) })
+      // the order is signed HERE, on the merchant's device (UPI "Reference ID")
+      const order: Order = {
+        merchant: acct.address,
+        amount: parseUnits(amount, 6),
+        orderId: toHex(crypto.getRandomValues(new Uint8Array(32))) as Hex,
+        deadline: BigInt(Math.floor(Date.now() / 1000) + REQUEST_TTL.p2mQr),
+      }
+      const merchantSig = await acct.signTypedData(orderTypedData(ROUTER_ADDRESS, order))
+      const r = await fetch("/api/requests", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          order: { merchant: order.merchant, amount: order.amount.toString(), orderId: order.orderId, deadline: order.deadline.toString() },
+          merchantSig,
+        }),
+      })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
       setReq(d); setStatus("pending"); setPaidTx("")
@@ -48,6 +160,7 @@ export default function Merchant() {
     } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
 
+  const validAmount = /^\d+(\.\d{1,6})?$/.test(amount) && Number(amount) > 0
   const left = req ? Number(req.deadline) - now : 0
 
   return (
@@ -55,10 +168,10 @@ export default function Merchant() {
       <TopBar right={<a className="chip" href="/">Customer mode</a>} />
       <div className="card row">
         <div>
-          <div style={{ fontWeight: 700 }}>{DEMO_MERCHANT.displayName}</div>
-          <div className="sub">{DEMO_MERCHANT.name}</div>
+          <div style={{ fontWeight: 700 }}>{merchant.displayName}</div>
+          <div className="sub">{merchant.ensName}</div>
         </div>
-        <span className="badge badge-ok">✓ Verified</span>
+        {merchant.verified ? <span className="badge badge-ok">✓ Verified</span> : <span className="badge badge-warn">Unverified</span>}
       </div>
 
       {!req || status !== "pending" ? (
@@ -74,10 +187,11 @@ export default function Merchant() {
           <h2>New payment request</h2>
           <input className="amount-input" inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} />
           <div className="sub" style={{ textAlign: "center" }}>USDT · QR valid for 5 minutes</div>
-          <button className="btn btn-primary btn-big" onClick={create} disabled={busy || !amount}>
-            {busy ? <><span className="spinner" /> Signing order & writing to Arkiv…</> : "Show QR"}
+          <button className="btn btn-primary btn-big" onClick={() => (account ? create(account) : setUnlock(true))} disabled={busy || !validAmount}>
+            {busy ? <><span className="spinner" /> Signing order & writing to Arkiv…</> : account ? "Show QR" : "Unlock & show QR"}
           </button>
           <div className="err">{err}</div>
+          {account && <button className="chip" style={{ alignSelf: "center" }} onClick={() => setAccount(null)}>Lock terminal</button>}
         </div>
       ) : (
         <div className="card stack" style={{ textAlign: "center" }}>
@@ -100,12 +214,13 @@ export default function Merchant() {
           {rows?.length === 0 && <div className="empty">No payments yet.</div>}
           {rows?.map((r) => (
             <a key={r.key} className="item" href={r.explorer} target="_blank" rel="noreferrer">
-              <div><div className="t">{short(r.payer)}</div><div className="sub">{ago(r.paidAt)}</div></div>
+              <div><div className="t">{short(r.payer)}</div><div className="sub">{ago(r.paidAt)} · {r.kind === "p2p" ? "direct" : "QR"}</div></div>
               <div className="amt" style={{ color: "var(--ok)" }}>+{usdt(r.amount)}</div>
             </a>
           ))}
         </div>
       </div>
+      {unlock && <UnlockSheet title="Unlock terminal" subtitle={`${amount} USDT request`} onUnlocked={create} onCancel={() => setUnlock(false)} />}
     </main>
   )
 }

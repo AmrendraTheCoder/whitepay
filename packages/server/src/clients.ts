@@ -16,6 +16,8 @@ const makeWc = () => {
     pub: createPublicClient({ chain: whitechainSepolia, transport }),
     relayer: createWalletClient({ chain: whitechainSepolia, transport, account: relayer }),
     relayerAddress: relayer.address,
+    /** MerchantRegistry owner: only used to register/verify merchants */
+    admin: () => createWalletClient({ chain: whitechainSepolia, transport, account: privateKeyToAccount(config.keys.admin()) }),
   }
 }
 /** Whitechain clients (lazy, so read-only callers don't need relayer keys loaded twice). */

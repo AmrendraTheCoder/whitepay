@@ -10,12 +10,14 @@ export async function GET(req: Request) {
   const u = new URL(req.url)
   const merchant = u.searchParams.get("merchant")
   const payer = u.searchParams.get("payer")
-  if ((!merchant || !isAddress(merchant)) && (!payer || !isAddress(payer)))
-    return json({ error: "pass ?merchant= or ?payer=" }, { status: 400 })
+  const account = u.searchParams.get("account")
+  if ((!merchant || !isAddress(merchant)) && (!payer || !isAddress(payer)) && (!account || !isAddress(account)))
+    return json({ error: "pass ?merchant=, ?payer= or ?account=" }, { status: 400 })
   try {
     const page = await listReceipts({
       merchant: merchant && isAddress(merchant) ? (merchant as Address) : undefined,
       payer: payer && isAddress(payer) ? (payer as Address) : undefined,
+      party: account && isAddress(account) ? (account as Address) : undefined,
       limit: 20,
     })
     const rows = (page.entities as any[]).map((r) => ({
@@ -25,6 +27,7 @@ export async function GET(req: Request) {
       payer: r.payer.value,
       amount: BigInt(r.amount.value),
       status: r.status.value,
+      kind: r.kind?.value ?? "p2m",
       paidAt: Number(r.paidAt.value),
       txHash: r.wcTxHash.value,
       explorer: `${EXPLORER_URL}/tx/${r.wcTxHash.value}`,

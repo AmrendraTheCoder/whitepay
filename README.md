@@ -69,9 +69,16 @@ npm install && npm run dev        # http://localhost:3000 (reads the root .env)
 | `/` customer | Create a device wallet: a 6-digit PIN plus optional fingerprint/Face ID (WebAuthn passkey with PRF). The key is encrypted on the device; no seed phrase. Shows USDT balance and payment history **read from Arkiv** |
 | `/scan` | Camera QR scanner, or paste a payment link |
 | `/pay?req=<entityKey>` | Fetches the request from Arkiv and shows the 4 verification checks, merchant badge and expiry countdown. Fingerprint or PIN unlocks the key, the device re-hashes the order and signs EIP-3009, then the relayer settles. Expired or already-paid requests are refused |
-| `/merchant` | Enter an amount and get a QR valid for 5 min. The screen flips to "Received" by itself when paid, and lists receipts **from Arkiv** |
+| `/merchant` | **Sign up a shop**: business name and a handle (`<handle>.whitepay.eth`, with an availability check and reserved names). The phone signs the request, the shop is registered in `MerchantRegistry` on Whitechain, and its profile is published to Arkiv. Then: enter an amount and the **order is signed on the merchant's own device**, giving a QR valid for 5 min. The screen flips to "Received" live and lists receipts from Arkiv |
+| `/receive` | Personal QR (UPI "show my QR"), with an optional fixed amount, Share and Copy link |
+| `/send` | Pay a person by QR, handle or address. The signature binds recipient + memo (`payDirect`), with no gas |
 
-Tested end to end in the browser:
+Tested end to end in the browser with two separate wallets:
+- A wallet signed up as **Masala Corner** (`masala-corner`): registered on-chain, profile on Arkiv, shown as "Unverified".
+- The shop signed a 0.20 USDT QR on its device, and a second customer (0 WBT) paid it with the PIN. The shop screen showed "Received".
+- The customer scanned the shop's Receive link and sent 0.10 USDT P2P. Arkiv history shows both, tagged `p2m` and `p2p`.
+
+Earlier test with the demo merchant:
 - The merchant created a 0.50 USDT QR.
 - The customer wallet (0 WBT) paid it with the PIN.
 - The merchant screen updated live.

@@ -10,7 +10,7 @@ import { usdt, initials, mmss } from "@/lib/format"
 
 type Check = { label: string; detail: string }
 type ReqResp =
-  | { state: "pending"; verifiedMerchant: boolean; checks: Check[]; request: any; order: Record<keyof Order, string>; digest: Hex }
+  | { state: "pending"; verifiedMerchant: boolean; merchantDisplayName?: string; checks: Check[]; request: any; order: Record<keyof Order, string>; digest: Hex }
   | { state: "paid"; request: any; receipt?: { explorer: string } }
   | { state: "depleted" | "invalid" | "error"; reason: string; request?: any }
 
@@ -140,8 +140,9 @@ function Pay() {
       <TopBar right={<a className="chip" href="/scan">Cancel</a>} />
       <div className="card">
         <div className="payee">
-          <div className="avatar">{initials(req.merchantName)}</div>
-          <div className="name">{req.merchantName}</div>
+          <div className="avatar">{initials(pending?.merchantDisplayName ?? req.merchantName)}</div>
+          <div className="name">{pending?.merchantDisplayName ?? req.merchantName}</div>
+          {pending?.merchantDisplayName && <div className="sub">{req.merchantName}</div>}
           <div style={{ marginTop: 6 }}>
             {pending?.verifiedMerchant ? <span className="badge badge-ok">✓ Verified merchant</span> : <span className="badge badge-warn">Unverified merchant</span>}
           </div>

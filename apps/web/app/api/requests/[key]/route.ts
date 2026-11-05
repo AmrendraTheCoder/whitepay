@@ -1,7 +1,7 @@
 // Payer: what the app calls after scanning. Fetches the Arkiv entity and runs the 4 checks.
 // Merchant: polls the same endpoint for live status (pending -> paid | depleted).
 import { isHex, type Hex } from "viem"
-import { fetchRequest, verifyRequest, getReceipt, arkiv } from "@whitepay/server"
+import { fetchRequest, verifyRequest, getReceipt, getMerchantByAddress, arkiv } from "@whitepay/server"
 import { EXPLORER_URL } from "@whitepay/shared"
 import { json, errorMessage } from "@/lib/json"
 
@@ -23,11 +23,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string }>
       })
     }
 
-    const v = await verifyRequest(view)
+    const [v, profile] = await Promise.all([verifyRequest(view), getMerchantByAddress(view.merchant)])
     if (!v.ok) return json({ state: "invalid", reason: v.reason, request: publicView(view) })
     return json({
       state: "pending",
       verifiedMerchant: v.verifiedMerchant,
+      merchantDisplayName: profile?.displayName,
       checks: [
         { label: "Created by WhitePay", detail: `Arkiv owner ${short(arkiv().owner)}` },
         { label: "Amount untampered", detail: "fields match the signed order" },

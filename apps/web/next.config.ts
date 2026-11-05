@@ -10,5 +10,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@whitepay/shared", "@whitepay/server"],
   serverExternalPackages: ["@arkiv-network/sdk"],
   outputFileTracingRoot: path.resolve(__dirname, "../.."),
+  // dev only: allow a second origin (separate test wallet) and phones on the LAN
+  allowedDevOrigins: ["127.0.0.1", "*.local", "192.168.*.*", "10.*.*.*"],
 }
 export default nextConfig

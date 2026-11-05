@@ -1,7 +1,7 @@
 // Payment-request lifecycle on Arkiv: create (pending, TTL) -> verify (payer side) -> settle (paid) | expire (depleted).
 import { ExpirationTime, NoEntityFoundError } from "@arkiv-network/sdk"
 import { addr, u64, key } from "@arkiv-network/sdk/schema"
-import { and, eq, desc, gte } from "@arkiv-network/sdk/query"
+import { and, or, eq, desc, gte } from "@arkiv-network/sdk/query"
 import { getAddress, hexToBytes, bytesToHex, recoverTypedDataAddress, type Address, type Hex } from "viem"
 import { PayRequest, Receipt } from "@whitepay/shared/arkiv"
 import {
@@ -37,10 +37,25 @@ export async function createPaymentRequest(p: {
   ttlSeconds?: number
   payer?: Address
   note?: string
+  /** Order already signed on the merchant's own device (non-custodial). Verified against the registry. */
+  signed?: { order: Order; merchantSig: Hex }
 }): Promise<CreatedRequest> {
   const kind = p.kind ?? "p2m_qr"
-  const ttl = Math.min(Math.max(p.ttlSeconds ?? REQUEST_TTL.p2mQr, REQUEST_TTL.min), REQUEST_TTL.invoiceMax)
-  const { order, digest, merchantSig } = await signOrder({ merchant: p.merchant, amount: p.amount, ttlSeconds: ttl })
+  let ttl = Math.min(Math.max(p.ttlSeconds ?? REQUEST_TTL.p2mQr, REQUEST_TTL.min), REQUEST_TTL.invoiceMax)
+  let order: Order, digest: Hex, merchantSig: Hex
+  if (p.signed) {
+    order = p.signed.order
+    merchantSig = p.signed.merchantSig
+    digest = orderDigest(order)
+    const m = await wc().pub.readContract({ address: config.registry, abi: REGISTRY_ABI, functionName: "get", args: [order.merchant] })
+    if (!m.active) throw new Error("merchant is not registered/active")
+    const signer = await recoverTypedDataAddress({ ...orderTypedData(config.router, order), signature: merchantSig })
+    if (signer.toLowerCase() !== m.signer.toLowerCase()) throw new Error("order not signed by the merchant's registered key")
+    ttl = Number(order.deadline) - now()
+    if (ttl < REQUEST_TTL.min || ttl > REQUEST_TTL.invoiceMax + 30) throw new Error("order deadline must be 1-30 minutes from now")
+  } else {
+    ;({ order, digest, merchantSig } = await signOrder({ merchant: p.merchant, amount: p.amount, ttlSeconds: ttl }))
+  }
 
   const { entityKey, txHash, expiresAt } = await arkiv().writer.createEntity(
     PayRequest,
@@ -156,6 +171,7 @@ export async function settleOnArkiv(p: {
   paymentId: Hex
   txHash: Hex
   block: bigint
+  kind?: "p2m" | "p2p"
 }): Promise<{ receiptKey: Hex; arkivTx: Hex }> {
   const a = arkiv()
   // idempotency: never write two receipts for the same chain tx
@@ -180,6 +196,7 @@ export async function settleOnArkiv(p: {
     wcBlock: u64(p.block),
     ...(p.request ? { requestRef: key(p.request.entityKey) } : {}),
     ...(p.merchantName ? { merchantName: p.merchantName } : {}),
+    kind: p.kind ?? "p2m",
   }
 
   if (p.request) {
@@ -209,15 +226,16 @@ export async function settleOnArkiv(p: {
 }
 
 /** Merchant dashboard / customer history reads (user-visible Arkiv reads). */
-export async function listReceipts(p: { merchant?: Address; payer?: Address; sinceSeconds?: number; limit?: number }) {
+export async function listReceipts(p: { merchant?: Address; payer?: Address; party?: Address; sinceSeconds?: number; limit?: number }) {
   const a = arkiv()
   const conds = [
+    ...(p.party ? [or(eq("merchant", addr(p.party)), eq("payer", addr(p.party)))] : []),
     ...(p.merchant ? [eq("merchant", addr(p.merchant))] : []),
     ...(p.payer ? [eq("payer", addr(p.payer))] : []),
     ...(p.sinceSeconds ? [gte("paidAt", u64(BigInt(now() - p.sinceSeconds)))] : []),
   ]
   const q = a.pub
-    .select({ $key: true, merchant: true, payer: true, amount: true, status: true, paidAt: true, wcTxHash: true, merchantName: true })
+    .select({ $key: true, merchant: true, payer: true, amount: true, status: true, paidAt: true, wcTxHash: true, merchantName: true, kind: true })
     .from(Receipt)
     .ownedBy(a.owner)
   return (conds.length ? q.where(and(...conds)) : q).orderBy(desc("paidAt")).limit(p.limit ?? 20).withCount().fetch()

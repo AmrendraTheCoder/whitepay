@@ -18,6 +18,8 @@ export const config = {
   arkivAccessKey: process.env.ARKIV_ACCESS_KEY ?? "",
   keys: {
     relayer: () => pk("RELAYER_PKS"),
+    /** registry admin (registers merchants); holds WBT for gas */
+    admin: () => pk("DEPLOYER_PK"),
     orderSigner: () => pk("ORDER_SIGNER_PK"),
     arkivWriter: () => pk("ARKIV_WRITER_PK"),
   },
@@ -25,4 +27,5 @@ export const config = {
   maxGasPrice: 50_000_000_000n, // 50 gwei; Whitechain min base fee is 5 gwei
   explorer: EXPLORER_URL,
   arkivExplorer: "https://rabdi.explorer.arkiv.network",
+  ensParent: process.env.ENS_PARENT || "whitepay.eth",
 }

@@ -1,4 +1,4 @@
-import { defineChain, type Address, type Hex } from "viem"
+import { defineChain, keccak256, encodeAbiParameters, toBytes, type Address, type Hex } from "viem"
 
 // ---------------------------------------------------------------- chains
 // Verified 2026-11-05: docs.whitechain.io/learn/network/testnet.md
@@ -142,6 +142,11 @@ export const ROUTER_ABI = [
 ] as const
 
 export const REGISTRY_ABI = [
+  { type: "function", name: "register", stateMutability: "nonpayable",
+    inputs: [{ name: "merchant", type: "address" }, { name: "payout", type: "address" }, { name: "signer", type: "address" }, { name: "ensNode", type: "bytes32" }],
+    outputs: [] },
+  { type: "function", name: "setStatus", stateMutability: "nonpayable",
+    inputs: [{ name: "merchant", type: "address" }, { name: "active", type: "bool" }, { name: "verified", type: "bool" }], outputs: [] },
   { type: "function", name: "get", stateMutability: "view",
     inputs: [{ name: "merchant", type: "address" }],
     outputs: [{ type: "tuple", components: [
@@ -194,3 +199,28 @@ export const DEMO_MERCHANT = {
   displayName: "Chai Shop",
 } as const
 export const EXPLORER_URL = "https://explorer.testnet.whitechain.io"
+
+// ------------------------------------------------------------ P2P helpers
+/** Mirrors PaymentRouter.directNonce: keccak256(abi.encode(DIRECT_TAG, chainid, router, to, memo)). */
+export const directNonce = (to: Address, memo: Hex): Hex =>
+  keccak256(
+    encodeAbiParameters(
+      [{ type: "bytes32" }, { type: "uint256" }, { type: "address" }, { type: "address" }, { type: "bytes32" }],
+      [keccak256(toBytes("WHITEPAY_DIRECT")), BigInt(WHITECHAIN_CHAIN_ID), ROUTER_ADDRESS, to, memo],
+    ),
+  )
+
+/** Link encoded in a personal "Receive" QR. */
+export const receiveUrl = (origin: string, p: { to: Address; name?: string; amount?: string }) => {
+  const u = new URL("/send", origin)
+  u.searchParams.set("to", p.to)
+  if (p.name) u.searchParams.set("name", p.name)
+  if (p.amount) u.searchParams.set("amount", p.amount)
+  return u.toString()
+}
+
+/** Merchant registration message the merchant's device signs (proves control of the address). */
+export const merchantSignupMessage = (p: { label: string; displayName: string; address: Address; issuedAt: number }) =>
+  `WhitePay merchant sign-up\nhandle: ${p.label}\nname: ${p.displayName}\naddress: ${p.address}\nissued: ${p.issuedAt}`
+
+export const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$/
