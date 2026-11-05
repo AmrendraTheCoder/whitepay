@@ -9,7 +9,7 @@ import { and, eq } from "@arkiv-network/sdk/query"
 import { signRequest } from "@worldcoin/idkit/signing"
 import { hashSignal } from "@worldcoin/idkit/hashing"
 import { getAddress, verifyMessage, type Address, type Hex } from "viem"
-import { WorldClaim, MerchantProfile } from "@whitepay/shared/arkiv"
+import { WorldClaim, MerchantProfile, PersonProfile } from "@whitepay/shared/arkiv"
 import { REGISTRY_ABI, stepUpSignal, nameClaimMessage } from "@whitepay/shared"
 import { arkiv, wc } from "./clients"
 import { config } from "./config"
@@ -100,7 +100,7 @@ async function claimFor(nullifier: string) {
 }
 
 /** Merchant owner proves they are a unique human -> shop gets the verified badge (registry + Arkiv + ENS). */
-export async function verifyMerchantHuman(merchant: Address, result: IDKitResultLike) {
+export async function verifyMerchantHuman(merchant: Address, result: IDKitResultLike, defer: Defer = runNow) {
   merchant = getAddress(merchant)
   const { nullifier } = await verifyProof(result, WORLD_ACTIONS.shop, merchant)
 
@@ -133,20 +133,45 @@ export async function verifyMerchantHuman(merchant: Address, result: IDKitResult
   if (pk) await a.writer.patchEntity(MerchantProfile, pk, { set: { verified: true } }, { gas: 1_000_000n }).catch(() => {})
   const ensName = (prof.entities[0] as any)?.ensName?.value as string | undefined
   if (ensName && process.env.ENS_RESOLVER) {
-    const ens: any = await import("./ens").catch(() => null)
-    await ens?.setText?.(ensName, "verified", "true").catch?.(() => {})
+    defer(async () => {
+      const ens: any = await import("./ens").catch(() => null)
+      await ens?.setText?.(ensName, "verified", "true").catch?.(() => {})
+    })
   }
   return { verified: true, registryTx }
 }
 
 /** Personal ENS name (UPI VPA): one name per human. Requires a wallet signature AND a World ID proof
  *  bound to the same wallet; the nullifier is recorded on Arkiv so the human can't claim twice. */
-export async function claimPersonName(p: { label: string; address: Address; issuedAt: number; signature: Hex; result: IDKitResultLike }) {
+/** Schedules slow work (ENS txs ~25 s) after the HTTP response; Next passes `after`. */
+export type Defer = (task: () => Promise<unknown>) => void
+const runNow: Defer = (t) => { void t() }
+
+export async function getPersonByAddress(address: Address) {
+  const a = arkiv()
+  const page = await a.pub
+    .select({ $key: true, label: true, ensName: true, ensIssued: true })
+    .from(PersonProfile).ownedBy(a.owner).where(eq("address", addr(getAddress(address)))).limit(1).fetch()
+  const e = page.entities[0] as any
+  return e ? { key: e.$key as Hex, label: e.label.value as string, ensName: e.ensName.value as string, ensIssued: !!e.ensIssued?.value } : null
+}
+
+/** Personal ENS name (UPI VPA): one name per human. Requires a wallet signature AND a World ID proof
+ *  bound to the same wallet. Responds as soon as the proof is verified and recorded on Arkiv
+ *  (a few seconds, so World's widget doesn't time out); the ENSv2 subname is issued right after. */
+export async function claimPersonName(
+  p: { label: string; address: Address; issuedAt: number; signature: Hex; result: IDKitResultLike },
+  defer: Defer = runNow,
+) {
   const address = getAddress(p.address)
   const label = p.label.trim().toLowerCase()
   if (Math.abs(Date.now() / 1000 - p.issuedAt) > 600) throw new Error("Claim expired, try again")
   if (!(await verifyMessage({ address, message: nameClaimMessage({ label, address, issuedAt: p.issuedAt }), signature: p.signature })))
     throw new Error("Signature does not match the wallet")
+
+  const existing = await getPersonByAddress(address)
+  if (existing) return { name: existing.ensName, pending: !existing.ensIssued, already: true }
+
   const ens: any = await import("./ens")
   const check = await ens.isLabelAvailable(label)
   if (!check.available) throw new Error(`${check.name}: ${check.reason}`)
@@ -154,22 +179,37 @@ export async function claimPersonName(p: { label: string; address: Address; issu
   const { nullifier } = await verifyProof(p.result, WORLD_ACTIONS.claim, address)
   const a = arkiv()
   const prior = await a.pub
-    .select({ $key: true, address: true, purpose: true })
-    .from(WorldClaim)
-    .ownedBy(a.owner)
+    .select({ $key: true, address: true })
+    .from(WorldClaim).ownedBy(a.owner)
     .where(and(eq("action", WORLD_ACTIONS.claim), eq("nullifier", nullifier), eq("purpose", "name-claim")))
-    .limit(1)
-    .fetch()
-  if (prior.entities.length) throw new Error("This person already claimed a WhitePay name (one name per human)")
+    .limit(1).fetch()
+  const priorAddr = (prior.entities[0] as any)?.address?.value as string | undefined
+  if (priorAddr && getAddress(priorAddr) !== address) throw new Error("This person already claimed a WhitePay name with another wallet (one name per human)")
 
-  const issued = await ens.issueSubname({ label, owner: address, whitechainAddress: address, text: { kind: "person", verified: "true" } })
-  await a.writer.createEntity(
-    WorldClaim,
-    { action: WORLD_ACTIONS.claim, nullifier, address: addr(address), purpose: "name-claim", verifiedAt: u64(BigInt(Math.floor(Date.now() / 1000))) },
-    { expiration: ExpirationTime.max() },
-    { gas: 1_500_000n },
+  // record the claim + directory entry in ONE Arkiv batch (fast, ~2 s)
+  const now = u64(BigInt(Math.floor(Date.now() / 1000)))
+  const ensName = check.name as string
+  const res = await a.writer.executeBatch(
+    {
+      creates: [
+        ...(priorAddr ? [] : [{ schema: WorldClaim, values: { action: WORLD_ACTIONS.claim, nullifier, address: addr(address), purpose: "name-claim", verifiedAt: now }, expiration: ExpirationTime.max() }]),
+        { schema: PersonProfile, values: { address: addr(address), label, ensName, registeredAt: now, ensIssued: false }, expiration: ExpirationTime.max() },
+      ],
+    } as any,
+    { gas: 2_500_000n },
   )
-  return { name: issued.name as string, txHashes: issued.txHashes as Hex[] }
+  const profileKey = res.createdEntities[res.createdEntities.length - 1] as Hex
+
+  // slow part after the response: ENSv2 subname (2 Sepolia txs), then mark issued
+  defer(async () => {
+    try {
+      await ens.issueSubname({ label, owner: address, whitechainAddress: address, text: { kind: "person", verified: "true" } })
+      await a.writer.patchEntity(PersonProfile, profileKey, { set: { ensIssued: true } }, { gas: 1_000_000n })
+    } catch (e) {
+      console.error("[world] ENS issue failed for", ensName, (e as Error).message)
+    }
+  })
+  return { name: ensName, pending: true }
 }
 
 // ---------------------------------------------------------------- step-up

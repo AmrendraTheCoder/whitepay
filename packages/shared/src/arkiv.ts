@@ -88,6 +88,15 @@ export const WorldClaim = defineSchema("whitepay.worldclaim", {
   verifiedAt: u64().indexed(),
 })
 
+/** Public directory of personal WhitePay names (address -> name), so an address shows its name. */
+export const PersonProfile = defineSchema("whitepay.person", {
+  address: addr().indexed(),
+  label: str().indexed(),
+  ensName: str().indexed(),
+  registeredAt: u64().indexed(),
+  ensIssued: bool().default(false), // true once the ENSv2 subname tx confirmed
+})
+
 export const ARKIV_CHAIN_ID = 7794095
 export const ARKIV_RPC = "https://rpc.rabdi.db-chain.testnet.arkiv.network"
 export const ARKIV_EXPLORER = "https://rabdi.explorer.arkiv.network"

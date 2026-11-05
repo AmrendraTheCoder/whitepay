@@ -1,6 +1,7 @@
 // Backend verification of World ID proofs. The client's "success" is never trusted on its own.
 import { isAddress, isHex, type Address, type Hex } from "viem"
 import { verifyMerchantHuman, verifyStepUp } from "@whitepay/server"
+import { after } from "next/server"
 import { json, errorMessage } from "@/lib/json"
 
 export const runtime = "nodejs"
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
   }
   if (!isAddress(b.address) || !b.result) return json({ error: "malformed request" }, { status: 400 })
   try {
-    if (b.purpose === "merchant") return json(await verifyMerchantHuman(b.address as Address, b.result))
+    if (b.purpose === "merchant") return json(await verifyMerchantHuman(b.address as Address, b.result, after))
     if (b.purpose === "step-up") {
       if (!isHex(b.paymentRef)) return json({ error: "missing paymentRef" }, { status: 400 })
       return json(await verifyStepUp(b.address as Address, b.paymentRef as Hex, b.result))

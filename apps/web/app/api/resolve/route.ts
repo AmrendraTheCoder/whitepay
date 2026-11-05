@@ -1,7 +1,7 @@
 // Resolve who a payee is: an address, a merchant handle, or an ENS name (*.whitepay.eth).
 // Order: ENS (if configured) -> Arkiv merchant directory -> plain address.
 import { isAddress, getAddress, type Address } from "viem"
-import { getMerchantByAddress, getMerchantByLabel, config } from "@whitepay/server"
+import { getMerchantByAddress, getMerchantByLabel, getPersonByAddress, config } from "@whitepay/server"
 import { json, errorMessage } from "@/lib/json"
 
 export const runtime = "nodejs"
@@ -13,7 +13,10 @@ export async function GET(req: Request) {
     if (isAddress(q)) {
       const address = getAddress(q)
       const m = await getMerchantByAddress(address)
-      return json({ address, name: m?.ensName, displayName: m?.displayName, kind: m ? "merchant" : "person", source: m ? "arkiv" : "address" })
+      if (m) return json({ address, name: m.ensName, displayName: m.displayName, kind: "merchant", source: "arkiv" })
+      const p = await getPersonByAddress(address)
+      if (p) return json({ address, name: p.ensName, kind: "person", source: "arkiv", ensPending: !p.ensIssued })
+      return json({ address, kind: "person", source: "address" })
     }
     const label = q.endsWith(`.${config.ensParent}`) ? q.slice(0, -(config.ensParent.length + 1)) : q.replace(/\.eth$/, "")
 
