@@ -1,0 +1,19 @@
+{
+  "name": "whitepay",
+  "private": true,
+  "version": "0.1.0",
+  "description": "UPI-style USDT payments on Whitechain: pay a name, gasless, with ENS, Arkiv and World ID",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "contracts:build": "cd contracts && forge build",
+    "contracts:test": "cd contracts && forge test -vv",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
