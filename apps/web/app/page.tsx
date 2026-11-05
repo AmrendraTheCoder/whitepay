@@ -1,7 +1,7 @@
 "use client"
 import { useMemo } from "react"
 import { Onboard } from "./onboard"
-import { BottomNav, ScanFab, Icon, avatarColor, initial, prettyName, useWalletData } from "./ui"
+import { BottomNav, ScanFab, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge } from "./ui"
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 
@@ -13,7 +13,7 @@ export default function Home() {
 }
 
 // ------------------------------------------------------------ home (GPay)
-function WalletHome({ wallet, bal, rows, name }: ReturnType<typeof useWalletData> & { wallet: NonNullable<ReturnType<typeof useWalletData>["wallet"]> }) {
+function WalletHome({ wallet, bal, rows, name, account, displayName }: ReturnType<typeof useWalletData> & { wallet: NonNullable<ReturnType<typeof useWalletData>["wallet"]> }) {
   const { hidden, toggle } = useHideBalance()
   const me = wallet.address.toLowerCase()
   const people = useMemo(() => {
@@ -37,7 +37,7 @@ function WalletHome({ wallet, bal, rows, name }: ReturnType<typeof useWalletData
 
       <div className="hero">
         <div className="hero-top">
-          <div className="label">USDT balance · Whitechain</div>
+          <div className="label" style={{ display: "flex", gap: 8, alignItems: "center" }}>USDT balance <AccountBadge account={account} /></div>
           <button className="eye" onClick={toggle} aria-label={hidden ? "Show balance" : "Hide balance"}>{hidden ? Icon.eyeOff() : Icon.eye()}</button>
         </div>
         <div className="big">
@@ -46,10 +46,10 @@ function WalletHome({ wallet, bal, rows, name }: ReturnType<typeof useWalletData
         </div>
         <div className="meta">
           <span className="pill-lime">0 gas</span>
-          {name === undefined ? <span className="skel" style={{ width: 170, height: 16 }} /> : <span>{name ?? "No WhitePay name yet"}</span>}
+          {name === undefined ? <span className="skel" style={{ width: 170, height: 16 }} /> : <span>{account === "business" && displayName ? `${displayName} · ${name}` : name ?? "No WhitePay name yet"}</span>}
         </div>
-        <a className="cta" href={name ? "/money" : "/you#claim"}>
-          {name === undefined ? <span className="skel" style={{ width: 120, height: 18 }} /> : name ? "View money" : "Claim your name"} <span className="circle">{Icon.arrow()}</span>
+        <a className="cta" href={account === "business" ? "/merchant" : name ? "/money" : "/you#claim"}>
+          {name === undefined ? <span className="skel" style={{ width: 120, height: 18 }} /> : account === "business" ? "Open shop terminal" : name ? "View money" : "Claim your name"} <span className="circle">{Icon.arrow()}</span>
         </a>
       </div>
 
@@ -90,6 +90,7 @@ function WalletHome({ wallet, bal, rows, name }: ReturnType<typeof useWalletData
       <div className="menu-list">
         <a className="menu-row" href="/transactions"><span className="ic">{Icon.history()}</span>See transaction history<span className="chev">{Icon.chev()}</span></a>
         <a className="menu-row" href="/money"><span className="ic">{Icon.balance()}</span>Check USDT balance<span className="chev">{Icon.chev()}</span></a>
+        <a className="menu-row" href="/money#add"><span className="ic">{Icon.bolt(24)}</span>Add money<span className="chev">{Icon.chev()}</span></a>
         <a className="menu-row" href="/receive"><span className="ic">{Icon.receive(24)}</span>Your QR code<span className="chev">{Icon.chev()}</span></a>
       </div>
 

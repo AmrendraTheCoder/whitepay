@@ -26,6 +26,13 @@ export default function MerchantPage() {
     setMerchant(d.merchant ?? null)
   }, [])
   useEffect(() => { if (wallet) void loadMerchant(wallet.address) }, [wallet, loadMerchant])
+  // a personal name (ENS kind=person) means this is a personal wallet
+  const [personalName, setPersonalName] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (!wallet) return
+    fetch(`/api/resolve?q=${wallet.address}`).then((r) => r.json())
+      .then((d) => setPersonalName(d.kind !== "merchant" && d.name ? d.name : null)).catch(() => setPersonalName(null))
+  }, [wallet])
 
   if (wallet === undefined || (wallet && merchant === undefined))
     return <main className="shell with-nav"><TopBar /><div className="card row"><span className="spinner" /> Loading merchant profile…</div><BottomNav /></main>
@@ -36,6 +43,21 @@ export default function MerchantPage() {
         <div className="card stack"><h2>Merchant mode</h2><div className="sub">Create a WhitePay wallet first. It becomes your shop's payout and signing key.</div></div>
         <a className="btn btn-primary" href="/">Create wallet</a>
       <BottomNav /></main>
+    )
+  if (!merchant && personalName === undefined) return <main className="shell with-nav"><TopBar back={null} /><div className="card row"><span className="spinner" /> Checking account type…</div><BottomNav /></main>
+  if (!merchant && personalName)
+    return (
+      <main className="shell with-nav">
+        <TopBar back={null} right={<a className="chip" href="/">Personal</a>} />
+        <div className="card stack">
+          <span className="badge badge-brand" style={{ alignSelf: "flex-start" }}>Personal account</span>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>This wallet is personal</div>
+          <div className="sub">{personalName} is your personal WhitePay name. Shops use a separate <b>business wallet</b> so personal and shop money, names and history never mix, like Google Pay and Google Pay for Business.</div>
+          <a className="btn btn-primary btn-big" href="/add?type=business">Create a business wallet</a>
+          <div className="sub" style={{ textAlign: "center" }}>Already have one? Switch wallets in <a href="/you" style={{ color: "var(--brand-soft)", fontWeight: 700 }}>You</a>.</div>
+        </div>
+        <BottomNav />
+      </main>
     )
   if (!merchant) return <Signup address={wallet.address} account={account} setAccount={setAccount} onDone={() => loadMerchant(wallet.address)} />
   return <Dashboard merchant={merchant} account={account} setAccount={setAccount} onChange={() => loadMerchant(wallet.address)} />
@@ -181,7 +203,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
           <div style={{ fontWeight: 700 }}>Get the ✓ Verified badge</div>
           <div className="sub">Prove a real, unique person runs this shop with World ID (one verified shop per human). Customers see the badge before they pay.</div>
           <WorldVerify
-            action="ens-claim"
+            purpose="shop"
             signal={merchant.address}
             label="Verify with World ID"
             className="btn btn-ghost"

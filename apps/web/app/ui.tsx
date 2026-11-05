@@ -79,14 +79,26 @@ export function useWalletData() {
   const [bal, setBal] = useState<{ usdt: string; wbt: string } | null>(null)
   const [rows, setRows] = useState<Activity[] | null>(null)
   const [name, setName] = useState<string | null | undefined>(undefined)
+  /** personal = has a personal WhitePay name; business = registered shop; new = neither yet */
+  const [account, setAccount] = useState<"personal" | "business" | "new" | undefined>(undefined)
+  const [displayName, setDisplayName] = useState<string | undefined>(undefined)
   useEffect(() => setWallet(getWallet()), [])
   const reload = useCallback(() => {
     const w = getWallet()
     if (!w) return
     fetch(`/api/balance?address=${w.address}`).then((r) => r.json()).then((b) => !b.error && setBal(b)).catch(() => {})
     fetch(`/api/receipts?account=${w.address}`).then((r) => r.json()).then((d) => setRows(d.rows ?? [])).catch(() => setRows([]))
-    fetch(`/api/resolve?q=${w.address}`).then((r) => r.json()).then((d) => setName(d.name ?? null)).catch(() => setName(null))
+    fetch(`/api/resolve?q=${w.address}`).then((r) => r.json()).then((d) => {
+      setName(d.name ?? null)
+      setDisplayName(d.displayName)
+      setAccount(d.kind === "merchant" ? "business" : d.name ? "personal" : "new")
+    }).catch(() => { setName(null); setAccount("new") })
   }, [])
   useEffect(() => { if (wallet) reload() }, [wallet, reload])
-  return { wallet, setWallet, bal, rows, name, reload }
+  return { wallet, setWallet, bal, rows, name, account, displayName, reload }
 }
+
+export const AccountBadge = ({ account }: { account?: "personal" | "business" | "new" }) =>
+  account === undefined ? <span className="skel" style={{ width: 70, height: 20 }} />
+  : account === "business" ? <span className="badge badge-lime">Business</span>
+  : <span className="badge badge-brand">Personal</span>

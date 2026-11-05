@@ -184,7 +184,8 @@ function Pay() {
           <div style={{ fontWeight: 700 }}>Large payment: confirm you're human</div>
           <div className="sub">Payments above 100 USDT need a fresh World ID check, bound to this exact payment.</div>
           <WorldVerify
-            action="step-up"
+            purpose="pay"
+            paymentRef={stepUp.ref}
             signal={stepUpSignal(stepUp.payer as Hex, stepUp.ref)}
             label="Verify with World ID"
             verify={async (proof) => {

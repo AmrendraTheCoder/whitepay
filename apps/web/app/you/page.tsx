@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { BottomNav, Icon, avatarColor, prettyName, useWalletData } from "../ui"
+import { BottomNav, Icon, avatarColor, prettyName, useWalletData, AccountBadge } from "../ui"
 import { ClaimName } from "../claim-name"
 import { PinPad } from "../components"
 import {
@@ -11,14 +11,22 @@ import { short } from "@/lib/format"
 
 /** GPay "You": name, WhitePay ID (ENS, like a UPI ID), QR, wallets, appearance, security. */
 export default function You() {
-  const { wallet, name, reload } = useWalletData()
+  const { wallet, name, account, displayName, reload } = useWalletData()
+  const [types, setTypes] = useState<Record<string, string>>({})
   const { theme, setTheme } = useTheme()
   const [wallets, setWallets] = useState<WalletInfo[]>([])
   const [copied, setCopied] = useState(false)
   const [bioOk, setBioOk] = useState(false)
   const [askPin, setAskPin] = useState(false)
   const [msg, setMsg] = useState("")
-  useEffect(() => { passkeySupported().then(setBioOk); setWallets(listWallets()) }, [])
+  useEffect(() => {
+    passkeySupported().then(setBioOk)
+    const ws = listWallets()
+    setWallets(ws)
+    // label every wallet Personal / Business from the directory (ENS + Arkiv)
+    ws.forEach((w) => fetch(`/api/resolve?q=${w.address}`).then((r) => r.json()).then((d) =>
+      setTypes((t) => ({ ...t, [w.address]: d.kind === "merchant" ? `Business · ${d.displayName ?? d.name}` : d.name ? `Personal · ${d.name}` : "Personal · no name yet" }))).catch(() => {}))
+  }, [])
 
   if (wallet === undefined) return <main className="shell" />
   if (!wallet) return <main className="shell"><a className="btn btn-primary" href="/">Create your wallet</a></main>
@@ -31,8 +39,9 @@ export default function You() {
   return (
     <main className="shell with-nav">
       <div className="profile-hero">
-        <div className="nm">{name === undefined ? <span className="skel" style={{ width: 200, height: 34 }} /> : name ? prettyName(name) : wallet.label}</div>
-        <div className="id">WhitePay ID: {name === undefined ? <span className="skel" style={{ width: 160, height: 16 }} /> : <b>{name ?? "not claimed yet"}</b>}</div>
+        <div style={{ marginBottom: 8 }}><AccountBadge account={account} /></div>
+        <div className="nm">{name === undefined ? <span className="skel" style={{ width: 200, height: 34 }} /> : account === "business" && displayName ? displayName : name ? prettyName(name) : wallet.label}</div>
+        <div className="id">{account === "business" ? "Shop ID" : "WhitePay ID"}: {name === undefined ? <span className="skel" style={{ width: 160, height: 16 }} /> : <b>{name ?? "not claimed yet"}</b>}</div>
         <button className="addr chip" style={{ background: "rgba(255,255,255,.14)", border: 0, color: "#fff" }}
           onClick={() => { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1400) }}>
           {copied ? "Copied ✓" : `${short(wallet.address)} · ${wallet.kind === "injected" ? "browser wallet" : "this device"}`}
@@ -40,7 +49,18 @@ export default function You() {
         <a className="qrbtn" href="/receive" aria-label="My QR code">{Icon.receive(44)}</a>
       </div>
 
-      {name === null && <div id="claim"><ClaimName address={wallet.address} onClaimed={reload} /></div>}
+      {account === "new" && (
+        <>
+          <div id="claim"><ClaimName address={wallet.address} onClaimed={reload} /></div>
+          <div className="sub" style={{ textAlign: "center" }}>Running a shop? Use a <a href="/add?type=business" style={{ color: "var(--brand-soft)", fontWeight: 700 }}>separate business wallet</a>, like GPay for Business.</div>
+        </>
+      )}
+      {account === "business" && (
+        <a className="card row" href="/merchant">
+          <div><div style={{ fontWeight: 700 }}>Business account</div><div className="sub">Show QR, see payments, verify your shop with World ID</div></div>
+          <span className="chev">{Icon.chev()}</span>
+        </a>
+      )}
 
       <div className="section-title">Wallets</div>
       <div className="card" style={{ padding: "6px 14px" }}>
@@ -51,6 +71,7 @@ export default function You() {
               <span className="pic" style={{ background: avatarColor(w.address) }}>{w.kind === "injected" ? Icon.shield(22) : w.label.slice(-1)}</span>
               <div>
                 <div style={{ fontWeight: 700 }}>{w.label}</div>
+                <div className="sub">{types[w.address] ?? "…"}</div>
                 <div className="sub">{short(w.address)} · {w.kind === "injected" ? "MetaMask / browser" : w.hasPasskey ? "fingerprint + PIN" : "PIN"}</div>
               </div>
               <span className={`radio ${on ? "on" : ""}`} aria-label={on ? "Active" : "Switch"} />

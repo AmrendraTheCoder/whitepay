@@ -4,10 +4,20 @@
 import { useRef, useState } from "react"
 import { IDKitRequestWidget, proofOfHuman, type IDKitResult } from "@worldcoin/idkit"
 
-type Ctx = { action: string; app_id: `app_${string}`; environment: "staging" | "production"; rp_context: any }
+type Ctx = { action: string; action_description: string; app_id: `app_${string}`; environment: "staging" | "production"; rp_context: any }
+
+const ERRORS: Record<string, string> = {
+  nullifier_replayed: "This World ID has already been used for this (one per person). If it was you, refresh: your verification may already be recorded.",
+  max_verifications_reached: "This World ID has reached the limit for this action.",
+  user_rejected: "You declined the request in World App.",
+  verification_rejected: "World App rejected the verification.",
+  credential_unavailable: "Your World ID doesn't have the required credential yet.",
+  connection_failed: "Couldn't reach World App. Check your connection and try again.",
+}
 
 export function WorldVerify({
-  action,
+  purpose,
+  paymentRef,
   signal,
   label,
   verify,
@@ -15,7 +25,9 @@ export function WorldVerify({
   onDenied,
   className = "btn btn-primary",
 }: {
-  action: "ens-claim" | "step-up"
+  /** name = personal WhitePay name, shop = verified merchant, pay = step-up for one large payment */
+  purpose: "name" | "shop" | "pay"
+  paymentRef?: string
   signal: string
   label: string
   /** POST the proof to the backend; resolve with data on success, throw on denial */
@@ -34,7 +46,7 @@ export function WorldVerify({
   const start = async () => {
     setBusy(true)
     try {
-      const r = await fetch(`/api/world/context?action=${action}`)
+      const r = await fetch(`/api/world/context?purpose=${purpose}${paymentRef ? `&ref=${paymentRef}` : ""}`)
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
       backendData.current = null
@@ -62,6 +74,7 @@ export function WorldVerify({
           }}
           app_id={ctx.app_id}
           action={ctx.action}
+          action_description={ctx.action_description}
           rp_context={ctx.rp_context}
           environment={ctx.environment}
           allow_legacy_proofs={false}
@@ -77,7 +90,7 @@ export function WorldVerify({
           }}
           onSuccess={() => onVerified(backendData.current)}
           onError={(code) => onDenied(
-            backendError.current ?? (code === "user_rejected" ? "You declined the World ID request" : `World ID error: ${code}`),
+            backendError.current ?? ERRORS[String(code)] ?? `World ID error: ${code}`,
           )}
         />
       )}

@@ -14,8 +14,21 @@ import { REGISTRY_ABI, stepUpSignal, nameClaimMessage } from "@whitepay/shared"
 import { arkiv, wc } from "./clients"
 import { config } from "./config"
 
-export const WORLD_ACTIONS = { claim: "ens-claim", stepUp: "step-up" } as const
-type Action = (typeof WORLD_ACTIONS)[keyof typeof WORLD_ACTIONS]
+// World ID 4 uniqueness proofs are ONE-TIME per action (a second proof by the same human is
+// rejected as nullifier_replayed). So each purpose gets its own action, and World itself enforces
+// "one personal name per human" / "one verified shop per human". Step-up uses a fresh action per
+// payment (derived from the payment reference), so every large payment gets a new human check.
+export const WORLD_ACTIONS = {
+  claim: "whitepay-name",
+  shop: "whitepay-shop",
+  stepUp: (paymentRef: string) => `whitepay-pay-${paymentRef.toLowerCase().replace(/^0x/, "").slice(0, 16)}`,
+} as const
+type Action = string
+export const ACTION_DESCRIPTIONS: Record<string, string> = {
+  "whitepay-name": "Claim your WhitePay name (one per person)",
+  "whitepay-shop": "Verify that a real person runs this WhitePay shop",
+}
+export const describeAction = (a: string) => ACTION_DESCRIPTIONS[a] ?? "Confirm this WhitePay payment"
 
 const env = () => {
   const appId = process.env.WORLD_APP_ID
@@ -35,6 +48,8 @@ export function rpContext(action: Action) {
   const e = env()
   const s = signRequest({ signingKeyHex: e.key, action, ttl: 300 })
   return {
+    action,
+    action_description: describeAction(action),
     app_id: e.appId as `app_${string}`,
     environment: e.environment,
     rp_context: { rp_id: e.rpId, nonce: s.nonce, created_at: s.createdAt, expires_at: s.expiresAt, signature: s.sig },
@@ -75,7 +90,7 @@ async function claimFor(nullifier: string) {
     .select({ $key: true, address: true })
     .from(WorldClaim)
     .ownedBy(a.owner)
-    .where(and(eq("action", WORLD_ACTIONS.claim), eq("nullifier", nullifier), eq("purpose", "merchant-verify")))
+    .where(and(eq("action", WORLD_ACTIONS.shop), eq("nullifier", nullifier), eq("purpose", "merchant-verify")))
     .limit(1)
     .fetch()
   return page.entities[0] as { $key: Hex; address: { value: string } } | undefined
@@ -84,7 +99,7 @@ async function claimFor(nullifier: string) {
 /** Merchant owner proves they are a unique human -> shop gets the verified badge (registry + Arkiv + ENS). */
 export async function verifyMerchantHuman(merchant: Address, result: IDKitResultLike) {
   merchant = getAddress(merchant)
-  const { nullifier } = await verifyProof(result, WORLD_ACTIONS.claim, merchant)
+  const { nullifier } = await verifyProof(result, WORLD_ACTIONS.shop, merchant)
 
   const existing = await claimFor(nullifier)
   if (existing && getAddress(existing.address.value) !== merchant)
@@ -97,7 +112,7 @@ export async function verifyMerchantHuman(merchant: Address, result: IDKitResult
   if (!existing) {
     await a.writer.createEntity(
       WorldClaim,
-      { action: WORLD_ACTIONS.claim, nullifier, address: addr(merchant), purpose: "merchant-verify", verifiedAt: u64(BigInt(Math.floor(Date.now() / 1000))) },
+      { action: WORLD_ACTIONS.shop, nullifier, address: addr(merchant), purpose: "merchant-verify", verifiedAt: u64(BigInt(Math.floor(Date.now() / 1000))) },
       { expiration: ExpirationTime.max() },
       { gas: 1_500_000n },
     )
@@ -160,7 +175,7 @@ const sign = (msg: string) => createHmac("sha256", secret()).update(msg).digest(
 
 
 export async function verifyStepUp(payer: Address, paymentRef: Hex, result: IDKitResultLike) {
-  await verifyProof(result, WORLD_ACTIONS.stepUp, stepUpSignal(payer, paymentRef))
+  await verifyProof(result, WORLD_ACTIONS.stepUp(paymentRef), stepUpSignal(payer, paymentRef))
   const exp = Math.floor(Date.now() / 1000) + 300
   const body = `${stepUpSignal(payer, paymentRef)}:${exp}`
   return { token: `${exp}.${sign(body)}`, expiresAt: exp }
@@ -175,4 +190,20 @@ export function checkStepUpToken(token: string | undefined, payer: Address, paym
   const a = Buffer.from(mac, "hex")
   const b = Buffer.from(expected, "hex")
   return a.length === b.length && timingSafeEqual(a, b)
+}
+
+/** What this wallet has already proven with World ID (read from Arkiv + the on-chain registry). */
+export async function worldStatus(address: Address) {
+  address = getAddress(address)
+  const a = arkiv()
+  const [claims, m] = await Promise.all([
+    a.pub.select({ $key: true, purpose: true, verifiedAt: true }).from(WorldClaim).ownedBy(a.owner).where(eq("address", addr(address))).limit(10).fetch(),
+    wc().pub.readContract({ address: config.registry, abi: REGISTRY_ABI, functionName: "get", args: [address] }),
+  ])
+  const purposes = (claims.entities as any[]).map((e) => e.purpose?.value as string)
+  return {
+    nameVerified: purposes.includes("name-claim"),
+    shopRegistered: m.active,
+    shopVerified: m.active && m.verified,
+  }
 }

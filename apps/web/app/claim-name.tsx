@@ -43,7 +43,7 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
         <button className="btn btn-ghost" disabled={!avail?.available} onClick={() => setUnlock(true)}>1. Sign with fingerprint / PIN</button>
       ) : (
         <WorldVerify
-          action="ens-claim"
+          purpose="name"
           signal={address}
           label="2. Verify with World ID & claim"
           verify={async (proof) => {
