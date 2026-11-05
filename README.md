@@ -4,6 +4,8 @@
 
 > Built at ETHGlobal Mumbai (Nov 2026). Work in progress. See [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md).
 
+**Live demo: https://whitepay.vercel.app** (mobile-first; open on a phone for the camera scanner and fingerprint)
+
 ## Live on Whitechain Sepolia (chain 1874)
 
 | | Address |
@@ -117,7 +119,8 @@ cp .env.example .env              # or: ./scripts/gen-wallets.sh (writes fresh k
 
 ## Current limitations
 - One payment per onchain transaction (hundreds of TPS on one L2). UPI-scale volume would need batching or net settlement.
-- The relayer is centralized and holds only WBT; anti-drain policy (rate limits, gas caps) is in progress.
+- The relayer is centralized and holds only WBT. Its anti-drain limits (rate limit, daily cap, gas-price cap, simulate-before-send, allowlisted router) run in memory, so on Vercel serverless they reset per instance; production would use Redis.
+- World ID runs in the **staging** environment (simulator). Server keys for the testnet relayer, registry admin, ENS admin and Arkiv writer live in Vercel environment variables.
 - ENS names, Arkiv receipts, World ID verification and the customer app are not built yet.
 
 ## AI usage

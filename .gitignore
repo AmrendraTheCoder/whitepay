@@ -15,3 +15,4 @@ contracts/broadcast/*/31337/
 .claude/.cc-writes/
 *.recovery.lock
 *.tsbuildinfo
+.env*

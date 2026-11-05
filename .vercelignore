@@ -1,0 +1,13 @@
+# never upload secrets; server env comes from Vercel project settings
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+# not needed for the web build
+contracts
+docs
+**/node_modules
+**/.next
+**/*.tsbuildinfo
+.claude
