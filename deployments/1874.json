@@ -39,6 +39,17 @@
       "tx": "0x1c9057fc24477b69f37e8da80b2c1e1bf80908a55a84e908139e07cac86c362f",
       "paymentId": "0x22de5f4e6314454e7d80c8e3bc842f6c3182c90a71ff3c432cc72e6bb191de03",
       "explorer": "https://explorer.testnet.whitechain.io/tx/0x1c9057fc24477b69f37e8da80b2c1e1bf80908a55a84e908139e07cac86c362f"
+    },
+    {
+      "note": "Full lifecycle: Arkiv request (5 min TTL) -> verified -> gasless payOrder -> Arkiv receipt + request=paid",
+      "tx": "0x355d8505a99317c41a2ec3156a9b578a217fb8772c27a974a2de6c728e8370cb",
+      "explorer": "https://explorer.testnet.whitechain.io/tx/0x355d8505a99317c41a2ec3156a9b578a217fb8772c27a974a2de6c728e8370cb",
+      "arkiv": {
+        "writer": "0x4D5910272479420d1383100b3986d5fc9d5D658F",
+        "request": "0x9eb6f2fc66b0135ab418fbd8c9ca792c20fb51d6b27b2831c60ed4481c8e405e",
+        "receipt": "0x75346a3d7fe9d743d2597d0e2123ef93c9ba9d7273aac05bba2de71112ef637b",
+        "createTx": "0x3d761caea883fd90fc251ff5bd310e90db93300c0813fe08b1b94e691dd85aea"
+      }
     }
   ]
 }

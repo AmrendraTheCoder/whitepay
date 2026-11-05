@@ -38,6 +38,28 @@ A regular payment rail can't give a cross-border merchant instant, final, progra
 node scripts/first-payment.mjs 1   # reproduces the flow above (needs .env)
 ```
 
+## Payment requests live on Arkiv (Rabdi testnet, chain 7794095)
+A payment in progress is a `whitepay.request` entity that lives for its TTL: 5 min for a merchant QR, 30 min max for invoices. It is either **completed** (patched to `paid` and linked to a `whitepay.receipt`) or **depleted** (it expires and vanishes). The same deadline is enforced on-chain.
+
+Before paying, the payer's app trusts the entity only if all four checks pass:
+1. `$owner` is the WhitePay writer.
+2. The fields re-hash to the signed order digest.
+3. The merchant signature matches the `MerchantRegistry` signer on Whitechain.
+4. The request is still pending and before its deadline.
+
+**Live run** (`npx tsx --env-file=.env scripts/lifecycle-demo.ts 1 --expiry`):
+- Request entity: `0x9eb6f2fc66b0135ab418fbd8c9ca792c20fb51d6b27b2831c60ed4481c8e405e`
+- Settled on Whitechain: [`0x355d8505…370cb`](https://explorer.testnet.whitechain.io/tx/0x355d8505a99317c41a2ec3156a9b578a217fb8772c27a974a2de6c728e8370cb)
+- Receipt entity: `0x75346a3d7fe9d743d2597d0e2123ef93c9ba9d7273aac05bba2de71112ef637b`
+- Rejected as expected: tampered amount, forged signature, entity not owned by WhitePay, paying twice (Arkiv status and on-chain `OrderAlreadyPaid`), and an expired request (gone from Arkiv, `OrderExpired` on-chain).
+
+**Arkiv writer wallet:** `0x4D5910272479420d1383100b3986d5fc9d5D658F`
+
+**Query judges can run** (a merchant's receipts, newest first):
+```
+arkiv.schema = str('whitepay.receipt') AND $owner = addr(0x4D5910272479420d1383100b3986d5fc9d5D658F) AND merchant = addr(0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10) ORDER BY paidAt:u64 DESC
+```
+
 ## Repo layout
 ```
 contracts/          Foundry: PaymentRouter, MerchantRegistry, tests, deploy script
