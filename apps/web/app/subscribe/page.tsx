@@ -30,25 +30,41 @@ function Subscribe() {
   const [err, setErr] = useState("")
   const [done, setDone] = useState<{ explorer: string; nextDueAt: number | null } | null>(null)
   const [now, setNow] = useState(() => Date.now() / 1000)
+  const [loadErr, setLoadErr] = useState("")
 
   useEffect(() => {
     setWallet(getWallet())
     const t = setInterval(() => setNow(Date.now() / 1000), 500)
-    if (!/^0x[0-9a-fA-F]{64}$/.test(planKey)) { setPlan({ state: "expired" } as PlanResp); return () => clearInterval(t) }
-    fetch(`/api/plans/${planKey}`).then((r) => r.json()).then((p: PlanResp) => {
-      setPlan(p.state ? p : ({ state: "expired" } as PlanResp))
+    if (!planKey) { setLoadErr("This subscription link has no plan id. Scan the shop's QR again."); return () => clearInterval(t) }
+    if (!/^0x[0-9a-fA-F]{64}$/.test(planKey)) { setLoadErr("This subscription link is damaged (the plan id isn't valid). Ask the shop for a new QR."); return () => clearInterval(t) }
+    fetch(`/api/plans/${planKey}`).then(async (r) => {
+      const p = (await r.json().catch(() => ({}))) as PlanResp
+      if (r.status === 404 || p.state === "expired") return setPlan({ state: "expired" } as PlanResp)
+      if (!r.ok || !p.state) return setLoadErr(`WhitePay couldn't load this plan${p.error ? `: ${p.error}` : ` (HTTP ${r.status})`}. Try again in a moment.`)
+      setPlan(p)
       if (p.merchant) fetch(`/api/merchants?address=${p.merchant}`).then((r) => r.json()).then((d) => setVerified(!!d.merchant?.verified)).catch(() => {})
-    }).catch(() => setPlan({ state: "expired" } as PlanResp))
+    }).catch(() => setLoadErr("You're offline or WhitePay is unreachable. Check your connection and try again."))
     return () => clearInterval(t)
   }, [planKey])
 
+  if (loadErr)
+    return (
+      <main className="shell"><TopBar />
+        <div className="card stack" style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>Can't open this subscription</div>
+          <div className="err" style={{ fontSize: 15 }}>{loadErr}</div>
+          <button className="btn btn-primary" onClick={() => location.reload()}>Try again</button>
+          <a className="btn btn-ghost" href="/scan">Scan another QR</a>
+        </div>
+      </main>
+    )
   if (!plan || wallet === undefined) return <main className="shell"><LogoLoader /></main>
   if (plan.state !== "open" && phase !== "done")
     return (
       <main className="shell"><TopBar />
         <div className="card stack" style={{ textAlign: "center" }}>
           <div style={{ fontSize: 22, fontWeight: 800 }}>{plan.state === "subscribed" ? "Already subscribed" : "This offer has expired"}</div>
-          <div className="sub">{plan.state === "subscribed" ? "This checkout link was used. Manage it in Autopay." : "Ask the shop for a fresh subscription link."}</div>
+          <div className="sub">{plan.state === "subscribed" ? "This checkout QR was already used to start a subscription (each checkout QR works once). Manage it in Autopay." : "The shop's subscription offer behind this QR has expired (checkout QRs last 15 minutes, shared links 7 days). Ask the shop for a fresh one."}</div>
           <a className="btn btn-primary" href="/autopay">Open Autopay</a>
         </div>
       </main>
@@ -78,7 +94,7 @@ function Subscribe() {
       const d = await r.json()
       if (!r.ok) throw new Error(d.error ?? "Subscription failed")
       setDone({ explorer: d.explorer, nextDueAt: d.nextDueAt }); setPhase("done")
-    } catch (e) { setErr((e as Error).message); setPhase("failed") }
+    } catch (e) { setErr(friendly((e as Error).message, amount)); setPhase("failed") }
   }
 
   if (phase === "done" && done)
@@ -138,8 +154,22 @@ function Subscribe() {
           {self ? "This is your own shop" : `Approve autopay · ${usdt(amount)} USDT now`}
         </button>
       )}
-      {err && <div className="err" style={{ textAlign: "center" }}>{err}</div>}
+      {err && <div className="card stack" style={{ borderColor: "var(--bad)" }}><div className="err" style={{ textAlign: "center", fontSize: 15 }}>{err}</div><div className="sub" style={{ textAlign: "center" }}>Nothing is charged unless the first payment succeeds.</div></div>}
       {unlock && <UnlockSheet title="Approve autopay" subtitle={`${usdt(amount)} USDT ${plan.periodLabel} · ${plan.cycles} payments`} onUnlocked={approve} onCancel={() => setUnlock(false)} />}
     </main>
   )
+}
+
+/** Turn contract / relayer errors into something a person can act on. */
+function friendly(msg: string, amount: bigint) {
+  const m = msg.toLowerCase()
+  if (/exceeds balance|insufficient|transfer amount/.test(m)) return `Not enough USDT for the first payment (${usdt(amount)} USDT). Add USDT to this wallet and try again.`
+  if (/authorization is used|authorizationused|nonce/.test(m)) return "These payment approvals were already used. Reload the page to start fresh."
+  if (/not yet valid|authorization is expired|expired/.test(m)) return "Your phone's clock looks off, so the payment windows don't line up. Turn on automatic date & time and try again."
+  if (/already used/.test(m)) return "This checkout QR was already used. Ask the shop for a new one."
+  if (/rate|too many/.test(m)) return "Too many attempts. Wait a minute and try again."
+  if (/daily limit/.test(m)) return "You've reached today's WhitePay spending limit."
+  if (/reject|denied|cancel/.test(m)) return "Approval cancelled."
+  if (/fetch|network|failed to fetch/.test(m)) return "Network problem: nothing was charged. Check your connection and try again."
+  return `Subscription failed: ${msg}`
 }

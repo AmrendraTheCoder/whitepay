@@ -14,6 +14,12 @@ export default function Scan() {
 
   const go = (raw: string) => {
     const text = raw.trim()
+    // 0. autopay / subscription link: .../subscribe?plan=0x<planKey>
+    const plan = text.match(/\/subscribe\?(?:.*&)?plan=(0x[0-9a-fA-F]{64})/)
+    if (plan) {
+      if (!isWhitePayHost(text)) { setErr(`This subscription QR points to ${hostOf(text)}, not WhitePay. Not opened, for your safety.`); return false }
+      router.push(`/subscribe?plan=${plan[1]}`); return true
+    }
     // 1. shop request (dynamic QR): .../pay?req=0x<entityKey>
     const key = parseRequestUri(text) ?? (/^0x[0-9a-fA-F]{64}$/.test(text) ? text : null)
     if (key) { router.push(`/pay?req=${key}`); return true }
@@ -26,7 +32,7 @@ export default function Scan() {
     const addr = text.replace(/^ethereum:/, "").split(/[@?]/)[0]
     if (/^0x[0-9a-fA-F]{40}$/.test(addr)) { router.push(`/send?to=${addr}`); return true }
     if (/^[a-z0-9-]+(\.[a-z0-9-]+)*\.eth$/.test(text.toLowerCase())) { router.push(`/send?name=${encodeURIComponent(text.toLowerCase())}`); return true }
-    setErr("That QR isn't a WhitePay payment code")
+    setErr(explainUnknown(text))
     return false
   }
 
@@ -87,4 +93,27 @@ export default function Scan() {
       </div>
     </div>
   )
+}
+
+const WHITEPAY_HOSTS = ["whitepay.vercel.app", "localhost", "127.0.0.1"]
+const hostOf = (t: string) => { try { return new URL(t).host } catch { return "another site" } }
+const isWhitePayHost = (t: string) => {
+  try { const h = new URL(t).hostname; return h === location.hostname || WHITEPAY_HOSTS.includes(h) || /^whitepay(-[a-z0-9-]+)?\.vercel\.app$/.test(h) } catch { return false }
+}
+/** Say WHY a scanned code was rejected instead of a generic "not WhitePay". */
+function explainUnknown(t: string) {
+  if (!t) return "The QR code was empty. Try again, holding the phone steady."
+  try {
+    const u = new URL(t)
+    if (isWhitePayHost(t)) {
+      if (u.pathname === "/subscribe") return "This subscription QR is incomplete or damaged (no valid plan id). Ask the shop for a new QR."
+      if (u.pathname === "/pay") return "This payment QR is incomplete (missing request id). Ask the shop to show it again."
+      return `This WhitePay link (${u.pathname}) isn't a payment, receive or subscription code.`
+    }
+    if (/^upi:/i.test(t)) return "That's a UPI QR. WhitePay pays in USDT on Whitechain, so ask for the shop's WhitePay QR."
+    return `This QR opens ${u.host}, which isn't WhitePay. Not opened, for your safety.`
+  } catch {}
+  if (/^upi:/i.test(t)) return "That's a UPI QR. WhitePay pays in USDT on Whitechain, so ask for the shop's WhitePay QR."
+  if (/^0x[0-9a-fA-F]+$/.test(t)) return `That looks like a ${t.length - 2}-character hex value, not a wallet address (40) or WhitePay request (64).`
+  return `Not a WhitePay code. It contains: "${t.slice(0, 40)}${t.length > 40 ? "…" : ""}"`
 }
