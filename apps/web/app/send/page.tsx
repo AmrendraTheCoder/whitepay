@@ -5,6 +5,7 @@ import { isAddress, keccak256, parseUnits, toHex, type Address, type Hex } from 
 import type { PrivateKeyAccount } from "viem/accounts"
 import { directNonce, receiveAuthTypedData, stepUpSignal, ROUTER_ADDRESS } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
+import { SuccessCheck } from "../ui"
 import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, initials } from "@/lib/format"
@@ -113,7 +114,7 @@ function Send() {
       <main className="shell">
         <TopBar right={<a className="chip" href="/">Home</a>} />
         <div className="card result">
-          <div className={`icon ${phase === "done" ? "ok" : "bad"}`}>{phase === "done" ? "✓" : "✕"}</div>
+          {phase === "done" ? <SuccessCheck /> : <div className="icon bad">✕</div>}
           <h1>{phase === "done" ? `Sent ${amount} USDT` : "Not sent"}</h1>
           <div className="sub">
             {phase === "done" ? `to ${payee?.displayName ?? payee?.name ?? short(payee?.address)}. Settled on Whitechain. You paid no gas.` : result.error}

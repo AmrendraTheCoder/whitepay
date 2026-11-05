@@ -1,7 +1,7 @@
 "use client"
 import { useMemo } from "react"
 import { Onboard } from "./onboard"
-import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast } from "./ui"
+import { BottomNav, Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp } from "./ui"
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 
@@ -15,10 +15,11 @@ export default function Home() {
 // ------------------------------------------------------------ home (GPay)
 function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: ReturnType<typeof useWalletData> & { wallet: NonNullable<ReturnType<typeof useWalletData>["wallet"]> }) {
   const { hidden, toggle } = useHideBalance()
+  const shown = useCountUp(bal ? Number(bal.usdt) / 1e6 : null)
   const people = useMemo(() => {
     const seen = new Map<string, { address: string; name?: string }>()
     for (const r of rows ?? []) {
-      if (r.kind === "whitepay") continue // router hop, not a person
+      if (r.kind === "whitepay" || r.kind === "refund") continue // router hop, not a person
       const k = r.counterparty.toLowerCase()
       if (!seen.has(k)) seen.set(k, { address: r.counterparty, name: r.counterpartyName })
     }
@@ -41,7 +42,7 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
           <button className="eye" onClick={toggle} aria-label={hidden ? "Show balance" : "Hide balance"}>{hidden ? Icon.eyeOff() : Icon.eye()}</button>
         </div>
         <div className="big">
-          {bal === null ? <span className="skel" style={{ width: 150, height: 40 }} /> : hidden ? "••••" : usdt(bal.usdt)}
+          {bal === null ? <span className="skel" style={{ width: 150, height: 40 }} /> : hidden ? "••••" : (shown ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           <small>USDT</small>
         </div>
         <div className="meta">

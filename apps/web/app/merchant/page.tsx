@@ -5,7 +5,7 @@ import { parseUnits, toHex, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { merchantSignupMessage, orderTypedData, ROUTER_ADDRESS, REQUEST_TTL, LABEL_RE, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { BottomNav } from "../ui"
+import { BottomNav, SuccessCheck } from "../ui"
 import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short, ago, mmss } from "@/lib/format"
@@ -225,7 +225,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
         <div className="card stack">
           {status === "paid" && req && (
             <div className="result" style={{ padding: "8px 0" }}>
-              <div className="icon ok">✓</div>
+              <SuccessCheck />
               <h1>Received {usdt(req.amount)} USDT</h1>
               {paidTx && <a className="chip" href={paidTx} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
             </div>

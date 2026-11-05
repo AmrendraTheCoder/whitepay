@@ -5,6 +5,7 @@ import { hashTypedData, type Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
 import { orderTypedData, receiveAuthTypedData, stepUpSignal, ROUTER_ADDRESS, type Order } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
+import { SuccessCheck } from "../ui"
 import { WorldVerify } from "../world"
 import { getWallet } from "@/lib/wallet"
 import { usdt, initials, mmss } from "@/lib/format"
@@ -136,7 +137,7 @@ function Pay() {
       <main className="shell">
         <TopBar right={<a className="chip" href="/">Home</a>} />
         <div className="card result">
-          <div className={`icon ${phase === "done" ? "ok" : "bad"}`}>{phase === "done" ? "✓" : "✕"}</div>
+          {phase === "done" ? <SuccessCheck /> : <div className="icon bad">✕</div>}
           <h1>{phase === "done" ? `Paid ${usdt(req.amount)} USDT` : "Payment not sent"}</h1>
           <div className="sub">
             {phase === "done"

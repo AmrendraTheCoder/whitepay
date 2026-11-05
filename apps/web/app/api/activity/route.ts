@@ -14,7 +14,7 @@ export type ActivityRow = {
   counterpartyName?: string
   amount: string
   at: number
-  kind: "p2m" | "p2p" | "transfer" | "whitepay"
+  kind: "p2m" | "p2p" | "transfer" | "whitepay" | "refund"
   txHash: string
   explorer: string
   source: "arkiv" | "chain"
@@ -71,10 +71,10 @@ export async function GET(req: Request) {
         key: `${tx}:${t.log_index ?? 0}`,
         direction: incoming ? "in" : "out",
         counterparty: other,
-        counterpartyName: viaRouter ? "WhitePay payment" : undefined,
+        counterpartyName: viaRouter ? (t.method === "refund" || t.method === "refundDirect" ? "Refund" : "WhitePay payment") : undefined,
         amount: BigInt(t.total.value).toString(),
         at: Math.floor(new Date(t.timestamp).getTime() / 1000),
-        kind: viaRouter ? "whitepay" : "transfer",
+        kind: viaRouter ? (t.method === "refund" || t.method === "refundDirect" ? "refund" : "whitepay") : "transfer",
         txHash: tx,
         explorer: `${EXPLORER_URL}/tx/${tx}`,
         source: "chain",

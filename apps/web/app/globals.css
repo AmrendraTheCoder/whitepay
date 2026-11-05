@@ -263,3 +263,52 @@ button { font: inherit; color: inherit; }
 .toast { position: fixed; top: calc(14px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 90; display: inline-flex; align-items: center; gap: 8px;
   background: var(--lime); color: var(--lime-ink); font-weight: 800; padding: 12px 20px; border-radius: 999px; box-shadow: 0 10px 30px rgba(0,0,0,.35); animation: drop .25s ease-out; }
 @keyframes drop { from { transform: translate(-50%, -20px); opacity: 0 } to { transform: translate(-50%, 0); opacity: 1 } }
+
+/* ================= motion & micro-interactions ================= */
+/* motion never hides content: if animations are paused (background tab), everything stays visible */
+@keyframes rise { from { transform: translateY(12px) } to { transform: none } }
+@keyframes fade { from { background: rgba(4,6,20,0) } to { background: rgba(4,6,20,.6) } }
+@keyframes sheetUp { from { transform: translateY(100%) } to { transform: none } }
+@keyframes pop { 0% { transform: scale(.82) } 70% { transform: scale(1.06) } 100% { transform: scale(1) } }
+@keyframes ring { from { transform: scale(.8); opacity: .55 } to { transform: scale(1.9); opacity: 0 } }
+@keyframes draw { to { stroke-dashoffset: 0 } }
+@keyframes shine { from { transform: translateX(-120%) rotate(12deg) } to { transform: translateX(220%) rotate(12deg) } }
+
+/* page content rises in, staggered */
+.shell > * { animation: rise .42s cubic-bezier(.2,.8,.2,1) both; }
+.shell > *:nth-child(2) { animation-delay: .04s } .shell > *:nth-child(3) { animation-delay: .08s }
+.shell > *:nth-child(4) { animation-delay: .12s } .shell > *:nth-child(5) { animation-delay: .16s }
+.shell > *:nth-child(6) { animation-delay: .2s }  .shell > *:nth-child(n+7) { animation-delay: .24s }
+.bottomnav, .toast, .sheet-backdrop, .scan-page { animation: none; }
+
+/* hero: soft light sweep */
+.hero::before { content: ""; position: absolute; top: -40%; left: 0; width: 40%; height: 180%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent); animation: shine 3.8s ease-in-out 1s infinite; pointer-events: none; }
+
+/* tactile taps */
+.tile .sq, .person .pic, .chip-card, .menu-row, .item, .btn, .avatar-btn, .navitem .ic { transition: transform .14s cubic-bezier(.3,1.6,.5,1), background .2s, box-shadow .2s; }
+.tile:hover .sq { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(36,72,255,.35); }
+.tile:active .sq, .person:active .pic, .avatar-btn:active { transform: scale(.9); }
+.chip-card:active, .menu-row:active, .item:active { transform: scale(.98); }
+.person .pic { animation: pop .45s cubic-bezier(.2,.9,.3,1.2) both; }
+.person:nth-child(2) .pic { animation-delay: .05s } .person:nth-child(3) .pic { animation-delay: .1s } .person:nth-child(4) .pic { animation-delay: .15s }
+.navitem.on .ic { animation: pop .3s ease-out; }
+
+/* sheets & QR */
+.sheet-backdrop { animation: fade .2s ease-out; }
+.sheet { animation: sheetUp .32s cubic-bezier(.2,.9,.25,1); }
+.qr-wrap { animation: pop .4s cubic-bezier(.2,.9,.3,1.2) both; }
+.pinpad button:active { transform: scale(.92); background: var(--brand); color: #fff; }
+.dots span.on { animation: pop .2s ease-out; }
+
+/* success check */
+.success { position: relative; width: 96px; height: 96px; display: grid; place-items: center; }
+.success::before, .success::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--ok); animation: ring 1.2s ease-out .25s 2 both; }
+.success::after { animation-delay: .55s; }
+.success svg { position: relative; z-index: 1; width: 96px; height: 96px; animation: pop .45s cubic-bezier(.2,.9,.3,1.3) both; }
+.success circle { fill: var(--ok); }
+.success path { fill: none; stroke: #05261a; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60; stroke-dashoffset: 60; animation: draw .45s ease-out .3s forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+  .hero::before { display: none; }
+}

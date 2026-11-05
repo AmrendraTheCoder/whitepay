@@ -77,14 +77,14 @@ export type Activity = {
   counterpartyName?: string
   amount: string
   at: number
-  kind: "p2m" | "p2p" | "transfer" | "whitepay"
+  kind: "p2m" | "p2p" | "transfer" | "whitepay" | "refund"
   txHash: string
   explorer: string
   source: "arkiv" | "chain"
 }
 
 export const activityLabel = (r: Activity) =>
-  r.kind === "p2m" ? "Shop QR" : r.kind === "p2p" ? "Person" : r.kind === "whitepay" ? "WhitePay" : "Transfer"
+  r.kind === "p2m" ? "Shop QR" : r.kind === "p2p" ? "Person" : r.kind === "refund" ? "Refund" : r.kind === "whitepay" ? "WhitePay" : "Transfer"
 
 /** Wallet + live data for the ACTIVE wallet (any kind): balance (Whitechain), name, unified activity
  *  (Arkiv receipts + every on-chain USDT transfer). Polls the balance and auto-detects incoming money. */
@@ -153,3 +153,33 @@ export const AccountBadge = ({ account }: { account?: "personal" | "business" | 
   account === undefined ? <span className="skel" style={{ width: 70, height: 20 }} />
   : account === "business" ? <span className="badge badge-lime">Business</span>
   : <span className="badge badge-brand">Personal</span>
+
+/** Animated success check (draws itself, pulse rings) + a short vibration where supported. */
+export function SuccessCheck() {
+  useEffect(() => { try { navigator.vibrate?.([18, 40, 28]) } catch {} }, [])
+  return (
+    <div className="success" aria-hidden>
+      <svg viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" /><path d="M29 49l13 13 26-28" /></svg>
+    </div>
+  )
+}
+
+/** Animate a number up to its value (balances). */
+export function useCountUp(target: number | null, ms = 700) {
+  const [v, setV] = useState<number | null>(null)
+  useEffect(() => {
+    if (target === null) return
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    if (reduce) { setV(target); return }
+    const from = 0, t0 = performance.now()
+    let raf = 0
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms)
+      setV(from + (target - from) * (1 - Math.pow(1 - k, 3)))
+      if (k < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [target, ms])
+  return v
+}
