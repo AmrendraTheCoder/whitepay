@@ -17,6 +17,8 @@ const ERRORS: Record<string, string> = {
   connection_failed: "Couldn't reach World App. Check your connection and try again.",
 }
 
+const REPEAT = "World App says your World ID already used this check. This check has to allow one scan per claim (\"unlimited\" for the whitepay-pay action in the World Developer Portal); ask the WondrPay team to enable it."
+
 export function WorldVerify({
   purpose,
   paymentRef,
@@ -44,6 +46,8 @@ export function WorldVerify({
   // refs, not state: the widget calls onSuccess/onError right after handleVerify, before a re-render
   const backendData = useRef<any>(null)
   const backendError = useRef<string | null>(null)
+  // World App / IDKit error already reported: closing the error sheet must not overwrite it with "cancelled"
+  const reported = useRef(false)
 
   const start = async () => {
     setBusy(true)
@@ -53,6 +57,7 @@ export function WorldVerify({
       if (!r.ok) throw new Error(d.error)
       backendData.current = null
       backendError.current = null
+      reported.current = false
       setCtx(d)
       setOpen(true)
     } catch (e) {
@@ -72,7 +77,7 @@ export function WorldVerify({
           open={open}
           onOpenChange={(o) => {
             setOpen(o)
-            if (!o && !backendData.current) onDenied(backendError.current ?? "World ID verification was cancelled")
+            if (!o && !backendData.current && !reported.current) onDenied(backendError.current ?? "World ID verification was cancelled")
           }}
           app_id={ctx.app_id}
           action={ctx.action}
@@ -91,9 +96,14 @@ export function WorldVerify({
             }
           }}
           onSuccess={() => onVerified(backendData.current)}
-          onError={(code) => onDenied(
-            backendError.current ?? ERRORS[String(code)] ?? `World ID error: ${code}`,
-          )}
+          onError={(code) => {
+            reported.current = true
+            console.warn("[world] IDKit error", code)
+            const c = String(code)
+            // the one-scan message is about names/shops; pay/refund/reward share an action that must allow repeat proofs
+            const repeat = purpose !== "name" && purpose !== "shop" && (c === "max_verifications_reached" || c === "nullifier_replayed")
+            onDenied(backendError.current ?? (repeat ? REPEAT : ERRORS[c]) ?? `World ID error: ${code}`)
+          }}
         />
       )}
     </>
