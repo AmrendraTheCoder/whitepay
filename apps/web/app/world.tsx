@@ -7,8 +7,10 @@ import { IDKitRequestWidget, proofOfHuman, type IDKitResult } from "@worldcoin/i
 type Ctx = { action: string; action_description: string; app_id: `app_${string}`; environment: "staging" | "production"; rp_context: any }
 
 const ERRORS: Record<string, string> = {
-  nullifier_replayed: "This World ID has already been used for this (one per person). If it was you, refresh: your verification may already be recorded.",
-  max_verifications_reached: "This World ID has reached the limit for this action.",
+  // World only lets one scan per person per action. Extra wallets/shops don't need a scan: they're
+  // approved by the wallet that already verified (needs that wallet on this device).
+  nullifier_replayed: "Your World ID is already verified with WondrPay. Add this wallet with \"Approve from your verified wallet\" instead; no new scan needed. If the button isn't shown, add your verified wallet to this device first (You → + Add wallet → import).",
+  max_verifications_reached: "Your World ID is already verified with WondrPay. Add this wallet with \"Approve from your verified wallet\" instead; no new scan needed. If the button isn't shown, add your verified wallet to this device first (You → + Add wallet → import).",
   user_rejected: "You declined the request in World App.",
   verification_rejected: "World App rejected the verification.",
   credential_unavailable: "Your World ID doesn't have the required credential yet.",
