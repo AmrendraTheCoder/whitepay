@@ -174,7 +174,8 @@ async function markMerchantVerified(merchant: Address, nullifier: string, defer:
   return { verified: true, registryTx }
 }
 
-/** Personal ENS name (UPI VPA): one per wallet, up to MAX_ACCOUNTS_PER_HUMAN wallets per human. Requires a wallet signature AND a World ID proof
+/** Personal ENS name (UPI VPA): ONE username per human, shared by up to MAX_ACCOUNTS_PER_HUMAN wallets;
+ *  a wallet never has more than one username. Requires a wallet signature AND a World ID proof
  *  bound to the same wallet; the nullifier is recorded on Arkiv so the human can't claim twice. */
 /** Schedules slow work (ENS txs ~25 s) after the HTTP response; Next passes `after`. */
 export type Defer = (task: () => Promise<unknown>) => void
@@ -189,7 +190,8 @@ export async function getPersonByAddress(address: Address) {
   return e ? { key: e.$key as Hex, label: e.label.value as string, ensName: currentEnsName(e.ensName.value as string), ensIssued: !!e.ensIssued?.value } : null
 }
 
-/** Personal ENS name (UPI VPA): one per wallet, up to MAX_ACCOUNTS_PER_HUMAN wallets per human. Requires a wallet signature AND a World ID proof
+/** Personal ENS name (UPI VPA): ONE username per human, shared by up to MAX_ACCOUNTS_PER_HUMAN wallets;
+ *  a wallet never has more than one username. Requires a wallet signature AND a World ID proof
  *  bound to the same wallet. Responds as soon as the proof is verified and recorded on Arkiv
  *  (a few seconds, so World's widget doesn't time out); the ENSv2 subname is issued right after. */
 export async function claimPersonName(
@@ -208,12 +210,18 @@ export async function claimPersonName(
   const ens: any = await import("./ens")
   const { nullifier } = await verifyProof(p.result, WORLD_ACTIONS.claim, address)
   const a = arkiv()
-  // Same human, another wallet: that wallet gets its OWN verified name (up to the limit),
-  // instead of taking over the first wallet's name.
+  // One username per human, many wallets per username: if this World ID already has a name,
+  // this wallet JOINS it (the requested label is ignored) instead of getting a second name.
   const claims = await claimsFor(nullifier, WORLD_ACTIONS.claim, "name-claim")
-  if (!claims.some((c) => c.address === address) && claims.length >= MAX_ACCOUNTS_PER_HUMAN)
-    throw new Error(`This World ID already has ${claims.length} verified accounts, the limit per person`)
   const alreadyClaimed = claims.some((c) => c.address === address)
+  for (const c of claims) {
+    if (c.address === address) continue
+    const named = await getPersonByAddress(c.address)
+    if (named) {
+      if (claims.length >= MAX_ACCOUNTS_PER_HUMAN) throw new Error(`${named.ensName} already has ${claims.length} wallets, the limit per person`)
+      return attachWallet({ address, nullifier, profile: named, recordClaim: !alreadyClaimed })
+    }
+  }
 
   return issuePersonName({ label, address, nullifier, recordClaim: !alreadyClaimed }, defer)
 }
@@ -243,9 +251,30 @@ export async function linkPersonName(
     .where(and(eq("action", WORLD_ACTIONS.claim), eq("address", addr(from)), eq("purpose", "name-claim"))).limit(1).fetch()
   const nullifier = (src.entities[0] as any)?.nullifier?.value as string | undefined
   if (!nullifier) throw new Error("That wallet isn't World ID verified yet. Verify it first.")
+  const profile = await getPersonByAddress(from)
+  if (!profile) throw new Error("That wallet has no WondrPay name yet. Claim one first.")
+  // both wallets signed THIS username: the new wallet joins it, it never gets a different one
+  if (label !== profile.label) throw new Error(`This wallet would join ${profile.ensName}; refresh and try again`)
   const claims = await claimsFor(nullifier, WORLD_ACTIONS.claim, "name-claim")
-  if (claims.length >= MAX_ACCOUNTS_PER_HUMAN) throw new Error(`You already have ${claims.length} verified accounts, the limit per person`)
-  return issuePersonName({ label, address, nullifier, recordClaim: true }, defer)
+  if (claims.length >= MAX_ACCOUNTS_PER_HUMAN) throw new Error(`${profile.ensName} already has ${claims.length} wallets, the limit per person`)
+  return attachWallet({ address, nullifier, profile, recordClaim: true })
+}
+
+/** Add a wallet to an existing username (one name -> many wallets). The ENS name keeps resolving to the
+ *  wallet that first claimed it; every attached wallet shows the name and counts toward the human's limit. */
+async function attachWallet(p: { address: Address; nullifier: string; profile: { label: string; ensName: string; ensIssued: boolean }; recordClaim: boolean }) {
+  const a = arkiv()
+  const now = u64(BigInt(Math.floor(Date.now() / 1000)))
+  await a.writer.executeBatch(
+    {
+      creates: [
+        ...(!p.recordClaim ? [] : [{ schema: WorldClaim, values: { action: WORLD_ACTIONS.claim, nullifier: p.nullifier, address: addr(p.address), purpose: "name-claim", verifiedAt: now }, expiration: ExpirationTime.max() }]),
+        { schema: PersonProfile, values: { address: addr(p.address), label: p.profile.label, ensName: p.profile.ensName, registeredAt: now, ensIssued: p.profile.ensIssued }, expiration: ExpirationTime.max() },
+      ],
+    } as any,
+    { gas: 2_500_000n },
+  )
+  return { name: p.profile.ensName, pending: false, attached: true }
 }
 
 /** Record the verified wallet on Arkiv, then issue <label>.<parent> on ENSv2 after the response. */

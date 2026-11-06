@@ -6,8 +6,10 @@ import { listWallets, type WalletInfo } from "@/lib/wallet"
 import { UnlockSheet } from "./components"
 import { WorldVerify } from "./world"
 
-/** UPI VPA, on ENS: claim <name>.wondrpay.eth. Each wallet gets its own name; one World ID covers up to
- *  5 wallets. A wallet on this device that is already verified can vouch for a new one (no second scan). */
+/** UPI VPA, on ENS: <name>.wondrpay.eth. ONE username per person, shared by up to 5 of their wallets;
+ *  a wallet never gets a second username. A wallet that already has a name (e.g. reconnected after it
+ *  was removed from this phone) just shows it. Another wallet of yours is added to your existing name,
+ *  approved by your verified wallet on this device (no second World ID scan). */
 export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onClaimed: () => void }) {
   const [label, setLabel] = useState("")
   const [avail, setAvail] = useState<{ available: boolean; reason?: string | null } | null>(null)
@@ -34,6 +36,19 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
   const [useWorld, setUseWorld] = useState(false)
   const [cosign, setCosign] = useState(false)
   const [busy, setBusy] = useState(false)
+  // this wallet already has a username (reconnected / re-imported): accept it, never ask again
+  const [own, setOwn] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    let live = true
+    fetch(`/api/resolve?q=${address}`).then((r) => r.json()).catch(() => null).then((d) => {
+      if (!live) return
+      const name = d?.kind === "person" && typeof d.name === "string" ? d.name : null
+      setOwn(name)
+      if (name) onClaimed()
+    })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address])
   useEffect(() => {
     let live = true
     const others = listWallets().filter((w) => w.address.toLowerCase() !== address.toLowerCase())
@@ -60,7 +75,7 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
         body: JSON.stringify({ label, address, issuedAt: claim.issuedAt, signature: claim.signature, from: from.address, fromSignature }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
-      setMsg(`You are ${d.name}, verified through ${sponsor?.name ?? "your other wallet"}`)
+      setMsg(`This wallet is now ${d.name}`)
       onClaimed()
     } catch (e) { const m = (e as Error).message; expired(m); setMsg(`Name not claimed: ${m}`) } finally { setBusy(false) }
   }
@@ -81,24 +96,41 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
     setSigned({ issuedAt, signature })
   }
 
+  const joinLabel = sponsor && !useWorld && sponsor.name ? sponsor.name.split(".")[0] : null
+  useEffect(() => { if (joinLabel) setLabel(joinLabel) }, [joinLabel])
+
+  if (own === undefined) return <div className="card stack"><span className="skel" style={{ width: 200, height: 18 }} /></div>
+  if (own)
+    return (
+      <div className="card stack center">
+        <h2>Welcome back, {own}</h2>
+        <div className="sub">This wallet is already linked to your WondrPay name. Nothing to claim.</div>
+      </div>
+    )
+
   return (
     <div className="card stack">
-      <h2>Claim your WondrPay name</h2>
-      <div className="sub">Friends pay <b>you.wondrpay.eth</b> instead of a long address. Each wallet gets its own name, verified with World ID. One verification covers up to 5 of your wallets.</div>
-      {sponsor && !useWorld && <div className="sub">Already verified as <b>{sponsor.name ?? sponsor.label}</b>. It can approve this wallet, no new World ID scan.</div>}
-      <div className="row gap-2">
-        <input className="input" placeholder="ravi" value={label} autoCapitalize="none" onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
-        <span className="sub nowrap">.wondrpay.eth</span>
-      </div>
-      <div className="sub min-line">
-        {avail === null ? "" : avail.available ? <span className="text-ok">Available</span> : <span className="text-bad">{avail.reason}</span>}
-      </div>
+      <h2>{joinLabel ? `Add this wallet to ${sponsor!.name}` : "Claim your WondrPay name"}</h2>
+      {joinLabel ? (
+        <div className="sub">One name, all your wallets: this wallet will also show as <b>{sponsor!.name}</b>. Your verified wallet approves it, no new World ID scan.</div>
+      ) : (
+        <>
+          <div className="sub">Friends pay <b>you.wondrpay.eth</b> instead of a long address. One name per person, verified once with World ID; you can add up to 5 of your wallets to it.</div>
+          <div className="row gap-2">
+            <input className="input" placeholder="ravi" value={label} autoCapitalize="none" onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
+            <span className="sub nowrap">.wondrpay.eth</span>
+          </div>
+          <div className="sub min-line">
+            {avail === null ? "" : avail.available ? <span className="text-ok">Available</span> : <span className="text-bad">{avail.reason}</span>}
+          </div>
+        </>
+      )}
       {!signed ? (
-        <button className="btn btn-ghost" disabled={!avail?.available} onClick={() => setUnlock(true)}>1. Sign with fingerprint / PIN</button>
+        <button className="btn btn-ghost" disabled={!joinLabel && !avail?.available} onClick={() => setUnlock(true)}>1. Sign with fingerprint / PIN</button>
       ) : sponsor && !useWorld ? (
         <>
           <button className="btn btn-primary" disabled={busy} onClick={() => setCosign(true)}>
-            {busy ? <span className="spinner" /> : null} 2. Approve from {sponsor.name ?? sponsor.label}
+            {busy ? <span className="spinner" /> : null} 2. Approve from {sponsor!.name ?? sponsor!.label}
           </button>
           <button className="chip" onClick={() => setUseWorld(true)}>Verify with World ID instead</button>
           <div className="sub center">A World ID that already verified a WondrPay name can't scan again, so World App will show “Failed”. Approving from your verified wallet needs no scan.</div>
@@ -124,7 +156,7 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
         />
       )}
       {msg && <div className="sub center">{msg}</div>}
-      {cosign && sponsor && <UnlockSheet wallet={sponsor} title="Approve new account" subtitle={`${label}.wondrpay.eth, verified through ${sponsor.name ?? sponsor.label}`} onUnlocked={link} onCancel={() => setCosign(false)} />}
+      {cosign && sponsor && <UnlockSheet wallet={sponsor} title="Approve new account" subtitle={`add this wallet to ${sponsor.name ?? sponsor.label}`} onUnlocked={link} onCancel={() => setCosign(false)} />}
       {unlock && <UnlockSheet title="Sign name claim" subtitle={`${label}.wondrpay.eth`} onUnlocked={sign} onCancel={() => setUnlock(false)} />}
     </div>
   )
