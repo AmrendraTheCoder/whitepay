@@ -49,13 +49,37 @@ export async function wcConnect(): Promise<string> {
   return a
 }
 
-/** Reuse the stored session (survives reloads); reconnect only if it was dropped. */
+/** Did the wallet approve Whitechain Sepolia for this connection? Without it every request for chain 1874 is dropped
+ *  (MetaMask never shows it), which looked like "MetaMask confirmation never comes". */
+const hasWhitechain = (session: any) => {
+  const ns = session?.namespaces?.eip155
+  const id = `eip155:${whitechainSepolia.id}`
+  return !!ns && ((ns.chains ?? []) as string[]).includes(id) || ((ns?.accounts ?? []) as string[]).some((a) => a.startsWith(`${id}:`))
+}
+
+/** Reuse the stored session (survives reloads); reconnect if it expired, was dropped, or never included Whitechain. */
 export async function wcEnsureSession(): Promise<Provider> {
   const p = await wcProvider()
   const expiry = Number((p.session as any)?.expiry ?? 0) * 1000
   if (p.session && expiry && expiry < Date.now() + 60_000) await p.disconnect().catch(() => {}) // expired: start fresh
   if (!p.session) await p.connect()
+  if (!hasWhitechain(p.session)) {
+    // Whitechain is only an OPTIONAL chain (MetaMask may refuse a connection that requires an unknown chain):
+    // ask MetaMask to add it, which also adds it to this connection
+    await p.request({ method: "wallet_addEthereumChain", params: [{
+      chainId: `0x${whitechainSepolia.id.toString(16)}`, chainName: whitechainSepolia.name, nativeCurrency: whitechainSepolia.nativeCurrency,
+      rpcUrls: whitechainSepolia.rpcUrls.default.http, blockExplorerUrls: [whitechainSepolia.blockExplorers!.default.url],
+    }] }).catch(() => {})
+    await new Promise((r) => setTimeout(r, 800)) // the session update arrives right after
+    if (!hasWhitechain(p.session))
+      throw new Error("MetaMask hasn't added Whitechain Sepolia for WondrPay yet. In MetaMask, add the network (Settings → Networks → Add), then try again.")
+  }
   return p
+}
+
+/** Forget the WalletConnect session (it'll reconnect fresh on the next payment). */
+export async function wcReset() {
+  try { await (await wcProvider()).disconnect() } catch {}
 }
 
 export async function wcDisconnect() {

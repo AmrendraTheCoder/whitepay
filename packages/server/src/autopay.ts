@@ -14,7 +14,7 @@ import {
 } from "@whitepay/shared/autopay"
 import { arkiv, wc } from "./clients"
 import { config } from "./config"
-import { relayDirectPayment, shortErr } from "./relayer"
+import { relayDirectPayment, shortErr, sendRobust } from "./relayer"
 import { settleOnArkiv } from "./requests"
 import { getMerchantByAddress } from "./merchants"
 import { assertSafeWebhookUrl, deliverWebhook } from "./webhooks"
@@ -126,7 +126,7 @@ export async function subscribe(p: { planKey: Hex; subscriber: Address; subscrip
   } catch (err) {
     throw new Error(friendlyChainError(shortErr(err)))
   }
-  const txHash = await relayer.writeContract(request)
+  const txHash = await sendRobust(relayer as any, request as any)
   const rc = await pub.waitForTransactionReceipt({ hash: txHash })
   if (rc.status !== "success") throw new Error("starting the subscription reverted")
   const first = { txHash, block: rc.blockNumber, explorer: `${config.explorer}/tx/${txHash}` }
@@ -288,7 +288,7 @@ async function chargeVault(vault: Address) {
   const [cycle, , chargeable] = await pub.readContract({ address: vault, abi: AUTOPAY_MANDATE_ABI, functionName: "pending" })
   if (!chargeable) return null
   const { request } = await pub.simulateContract({ account: relayer.account, address: vault, abi: AUTOPAY_MANDATE_ABI, functionName: "charge" })
-  const txHash = await relayer.writeContract(request)
+  const txHash = await sendRobust(relayer as any, request as any)
   const rc = await pub.waitForTransactionReceipt({ hash: txHash, timeout: 20_000 })
   if (rc.status !== "success") throw new Error("charge reverted")
   let charged = Number(cycle)
@@ -476,7 +476,7 @@ export async function cancelMandate(p: { mandateKey: Hex; subscriber: Address; c
     const { r, s, v, yParity } = parseSignature(c.signature)
     const { request } = await wc().pub.simulateContract({ account: wc().relayer.account, address: USDT_ADDRESS, abi: CANCEL_ABI, functionName: "cancelAuthorization",
       args: [m.subscriber, nonce, Number(v ?? BigInt(27 + (yParity ?? 0))), r, s] })
-    txs.push(await wc().relayer.writeContract(request))
+    txs.push(await sendRobust(wc().relayer, request as any))
   }
   for (const h of txs) await wc().pub.waitForTransactionReceipt({ hash: h })
 
@@ -499,7 +499,7 @@ async function cancelVault(m: MandateView, signature?: Hex) {
   if (!who || getAddress(who) !== m.subscriber) throw new Error("cancellation is not signed by the subscriber")
   const { pub, relayer } = wc()
   const { request } = await pub.simulateContract({ account: relayer.account, address: m.vault!, abi: AUTOPAY_MANDATE_ABI, functionName: "cancel", args: [signature] })
-  const txHash = await relayer.writeContract(request)
+  const txHash = await sendRobust(relayer as any, request as any)
   await pub.waitForTransactionReceipt({ hash: txHash })
   const a = arkiv()
   const dues = await a.pub.select({ $key: true }).from(DueCycle).ownedBy(a.owner).where(eq("mandateRef", key(m.key))).limit(5).fetch()

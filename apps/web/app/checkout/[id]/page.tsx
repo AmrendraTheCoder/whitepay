@@ -8,6 +8,7 @@ import { hashTypedData, type Hex } from "viem"
 import { orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, type Order } from "@whitepay/shared"
 import { connectInjectedWallet, hasInjectedWallet, injectedSigner } from "@/lib/wallet"
 import { settle, type SettleError } from "@/lib/settle"
+import { playSound, primeSound } from "@/lib/sound"
 import { Countdown, Icon, Identicon, LogoLoader, SuccessCheck } from "../../ui"
 import { usdt } from "@/lib/format"
 import { LocalAmount } from "../../local-amount"
@@ -46,7 +47,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
   const [injected, setInjected] = useState(false)
   const tries = useRef(0)
 
-  useEffect(() => { setIsPhone(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)); setInjected(hasInjectedWallet()) }, [])
+  useEffect(() => { setIsPhone(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)); setInjected(hasInjectedWallet()); primeSound() }, [])
 
   const load = useCallback(async (): Promise<Status> => {
     const r = await fetch(`/api/requests/${id}`, { cache: "no-store" }).then((x) => x.json()).catch(() => ({ state: "error" }))
@@ -184,6 +185,7 @@ function Shell({ children, request }: { children: React.ReactNode; request?: Req
 }
 
 function Paid({ id, request, explorer }: { id: string; request: Req; explorer?: string }) {
+  useEffect(() => { playSound("sent") }, [])
   const back = request.successUrl ? returnUrl(request.successUrl, id, "paid") || null : null
   const [left, setLeft] = useState(REDIRECT_S)
   const [hold, setHold] = useState(false)

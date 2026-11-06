@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { getWallet } from "@/lib/wallet"
+import { watchChain } from "@/lib/live"
 import { usdt, mmss } from "@/lib/format"
 import { keccak256, toBytes } from "viem"
 
@@ -128,8 +129,8 @@ export function useWalletData() {
 
   useEffect(() => setWallet(getWallet()), [])
 
-  const loadActivity = useCallback((addr: string) =>
-    fetch(`/api/activity?address=${addr}`).then((r) => r.json()).then((d) => setRows(d.rows ?? [])).catch(() => setRows((r) => r ?? [])), [])
+  const loadActivity = useCallback((addr: string, fresh = false) =>
+    fetch(`/api/activity?address=${addr}${fresh ? "&fresh=1" : ""}`).then((r) => r.json()).then((d) => setRows(d.rows ?? [])).catch(() => setRows((r) => r ?? [])), [])
 
   const loadBalance = useCallback(async (addr: string, detect: boolean) => {
     const b = await fetch(`/api/balance?address=${addr}`).then((r) => r.json()).catch(() => null)
@@ -157,8 +158,17 @@ export function useWalletData() {
   useEffect(() => {
     if (!wallet) return
     reload()
-    // auto-detect: poll the chain while the app is open and visible
-    const t = setInterval(() => { if (document.visibilityState === "visible") void loadBalance(wallet.address, true) }, 8000)
+    // live: the chain watcher reports USDT moving to/from this wallet within ~1 s; this poll is only a fallback
+    const unwatch = watchChain(wallet.address)
+    const onTransfer = (e: Event) => {
+      const d = (e as CustomEvent<{ address: string; balance?: string }>).detail
+      if (d.address !== wallet.address.toLowerCase()) return
+      if (d.balance) setBal((b) => (b ? { ...b, usdt: d.balance! } : b))
+      void loadActivity(wallet.address, true)
+      setTimeout(() => void loadActivity(wallet.address, true), 3500) // the explorer indexes a few seconds after the block
+    }
+    window.addEventListener("wondrpay:transfer", onTransfer)
+    const t = setInterval(() => { if (document.visibilityState === "visible") void loadBalance(wallet.address, true) }, 20000)
     // IncomingWatcher / a payment screen saw a new balance: show it now instead of waiting for the next poll
     const onBal = (e: Event) => {
       const d = (e as CustomEvent<{ address: string; usdt: string }>).detail
@@ -168,7 +178,7 @@ export function useWalletData() {
       last.current = BigInt(d.usdt)
     }
     window.addEventListener("wondrpay:balance", onBal)
-    return () => { clearInterval(t); window.removeEventListener("wondrpay:balance", onBal) }
+    return () => { clearInterval(t); unwatch(); window.removeEventListener("wondrpay:transfer", onTransfer); window.removeEventListener("wondrpay:balance", onBal) }
   }, [wallet, reload, loadBalance, loadActivity])
 
   useEffect(() => {

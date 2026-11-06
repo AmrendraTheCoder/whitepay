@@ -635,5 +635,19 @@ html[data-nav-dir="back"] .shell.with-nav { animation: tab-in-back .28s cubic-be
 .verify-shop .btn { width: 100%; }
 .badge-btn { border: 0; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .badge-btn:hover { filter: brightness(1.15); }
+
+/* "Live on Whitechain" strip (app home) */
+.wc-strip { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 18px; text-decoration: none; color: var(--text);
+  background: linear-gradient(90deg, color-mix(in oklab, var(--lime) 14%, var(--surface)) 0%, var(--surface) 70%); border: 1px solid color-mix(in oklab, var(--lime) 35%, var(--line)); }
+.wc-strip:focus-visible { outline: 2px solid var(--brand-soft); outline-offset: 2px; }
+.wc-mark { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: var(--lime); color: var(--lime-ink); flex: none; }
+.wc-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.wc-txt b { font-size: 14.5px; }
+.wc-txt span { font-size: 12px; color: var(--muted); }
+.wc-block { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); white-space: nowrap; }
+.wc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: wc-beat .9s ease-out; }
+@keyframes wc-beat { 0% { transform: scale(1.9); box-shadow: 0 0 0 4px color-mix(in oklab, var(--ok) 35%, transparent); } 100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .wc-dot { animation: none; } }
 .seg.seg-2 { grid-template-columns: repeat(2, 1fr); }
 .seg.seg-4 { grid-template-columns: repeat(4, 1fr); }

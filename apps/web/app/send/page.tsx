@@ -11,6 +11,7 @@ import { NewBalance, RewardEarned } from "../money-events"
 import { getWallet } from "@/lib/wallet"
 import { PayeeSearch } from "./search"
 import { usdt, short, initials } from "@/lib/format"
+import { playSound } from "@/lib/sound"
 import { settle, SettleError } from "@/lib/settle"
 
 type Payee = { address: Address; name?: string; displayName?: string; kind?: string; source?: string }
@@ -99,6 +100,7 @@ function Send() {
       await submit(body, account.address, nonce)
     } catch (e) {
       setResult({ error: friendlyPayError((e as Error).message) })
+      playSound("error")
       setPhase("failed")
     }
   }
@@ -110,10 +112,12 @@ function Send() {
       setResult({ explorer: out.explorer as string | undefined })
       if (out.allowance) setAllow(out.allowance as { used: number; free: number; left: number })
       setPhase("finishing")
+      playSound("sent")
       setTimeout(() => setPhase("done"), 900)
     } catch (e) {
       const err = e as SettleError
       setResult({ error: err.code === "unconfirmed" ? err.message : friendlyPayError(err.message), code: err.code })
+      playSound("error")
       setPhase("failed")
     }
   }

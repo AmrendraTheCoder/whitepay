@@ -44,15 +44,23 @@ export function WalletWait() {
   const [p, setP] = useState<PendingWallet>(null)
   const [link, setLink] = useState<{ href: string; name: string } | null>(null)
   const [slow, setSlow] = useState(false)
+  const [stuck, setStuck] = useState(false)
   useEffect(() => onWalletPending(setP), [])
   useEffect(() => {
-    setSlow(false)
+    setSlow(false); setStuck(false)
     if (!p) return
     if (p.kind === "walletconnect" && isMobile())
       import("@/lib/walletconnect").then((m) => setLink({ href: m.wcWalletLink(), name: m.wcWalletName() })).catch(() => {})
-    const t = setTimeout(() => setSlow(true), 12_000)
-    return () => clearTimeout(t)
+    const t = setTimeout(() => setSlow(true), 5_000)
+    // no answer after 20 s: the connection is probably dead (MetaMask dropped it); offer a fresh one
+    const u = p.kind === "walletconnect" ? setTimeout(() => setStuck(true), 20_000) : undefined
+    return () => { clearTimeout(t); if (u) clearTimeout(u) }
   }, [p])
+  const reconnect = async () => {
+    const m = await import("@/lib/walletconnect")
+    await m.wcReset()
+    cancelWalletRequest() // the payment screen shows "try again"; the next try opens a fresh MetaMask connection
+  }
   if (!p) return null
   const name = link?.name?.split(" ")[0] ?? (p.kind === "walletconnect" ? "MetaMask" : "your wallet")
   return (
@@ -63,6 +71,7 @@ export function WalletWait() {
         {slow && <><br />Not seeing it? {link ? `Tap Open ${name}` : "Open the wallet app"}, then come back here.</>}
       </div>
       {link && <a className="btn btn-primary proc-open" href={link.href}>Open {name}</a>}
+      {stuck && <button type="button" className="btn btn-ghost proc-cancel" onClick={reconnect}>Reconnect {name} and try again</button>}
       <button type="button" className="btn btn-ghost proc-cancel" onClick={cancelWalletRequest}>Cancel</button>
     </div>
   )

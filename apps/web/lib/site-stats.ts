@@ -36,7 +36,8 @@ export async function statusChecks(): Promise<Check[]> {
   const [chain, arkivRpc, relayer] = await Promise.all([
     timed(() => wc().pub.getBlock()),
     timed(() => a.pub.getBlockNumber()),
-    timed(() => wc().pub.getBalance({ address: wc().relayerAddress })),
+    // the emptiest relayer decides: payers hashed to it would fail first
+    timed(async () => (await Promise.all(wc().relayers.map((r) => wc().pub.getBalance({ address: r.account.address })))).reduce((m, b) => (b < m ? b : m))),
   ])
   const age = chain.value ? Date.now() / 1000 - Number(chain.value.timestamp) : null
   const wbt = relayer.value != null ? Number(formatEther(relayer.value)) : null

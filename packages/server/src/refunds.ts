@@ -6,7 +6,7 @@ import { eq } from "@arkiv-network/sdk/query"
 import { Receipt } from "@whitepay/shared/arkiv"
 import { arkiv, wc } from "./clients"
 import { config } from "./config"
-import type { PayerAuth } from "./relayer"
+import { sendRobust, type PayerAuth } from "./relayer"
 import { allowanceRefunded, claimRefund } from "./refund-allowance"
 
 const AUTH = { name: "a", type: "tuple", components: [
@@ -61,7 +61,7 @@ export async function relayRefund(p: { paymentId: Hex; amount: bigint; auth: Pay
       account: wc().relayer.account, address: config.router, abi: REFUND_ABI, functionName: "refund",
       args: [p.paymentId, p.amount, { from: p.auth.from, validAfter: p.auth.validAfter, validBefore: p.auth.validBefore, v: Number(v ?? BigInt(27 + (yParity ?? 0))), r, s }],
     })
-    const txHash = await wc().relayer.writeContract(request)
+    const txHash = await sendRobust(wc().relayer, request as any)
     const rc = await wc().pub.waitForTransactionReceipt({ hash: txHash }).catch((e) => { throw Object.assign(e as Error, { txHash }) })
     if (rc.status !== "success") throw new Error("refund reverted")
     return { txHash, block: rc.blockNumber }

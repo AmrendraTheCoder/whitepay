@@ -9,7 +9,7 @@
 // Several wallets can live on one device; one is active.
 import { rememberSession, endSession } from "./session"
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
-import { createWalletClient, custom, getAddress, isHex, numberToHex, type Hex } from "viem"
+import { createWalletClient, custom, getAddress, isHex, numberToHex, recoverTypedDataAddress, type Hex } from "viem"
 import { whitechainSepolia } from "@whitepay/shared"
 
 const STORE = "whitepay.wallets.v2"
@@ -299,7 +299,7 @@ export async function injectedSigner(address: `0x${string}`): Promise<Signer> {
   if (!accounts.some((a) => same(a, address))) throw new Error(`Switch your wallet to ${address.slice(0, 6)}…${address.slice(-4)} and try again`)
   await ensureWhitechain(eth)
   const client = createWalletClient({ chain: whitechainSepolia, transport: custom(eth), account: address })
-  return guardedSigner(address, client, "injected")
+  return guardedSigner(address, client, "injected", () => ensureWhitechain(eth))
 }
 
 // ------------------------------------------------ pending wallet request (timeout + cancel + UI signal)
@@ -336,10 +336,27 @@ function guarded<T>(kind: "injected" | "walletconnect", run: () => Promise<T>): 
   })
 }
 
-function guardedSigner(address: `0x${string}`, client: { signTypedData: (a: any) => Promise<Hex>; signMessage: (a: any) => Promise<Hex> }, kind: "injected" | "walletconnect"): Signer {
+// The usual "fails the first time, works the second" with MetaMask: it just switched to Whitechain and refuses the very
+// first signature with a chain mismatch. Re-check the chain and ask once more instead of failing the payment.
+const CHAIN_MISMATCH = /chain ?id|does not match the (current|active) chain|active chain|wrong network|switch (to|network)/i
+function guardedSigner(address: `0x${string}`, client: { signTypedData: (a: any) => Promise<Hex>; signMessage: (a: any) => Promise<Hex> }, kind: "injected" | "walletconnect", reSwitch?: () => Promise<void>): Signer {
+  const signTyped = async (td: any): Promise<Hex> => {
+    let sig: Hex
+    try { sig = await guarded(kind, () => client.signTypedData(td)) } catch (e) {
+      if (!reSwitch || !CHAIN_MISMATCH.test(String((e as Error)?.message ?? e))) throw e
+      await guarded(kind, reSwitch)
+      await new Promise((r) => setTimeout(r, 600))
+      sig = await guarded(kind, () => client.signTypedData(td))
+    }
+    // check the signature here, so a wrong account / broken signature is caught with a clear message instead of an
+    // "invalid authorization" from the chain after the request was sent
+    const signer = await recoverTypedDataAddress({ ...td, signature: sig }).catch(() => null)
+    if (!signer || !same(signer, address)) throw new Error(`Your wallet signed with ${signer ? `${signer.slice(0, 6)}…${signer.slice(-4)}` : "an unexpected key"}, not ${address.slice(0, 6)}…${address.slice(-4)}. Switch to that account in your wallet and try again; nothing was charged.`)
+    return sig
+  }
   return {
     address,
-    signTypedData: ((td: any) => guarded(kind, () => client.signTypedData(td))) as Signer["signTypedData"],
+    signTypedData: signTyped as Signer["signTypedData"],
     signMessage: ((m: any) => guarded(kind, () => client.signMessage(m))) as Signer["signMessage"],
   }
 }
@@ -365,7 +382,7 @@ export async function externalSigner(w: WalletInfo): Promise<Signer> {
   // a chain switch over WalletConnect opens MetaMask; bound it so a dead session can't hang the sheet
   await guarded("walletconnect", () => ensureWhitechain(p as unknown as Eip1193))
   const client = createWalletClient({ chain: whitechainSepolia, transport: custom(p as any), account: w.address })
-  return guardedSigner(w.address, client, "walletconnect")
+  return guardedSigner(w.address, client, "walletconnect", () => ensureWhitechain(p as unknown as Eip1193))
 }
 
 // ------------------------------------------ WondrPay PIN / fingerprint for external wallets

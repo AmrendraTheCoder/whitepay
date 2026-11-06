@@ -7,6 +7,7 @@ import { Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, To
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
 import { RewardsEntry } from "../rewards/entry"
+import { WhitechainStrip } from "../whitechain-strip"
 
 export default function Home() {
   const data = useWalletData()
@@ -38,6 +39,8 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
           ? <span className="avatar-btn skel circle" aria-label="Loading profile" />
           : <AvatarRings address={wallet.address}><a className="avatar-btn" href="/you" aria-label="Your profile">{name ? initial(name) : Icon.user(22)}</a></AvatarRings>}
       </div>
+
+      <WhitechainStrip />
 
       <div className="hero">
         <div className="hero-top">

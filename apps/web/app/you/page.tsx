@@ -8,6 +8,7 @@ import {
 } from "@/lib/wallet"
 import { useTheme, type Theme } from "@/lib/prefs"
 import { short } from "@/lib/format"
+import { soundOn, setSoundOn, playSound } from "@/lib/sound"
 import { ENS_WHITEPAY } from "@whitepay/shared"
 
 /** GPay "You": name, WondrPay ID (ENS, like a UPI ID), QR, wallets, appearance, security. */
@@ -24,6 +25,8 @@ export default function You() {
   const [wallets, setWallets] = useState<WalletInfo[]>([])
   const [copied, setCopied] = useState(false)
   const [bioOk, setBioOk] = useState(false)
+  const [sound, setSound] = useState(true)
+  useEffect(() => setSound(soundOn()), [])
   const [askPin, setAskPin] = useState(false)
   const [sec, setSec] = useState<PaySecurity | null>(null)
   const [pendingSec, setPendingSec] = useState<PaySecurity | null>(null)
@@ -163,6 +166,14 @@ export default function You() {
           </div>
         )}
         <a className="menu-row" href="/transactions"><span className="ic">{Icon.history(26)}</span><div>Transaction history<div className="s">Receipts stored on Arkiv</div></div><span className="chev">{Icon.chev()}</span></a>
+        <div className="menu-row">
+          <span className="ic" aria-hidden>{Icon.bell(26)}</span>
+          <div>Payment sounds<div className="s">{sound ? "On: a sound when you pay, get paid or win a reward" : "Off"}</div></div>
+          <button className="chip" style={{ marginLeft: "auto" }} role="switch" aria-checked={sound} aria-label="Payment sounds"
+            onClick={() => { const next = !sound; setSoundOn(next); setSound(next); if (next) playSound("received") }}>
+            {sound ? "On" : "Off"}
+          </button>
+        </div>
       </div>
       {msg && <div className="sub center">{msg}</div>}
 

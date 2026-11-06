@@ -10,6 +10,7 @@ import { Processing } from "../processing"
 import { NewBalance, RewardEarned } from "../money-events"
 import { getWallet } from "@/lib/wallet"
 import { usdt, initials, mmss } from "@/lib/format"
+import { playSound } from "@/lib/sound"
 import { settle, SettleError } from "@/lib/settle"
 
 type Check = { label: string; detail: string }
@@ -125,6 +126,7 @@ function Pay() {
       await submit(body, account.address, digest)
     } catch (e) {
       setResult({ error: friendlyPayError((e as Error).message), code: (e as any).code })
+      playSound("error")
       setPhase("failed")
     }
   }
@@ -136,10 +138,12 @@ function Pay() {
       const out = await settle("/api/pay", body, { from: payer, nonce: ref })
       setResult({ explorer: out.explorer as string | undefined })
       setPhase("finishing")
+      playSound("sent")
       setTimeout(() => setPhase("done"), 900)
     } catch (e) {
       const err = e as SettleError
       setResult({ error: err.code === "unconfirmed" ? err.message : friendlyPayError(err.message), code: err.code })
+      playSound("error")
       setPhase("failed")
     }
   }

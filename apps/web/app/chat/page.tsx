@@ -5,6 +5,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { getAddress, isAddress } from "viem"
 import { getWallet } from "@/lib/wallet"
+import { watchChain } from "@/lib/live"
 import { usdt } from "@/lib/format"
 import { Icon, Identicon, LogoLoader, prettyName, type Activity } from "../ui"
 import "./chat.css"
@@ -43,10 +44,23 @@ function Chat() {
     if (!other) return
     fetch(`/api/resolve?q=${other}`).then((r) => r.json()).then((d) => d?.address && setWho((w) => ({ ...w, ...d, address: other }))).catch(() => {})
   }, [other])
+  const [rev, setRev] = useState(0)
+  // live: a payment to/from this wallet just landed on Whitechain → reload the thread (again once indexed)
+  useEffect(() => {
+    if (!me) return
+    const unwatch = watchChain(me)
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ address: string }>).detail
+      if (d.address !== me.toLowerCase()) return
+      setRev((n) => n + 1); setTimeout(() => setRev((n) => n + 1), 3500)
+    }
+    window.addEventListener("wondrpay:transfer", on)
+    return () => { unwatch(); window.removeEventListener("wondrpay:transfer", on) }
+  }, [me])
   useEffect(() => {
     if (!me || !other) return
     let live = true
-    fetch(`/api/activity?address=${me}`).then((r) => r.json())
+    fetch(`/api/activity?address=${me}${rev ? "&fresh=1" : ""}`).then((r) => r.json())
       .then((d) => { if (live) setRows((d.rows ?? []) as Activity[]) })
       .catch(() => { if (live) { setErr("Couldn't load your payments. Check your connection."); setRows([]) } })
     // scratch cards earned by paying this shop, shown right after the payment that earned them
@@ -57,7 +71,7 @@ function Chat() {
       setCards(m)
     }).catch(() => {})
     return () => { live = false }
-  }, [me, other])
+  }, [me, other, rev])
 
   const thread = useMemo(() => {
     if (!rows || !other) return null

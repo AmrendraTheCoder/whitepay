@@ -1,7 +1,7 @@
 // Unified activity for ANY wallet: WondrPay receipts (Arkiv: names, kind, receipt) merged with every
 // on-chain USDT transfer (Whitechain explorer), so swaps, MetaMask sends and direct transfers show too.
 import { getAddress, isAddress, type Address } from "viem"
-import { listReceipts, config, rewardsPool } from "@whitepay/server"
+import { listReceipts, config, rewardsPool, cached } from "@whitepay/server"
 import { EXPLORER_URL, ROUTER_ADDRESS, USDT_ADDRESS } from "@whitepay/shared"
 import { json, errorMessage } from "@/lib/json"
 
@@ -31,13 +31,16 @@ export async function GET(req: Request) {
   const me = getAddress(a as Address)
   const lc = me.toLowerCase()
   try {
-    const [receipts, chain] = await Promise.all([
+    // several screens/tabs of the same wallet within 2 s share one lookup; the explorer gets 4 s at most, so a slow
+    // explorer never holds the history back (receipts on Arkiv still show)
+    const fresh = new URL(req.url).searchParams.has("fresh")
+    const [receipts, chain] = await cached(`act:${lc}`, fresh ? 0 : 2_000, () => Promise.all([
       listReceipts({ party: me, limit: 50 }).then((p) => p.entities as any[]).catch(() => []),
-      fetch(`${EXPLORER_URL}/api/v2/addresses/${me}/token-transfers?type=ERC-20&token=${USDT_ADDRESS}`, { cache: "no-store" })
+      fetch(`${EXPLORER_URL}/api/v2/addresses/${me}/token-transfers?type=ERC-20&token=${USDT_ADDRESS}`, { cache: "no-store", signal: AbortSignal.timeout(4000) })
         .then((r) => (r.ok ? r.json() : { items: [] }))
         .then((d) => (d.items ?? []) as BsTransfer[])
         .catch(() => [] as BsTransfer[]),
-    ])
+    ]))
 
     const rows = new Map<string, ActivityRow>()
     // 1) WondrPay receipts (richest data)

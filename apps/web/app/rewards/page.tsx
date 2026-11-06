@@ -6,6 +6,7 @@ import { ECON, claimSignal, economicsPer100, type OfferView, type RewardCard, ty
 import { getWallet } from "@/lib/wallet"
 import { Icon, Identicon } from "../ui"
 import { ClaimVerify, rewardMode } from "./claim-verify"
+import { playSound } from "@/lib/sound"
 import { Chest, Gift } from "./art"
 import { PrizeFace, usd } from "./prize"
 import { ScratchSheet, prettyShop } from "./scratch"
@@ -139,6 +140,7 @@ export default function RewardsPage() {
                       }}
                       onStage={setStage}
                       onClaimed={(d) => {
+                        playSound("reward")
                         setClaimErr(""); setMode("session")
                         const wbt = (Number(BigInt(d.wbtWei)) / 1e18).toPrecision(3)
                         setClaimed({ wbt, explorer: d.explorer })
@@ -253,7 +255,7 @@ export default function RewardsPage() {
 
       {toast && <div className="rw-toast" role="status">{toast}</div>}
       {open && owner && (
-        <ScratchSheet card={open} owner={owner} onClose={() => setOpen(null)} onRevealed={(c) => { onRevealed(c); setOpen(c) }} />
+        <ScratchSheet card={open} owner={owner} onClose={() => setOpen(null)} onRevealed={(c) => { onRevealed(c); setOpen(c); playSound(c.status === "won" || c.prize === "cashback" ? "reward" : "tap") }} />
       )}
     </main>
   )

@@ -10,6 +10,8 @@ import type { RewardCard } from "@whitepay/shared/rewards"
 import { EXPLORER_URL, ROUTER_ADDRESS } from "@whitepay/shared"
 import { getWallet } from "@/lib/wallet"
 import { usdt } from "@/lib/format"
+import { watchChain } from "@/lib/live"
+import { playSound, primeSound } from "@/lib/sound"
 import { Gift } from "./rewards/art"
 import { ScratchSheet, prettyShop } from "./rewards/scratch"
 import "./money-events.css"
@@ -100,7 +102,7 @@ export function RewardEarned({ owner, merchant, merchantName, amount, since }: {
         {card?.status === "new" ? <span className="mx-cta">Scratch</span> : !card ? <span className="spinner" aria-hidden /> : null}
       </button>
       {open && card && (
-        <ScratchSheet card={card} owner={owner} onClose={() => setOpen(false)} onRevealed={(c) => setCard(c)} />
+        <ScratchSheet card={card} owner={owner} onClose={() => setOpen(false)} onRevealed={(c) => { setCard(c); playSound(c.status === "won" || c.prize === "cashback" ? "reward" : "tap") }} />
       )}
     </>
   )
@@ -119,6 +121,7 @@ export function IncomingWatcher() {
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">("unsupported")
   const last = useRef<bigint | null>(null)
 
+  useEffect(() => { primeSound() }, [])
   useEffect(() => {
     setAddr(getWallet()?.address ?? null)
     setPerm(typeof Notification === "undefined" ? "unsupported" : Notification.permission)
@@ -130,8 +133,8 @@ export function IncomingWatcher() {
     let stop = false
 
     const remember = (b: bigint) => { last.current = b; try { localStorage.setItem(seenKey(addr), b.toString()) } catch {} }
-    const check = async () => {
-      const b = await getBalance(addr)
+    const check = async (live?: bigint) => {
+      const b = live ?? (await getBalance(addr, true))
       if (stop || b === null) return
       const prev = last.current
       remember(b)
@@ -155,6 +158,7 @@ export function IncomingWatcher() {
       if (sender && !from) from = `${sender.slice(0, 6)}…${sender.slice(-4)}`
       if (stop) return
       const evt = { amount: diff, from, balance: b, tx: row?.txHash }
+      playSound("received")
       announceBalance(addr, b)
       setPop(evt)
       setToast(`${usdt(diff)} USDT added to your balance`)
@@ -172,14 +176,21 @@ export function IncomingWatcher() {
       if (d.address === addr.toLowerCase() && (last.current === null || BigInt(d.usdt) < last.current)) remember(BigInt(d.usdt))
     }
     window.addEventListener("wondrpay:balance", onBal)
+    // live: the chain watcher saw USDT come in to this wallet (within ~1 s of the block)
+    const onLive = (e: Event) => {
+      const d = (e as CustomEvent<{ address: string; transfers: { direction: string }[]; balance?: string }>).detail
+      if (d.address === addr.toLowerCase() && d.transfers.some((x) => x.direction === "in")) void check(d.balance ? BigInt(d.balance) : undefined)
+    }
+    window.addEventListener("wondrpay:transfer", onLive)
+    const unwatch = watchChain(addr)
     void check()
-    // every 6 s while visible; every 20 s in the background (for the system notification)
+    // fallback check (in case the live watcher can't reach the RPC): every 15 s visible, 30 s in the background
     let t: ReturnType<typeof setTimeout>
-    const loop = () => { t = setTimeout(async () => { await check(); if (!stop) loop() }, document.visibilityState === "visible" ? 6000 : 20000) }
+    const loop = () => { t = setTimeout(async () => { await check(); if (!stop) loop() }, document.visibilityState === "visible" ? 15000 : 30000) }
     loop()
     const onVis = () => { if (document.visibilityState === "visible") void check() }
     document.addEventListener("visibilitychange", onVis)
-    return () => { stop = true; clearTimeout(t); window.removeEventListener("wondrpay:balance", onBal); document.removeEventListener("visibilitychange", onVis) }
+    return () => { stop = true; clearTimeout(t); unwatch(); window.removeEventListener("wondrpay:transfer", onLive); window.removeEventListener("wondrpay:balance", onBal); document.removeEventListener("visibilitychange", onVis) }
   }, [addr, path])
 
   useEffect(() => { if (!pop) return; const t = setTimeout(() => setPop(null), 7000); return () => clearTimeout(t) }, [pop])
