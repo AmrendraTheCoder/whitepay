@@ -1,21 +1,28 @@
 # WondrPay Rewards: the math
 
 Rewards exist to pull people into paying **shops** with WondrPay. They are paid out of the merchant fee those
-payments generate, so every reward is backed by revenue that has already been earned. Every number below lives
+payments generate, **after the gas WondrPay paid to relay them**, so every reward is backed by revenue that has
+already been earned and no card is ever funded at a loss. Every number below lives
 in one place in the code (`ECON` in `packages/shared/src/rewards.ts`), and the Rewards page renders the same values.
 
 ## 1. Where the money comes from
 
 | | Value | Why |
 |---|---|---|
-| Merchant fee (MDR) `f` | **0.50%** of each shop payment | Top of our 0.3–0.5% pricing; cards cost 1.8–3% |
-| Share of the fee paid back as rewards `β` | **50%** | The other 50% is WondrPay's margin |
-| Reward budget per $100 of shop volume | `f × β × 100` = **$0.25** | |
-| P2P transfers | no fee, **no rewards** | Rewards can only be earned where we earn |
+| Merchant fee (MDR) `f` | **0.50%** of each shop payment, **at least $0.05** | Top of our 0.3–0.5% pricing; cards cost 1.8–3%. The floor keeps small tickets above their gas |
+| Gas per payment `g` | measured per payment (payDirect ≈ 106,500 gas; **$0.039** at 5 gwei and WBT $73) | WondrPay pays it, so it comes off the fee first |
+| Share paid back as rewards `β` | **50% of (fee − gas)** | The other 50% is WondrPay's margin |
+| Reward budget on a $100 payment | `β × (f × 100 − g)` = **$0.23** at 5 gwei ($0.25 at ~0 gas) | |
+| P2P transfers | no fee, **no rewards**; **10 free a month**, then **$0.03** each | Every relayed transfer costs us gas; the allowance caps that cost |
+
+The reward budget is stored per card: when a card is earned, the server reads the payment's receipt
+(`gasUsed × effectiveGasPrice`), prices it at the live WBT rate and writes `gasMicro` on the card.
 
 ## 2. How a card wins
 
-Each shop payment of at least 0.10 USDT earns one scratch card. A winning card pays a **random 1–5%** of the
+A shop payment earns one scratch card when it is at or above the **gas break-even**, `g / f`: the payment whose
+0.50% fee alone pays its gas. That is **$7.80 at 5 gwei**, $1.56 at 1 gwei and $0.16 at 0.1 gwei, and it moves
+with the gas price. A wallet's first 3 shop payments (from 0.10 USDT) earn welcome cards whatever their size. A winning card pays a **random 1–5%** of the
 payment, in WBT. The rate is skewed toward the low end:
 
 | Rate | 1% | 2% | 3% | 4% | 5% |
@@ -24,13 +31,16 @@ payment, in WBT. The rate is skewed toward the low end:
 
 Expected rate of a winning card: `E[r] = Σ rate × weight / Σ weight` = **2.23%**.
 
-The win probability is chosen so that, on average, rewards spend **exactly** the budget:
+The win probability is set **per card** so that, on average, rewards spend **at most** that card's budget:
 
 ```
-p × E[r] = f × β      =>      p = f × β / E[r] = 0.50% × 50% / 2.23% = 11.2%   (about 1 card in 9)
+p × E[r] × A = β × (fee(A) − g)      =>      p = β × (fee(A) − g) / (E[r] × A),   capped at  f × β / E[r]
 ```
 
-Expected reward per $100 of shop volume: `100 × p × E[r]` = **$0.25**. Expected WondrPay margin: **$0.25**.
+The cap, `0.50% × 50% / 2.23% = 11.2%` (about 1 card in 9), is what very large payments approach. A $100 payment
+at 5 gwei wins 1 in 10 (10.3%); a $10 payment 1 in 40, because more of its fee went to gas.
+
+Expected reward on a $100 payment at 5 gwei: **$0.23**. WondrPay keeps $0.50 − $0.039 gas − $0.23 = **$0.23**.
 
 Cards that don't win cashback can win the shop's own coupon (40% of them, when the shop has one; the shop
 funds the coupon itself) or nothing.
@@ -43,24 +53,27 @@ funds the coupon itself) or nothing.
 | Welcome: first cards per **person** that always win | **3**, capped at **$0.50** each | Paid from a fixed **$25 launch budget** (customer acquisition), not from fees |
 | Claims per person per day | **5** | Automated claiming |
 | Cashback per person per 30 days | **$5** | Heavy farming by one person |
-| Pool solvency | payouts ≤ fee share earned + launch budget − already paid | The pool can never pay out money it hasn't earned |
+| Pool solvency | payouts ≤ 50% × Σ(fee − gas) + launch budget − already paid | The pool can never pay out money it hasn't earned |
+| Gas break-even | no card below `g / f` (except a wallet's 3 welcome cards) | Rewards on payments that already lose money to gas |
 | WBT held | payout + gas reserve must be in the pool wallet | Never promise money the wallet can't send |
 
-Because the caps cut off the expensive tail, the real cost comes in **under** the budget. A 200,000-card
-simulation with payments spread from $0.10 to $200 (`npx tsx --env-file=.env scripts/rewards-test.ts sim`):
+Because the caps cut off the expensive tail (and the fee floor's extra isn't spent on small cards), the real cost
+comes in **under** the budget. 200,000 payments spread from $0.10 to $200, no welcome cards
+(`npx tsx --env-file=.env scripts/rewards-test.ts sim [gwei]`):
 
-```
-model:    fee 0.5%, reward share 50%, E[win rate] 2.23%, win probability 11.21% (1 in 9)
-per $100: fee $0.50, expected rewards $0.250, margin $0.250
-sim 200000 cards: win rate 11.26%, mean winning rate 2.23%
-rewards = 36.7% of fees (target ≤ 50%, caps push it lower)
-```
+| Gas price | Gas / payment | Break-even | Payments with a card | Rewards / budget | Margin after gas + rewards |
+|---|---|---|---|---|---|
+| 5 gwei | $0.039 | $7.80 | 43% | 69% | **$15,671** on $31,056 of fees |
+| 1 gwei | $0.008 | $1.56 | 64% | 69% | **$20,295** on $30,958 of fees |
+| 0.1 gwei | $0.001 | $0.16 | 94% | 63% | **$21,456** on $31,123 of fees |
+
+The simulation fails loudly if rewards ever exceed the gas-aware budget or the book loses money.
 
 ## 4. Why it can't be gamed
 
 **Paying yourself loses money.** Self-payments are excluded outright (payer = shop). Someone who runs their own
-shop from a second wallet pays the 0.50% fee and gets back 0.25% on average: they lose **$0.25 per $100** they
-cycle. The only "free" money is the welcome bonus, and that is limited per human.
+shop from a second wallet pays the 0.50% fee and gets back at most 0.25% on average: they lose **$0.27 per $100** they
+cycle at 5 gwei. The only "free" money is the welcome bonus, and that is limited per human.
 
 **World ID at claim time.** Scratching a card is free, but WBT cashback is only paid when it's **claimed with a
 fresh World ID proof**:
@@ -86,11 +99,19 @@ record stores the price used, so the books can be audited.
 
 Every card (`whitepay.reward`) and every claim (`whitepay.rewardclaim`: human hash, wallet, cards, USD, WBT, price,
 tx) lives on Arkiv. The Rewards page recomputes the pool from them live: shop volume, the fees on it, the reward
-share, what was paid and to how many people, and what's left. Anyone can check that payouts never exceeded what
+share, the gas WondrPay paid on it, what was paid and to how many people, and what's left. Anyone can check that payouts never exceeded what
 fees funded.
 
 ## 7. The dials
 
 Each lever is one constant. Raising `β` makes rewards more generous; lowering `f` (for example, a promotional
-fee for new shops) automatically lowers the win probability, because `p = f × β / E[r]`. Rewards can't outgrow
+fee for new shops) or a gas spike automatically lowers the win probability and raises the break-even, because
+`p = β × (fee − g) / (E[r] × A)`. Rewards can't outgrow
 revenue without someone deliberately changing that formula.
+
+## 8. Not charged on-chain yet
+
+The PaymentRouter has no fee hook: it forwards the full amount. The shop fee, its $0.05 floor and the $0.03 P2P
+fee after 10 free transfers are **modelled and shown** (the send screen counts free transfers left; the ledger
+books fees and gas) but **not deducted** on testnet. Collecting them needs a router upgrade that splits
+`feeBps` (with a floor) to a treasury inside `payOrder` / `payDirect`.

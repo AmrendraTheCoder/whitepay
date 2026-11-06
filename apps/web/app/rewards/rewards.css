@@ -147,6 +147,8 @@
 .rw-split > span { display: grid; place-items: center; white-space: nowrap; padding: 0 6px; flex: 1; }
 .rw-split .rew { background: var(--lime); color: var(--lime-ink); }
 .rw-split .mar { background: var(--brand); color: #fff; }
+.rw-split .gas { background: var(--surface-2); color: var(--muted); font-size: 11px; }
+.rw-split > span[style] { flex-basis: 0; min-width: 72px; }
 .rw-kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 13.5px; margin: 0; }
 .rw-kv dt { color: var(--muted); }
 .rw-kv dd { margin: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }

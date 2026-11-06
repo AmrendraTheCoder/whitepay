@@ -36,6 +36,12 @@ function Send() {
   const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "finishing" | "done" | "failed">("idle")
   const [result, setResult] = useState<{ explorer?: string; error?: string; code?: string }>({})
   const [startedAt, setStartedAt] = useState(0)
+  // P2P is free for 10 transfers a month (WondrPay pays the gas), then $0.03 each: not deducted on testnet
+  const [allow, setAllow] = useState<{ used: number; free: number; left: number } | null>(null)
+  useEffect(() => {
+    if (!wallet) return
+    fetch(`/api/send?from=${wallet.address}`).then((r) => (r.ok ? r.json() : null)).then((a) => a && setAllow(a)).catch(() => {})
+  }, [wallet])
 
   useEffect(() => setWallet(getWallet()), [])
 
@@ -102,6 +108,7 @@ function Send() {
     try {
       const out = await settle("/api/send", body, { from: payer, nonce })
       setResult({ explorer: out.explorer as string | undefined })
+      if (out.allowance) setAllow(out.allowance as { used: number; free: number; left: number })
       setPhase("finishing")
       setTimeout(() => setPhase("done"), 900)
     } catch (e) {
@@ -123,6 +130,7 @@ function Send() {
           </div>
           {result.explorer && <a className="chip" href={result.explorer} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
           {phase === "done" && <NewBalance address={wallet.address} spent={parseUnits(amount, 6)} />}
+          {phase === "done" && payee?.kind !== "merchant" && allow && <div className="sub">{p2pNote(allow)}</div>}
         </div>
         {/* rewards are for paying shops only, never person-to-person */}
         {phase === "done" && payee?.kind === "merchant" && (
@@ -180,7 +188,9 @@ function Send() {
               done={phase === "finishing"}
             />
           )}
-          <div className="sub center">Network fee: 0. WondrPay covers the gas.</div>
+          <div className="sub center">
+            {payee.kind === "merchant" || !allow ? "Network fee: 0. WondrPay covers the gas." : `Network fee: 0. ${p2pNote(allow)}`}
+          </div>
         </>
       )}
       {unlock && payee && (
@@ -188,6 +198,13 @@ function Send() {
       )}
     </main>
   )
+}
+
+/** "7 of 10 free transfers left this month", or the fee once they're used up */
+function p2pNote(a: { used: number; free: number; left: number }) {
+  return a.left > 0
+    ? `${a.left} of ${a.free} free transfers left this month.`
+    : `Free transfers used this month: later ones cost $0.03 (not charged on testnet).`
 }
 
 /** Contract / relayer errors in words a person can act on (same wording as subscriptions). */

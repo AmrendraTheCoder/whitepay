@@ -13,7 +13,6 @@ import { ScratchSheet, prettyShop } from "./scratch"
 import "./rewards.css"
 
 type Data = { cards: RewardCard[]; offers: OfferView[]; ledger: RewardsLedger | null; totalCashback: string; pendingMicro: string }
-const E = economicsPer100()
 
 export default function RewardsPage() {
   const [owner, setOwner] = useState<string | null | undefined>(undefined)
@@ -60,6 +59,9 @@ export default function RewardsPage() {
   const toClaim = cards.filter((c) => c.status === "won").slice(0, 20)
   const pending = toClaim.reduce((s, c) => s + BigInt(c.amount ?? 0), 0n)
   const price = data?.ledger?.wbtUsd ?? null
+  // the model with today's measured gas (falls back to the ECON estimate until the ledger loads)
+  const gasNow = data?.ledger?.gasNowMicro ? BigInt(data.ledger.gasNowMicro) : ECON.gasFallbackMicro
+  const E = economicsPer100(gasNow)
   const wbtOf = (micro: bigint) => (price ? (Number(micro) / 1e6 / price).toPrecision(3) : null)
   const signal = owner ? claimSignal(owner, toClaim.map((c) => c.key)) : ""
 
@@ -183,27 +185,33 @@ export default function RewardsPage() {
 
             <h2 className="rw-h" id="how">Where rewards come from</h2>
             <section className="rw-econ">
-              <p>Shops pay WondrPay a {ECON.feeBps / 100}% fee. Half of it funds your rewards; the other half keeps WondrPay running.
+              <p>Shops pay WondrPay a {ECON.feeBps / 100}% fee (at least ${(Number(ECON.feeFloorMicro) / 1e6).toFixed(2)}). WondrPay first pays the
+                network gas for your payment out of it; half of what's left funds your rewards, the other half keeps WondrPay running.
                 Person-to-person transfers carry no fee, so they earn no cards.</p>
-              <div className="rw-split" aria-label={`Of every $${E.fee.toFixed(2)} fee: $${E.expectedRewards.toFixed(2)} rewards, $${E.margin.toFixed(2)} WondrPay`}>
-                <span className="rew">${E.expectedRewards.toFixed(2)} rewards</span>
-                <span className="mar">${E.margin.toFixed(2)} WondrPay</span>
+              <div className="rw-split" aria-label={`Of a $${E.fee.toFixed(2)} fee on $100: $${E.gas.toFixed(3)} gas, $${E.expectedRewards.toFixed(2)} rewards, $${E.margin.toFixed(2)} WondrPay`}>
+                <span className="gas" style={{ flex: Math.max(E.gas, 0.06) * 100 }}>${E.gas.toFixed(3)} gas</span>
+                <span className="rew" style={{ flex: E.expectedRewards * 100 }}>${E.expectedRewards.toFixed(2)} rewards</span>
+                <span className="mar" style={{ flex: E.margin * 100 }}>${E.margin.toFixed(2)} WondrPay</span>
               </div>
-              <p>Per ${E.volume} of shop payments: ${E.fee.toFixed(2)} in fees, ${E.expectedRewards.toFixed(2)} back as rewards on average.</p>
+              <p>On a ${E.volume} shop payment: ${E.fee.toFixed(2)} fee, ${E.gas.toFixed(3)} gas, ${E.expectedRewards.toFixed(2)} back as rewards on average.</p>
               <ul className="rw-rules">
-                <li><b>1 card in {E.oneIn} wins cashback</b> of 1–5% (average {(E.expectedWinRate * 100).toFixed(2)}%), up to ${Number(ECON.winCapMicro) / 1e6} a card.</li>
+                <li><b>Cards come with payments of ${E.breakEven.toFixed(2)} or more</b>, where the fee covers the gas (it moves with the gas price). Your first {ECON.welcomeWins} cards come with any shop payment.</li>
+                <li><b>Up to 1 card in {E.oneIn} wins cashback</b> of 1–5% (average {(E.expectedWinRate * 100).toFixed(2)}%), up to ${Number(ECON.winCapMicro) / 1e6} a card. Smaller payments win less often, since more of their fee went to gas.</li>
                 <li><b>Your first {ECON.welcomeWins} cards always win</b> (up to ${(Number(ECON.welcomeCapMicro) / 1e6).toFixed(2)} each), from a fixed ${Number(ECON.launchBudgetMicro) / 1e6} launch budget.</li>
                 <li><b>One person, one set of limits:</b> {ECON.humanClaimsPerDay} claims a day and ${Number(ECON.humanMonthlyCapMicro) / 1e6} a month, counted by World ID across all your wallets.</li>
-                <li><b>Paying yourself doesn't pay:</b> rewards average half the fee, so self-payments lose ${E.washTradeLossPer100.toFixed(2)} per $100.</li>
+                <li><b>Paying yourself doesn't pay:</b> rewards average under half the fee, so self-payments lose ${E.washTradeLossPer100.toFixed(2)} per $100.</li>
+                <li><b>Paying people:</b> your first {ECON.p2pFreePerMonth} transfers a month are free, then ${(Number(ECON.p2pFeeMicro) / 1e6).toFixed(2)} each (not charged on testnet).</li>
               </ul>
               {data?.ledger && (
                 <dl className="rw-kv" aria-label="Reward pool, live">
                   <dt>Shop volume that earned cards</dt><dd>{usd(data.ledger.volumeMicro)}</dd>
-                  <dt>Fees on it ({ECON.feeBps / 100}%)</dt><dd>{usd(data.ledger.feesMicro)}</dd>
-                  <dt>Reward share + launch budget</dt><dd>{usd(BigInt(data.ledger.accruedMicro) + BigInt(data.ledger.launchBudgetMicro))}</dd>
+                  <dt>Fees on it ({ECON.feeBps / 100}%, min ${(Number(ECON.feeFloorMicro) / 1e6).toFixed(2)})</dt><dd>{usd(data.ledger.feesMicro)}</dd>
+                  <dt>Gas WondrPay paid on it</dt><dd>{usd(data.ledger.gasMicro ?? "0")}</dd>
+                  <dt>Reward share of fee − gas + launch budget</dt><dd>{usd(BigInt(data.ledger.accruedMicro) + BigInt(data.ledger.launchBudgetMicro))}</dd>
                   <dt>Paid to {data.ledger.humans} {data.ledger.humans === 1 ? "person" : "people"} ({data.ledger.claims} {data.ledger.claims === 1 ? "claim" : "claims"})</dt><dd>{usd(data.ledger.paidMicro)}</dd>
                   <dt>Left in the pool</dt><dd>{usd(data.ledger.availableMicro)}</dd>
                   <dt>WBT price</dt><dd>{price ? `$${price.toFixed(2)}` : "–"}</dd>
+                  <dt>Gas per payment now</dt><dd>{usd(gasNow)}</dd>
                 </dl>
               )}
             </section>

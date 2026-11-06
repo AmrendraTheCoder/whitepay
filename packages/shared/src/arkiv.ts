@@ -177,6 +177,7 @@ export const Reward = defineSchema("whitepay.reward", {
   status: str().indexed(), // "new" | "scratched"
   prize: str().indexed().optional(), // "cashback" | "offer" | "none" (set on scratch)
   amount: u256().optional(), // cashback in USDT base units
+  gasMicro: u256().optional(), // gas WondrPay paid to relay the payment, micro-USD (funds come from fee − gas)
   offerText: str().optional(),
   offerCode: str().optional(),
   payoutTx: str().optional(),

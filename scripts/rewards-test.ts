@@ -11,10 +11,10 @@ import { createWalletClient, http, keccak256, parseEther, formatEther, toHex, ty
 import { privateKeyToAccount } from "viem/accounts"
 import { receiveAuthTypedData, ROUTER_ABI, whitechainSepolia } from "@whitepay/shared"
 import { MerchantProfile } from "@whitepay/shared/arkiv"
-import { ECON, economicsPer100, rollPrize, cashbackMicro, winProbBps, expectedWinRateBps, offerMessage } from "@whitepay/shared/rewards"
+import { ECON, economicsPer100, rollPrize, cashbackMicro, expectedWinRateBps, offerMessage, shopFeeMicro, rewardBudgetMicro, minCardPaymentMicro, gasMicroFor } from "@whitepay/shared/rewards"
 import {
   arkiv, config, wc, relayDirectPayment, awardScratchCard, setOffer, listRewards, scratchCard, claimRewards, rewardsLedger,
-  rewardsPool, rewardPoolWbt, getMerchantByAddress,
+  rewardsPool, rewardPoolWbt, getMerchantByAddress, p2pAllowance,
 } from "@whitepay/server"
 
 const key = (n: string) => process.env[n]!.split(",")[0].trim() as Hex
@@ -38,32 +38,41 @@ async function anyShop() {
   return shop
 }
 
-function sim() {
-  // random seeds, random payments between $0.10 and $200 (log-uniform), no welcome: the steady state
+function sim(gweiArg?: string) {
+  // random payments between $0.10 and $200 (log-uniform), no welcome: the steady state. Gas per payment from
+  // `sim <gwei>` (WBT $73, 106,500 gas) or the ECON estimate. Only payments at or above the break-even get cards.
+  const gasMicro = gweiArg ? gasMicroFor(ECON.relayGas, BigInt(Math.round(Number(gweiArg) * 1e9)), 73.11) : ECON.gasFallbackMicro
+  const minPay = minCardPaymentMicro(gasMicro)
   const N = 200_000
-  let vol = 0n, cost = 0n, wins = 0, rateSum = 0
+  let vol = 0n, fees = 0n, gas = 0n, budget = 0n, cost = 0n, cards = 0, wins = 0, rateSum = 0
   const buf = new Uint8Array(32)
   for (let i = 0; i < N; i++) {
     crypto.getRandomValues(buf)
     const seed = BigInt(toHex(buf))
     const paid = BigInt(Math.round(Math.exp(Math.log(0.1) + Math.random() * Math.log(2000)) * 1e6))
-    const r = rollPrize(seed, { hasOffer: true, welcome: false })
-    vol += paid
+    vol += paid; fees += shopFeeMicro(paid); gas += gasMicro
+    if (paid < minPay) continue // no card: the fee only covers gas
+    cards++; budget += rewardBudgetMicro(paid, gasMicro)
+    const r = rollPrize(seed, { hasOffer: true, welcome: false, paid, gasMicro })
     if (r.prize === "wbt") { wins++; rateSum += r.rateBps; cost += cashbackMicro(paid, r.rateBps, false) }
   }
-  const fees = (vol * BigInt(ECON.feeBps)) / 10_000n
-  const e = economicsPer100()
-  console.log("model:   fee %s%%, reward share %s%%, E[win rate] %s%%, win probability %s%% (1 in %d)",
-    ECON.feeBps / 100, ECON.rewardShareBps / 100, (expectedWinRateBps() / 100).toFixed(2), (winProbBps() / 100).toFixed(2), e.oneIn)
-  console.log("per $100: fee $%s, expected rewards $%s, margin $%s", e.fee.toFixed(2), e.expectedRewards.toFixed(3), e.margin.toFixed(3))
-  console.log("sim %d cards: win rate %s%%, mean winning rate %s%%", N, ((wins / N) * 100).toFixed(2), (rateSum / wins / 100).toFixed(2))
-  console.log("sim: volume %s, fees %s, rewards %s = %s%% of fees (target ≤ %s%%, caps push it lower)",
-    usd(vol), usd(fees), usd(cost), ((Number(cost) / Number(fees)) * 100).toFixed(1), ECON.rewardShareBps / 100)
-  if (cost > fees) throw new Error("BUG: rewards exceed fees")
+  const e = economicsPer100(gasMicro)
+  console.log("model:   fee %s%% (min $%s), gas/payment $%s, break-even $%s, reward share %s%% of fee − gas, E[win rate] %s%%",
+    ECON.feeBps / 100, (Number(ECON.feeFloorMicro) / 1e6).toFixed(2), (Number(gasMicro) / 1e6).toFixed(4), e.breakEven.toFixed(2),
+    ECON.rewardShareBps / 100, (expectedWinRateBps() / 100).toFixed(2))
+  console.log("$100 payment: fee $%s, gas $%s, win 1 in %d, expected rewards $%s, margin $%s",
+    e.fee.toFixed(2), e.gas.toFixed(3), e.oneIn, e.expectedRewards.toFixed(3), e.margin.toFixed(3))
+  console.log("sim %d payments: %d earned cards, %s%% of cards won, mean winning rate %s%%",
+    N, cards, ((wins / Math.max(cards, 1)) * 100).toFixed(2), (rateSum / Math.max(wins, 1) / 100).toFixed(2))
+  console.log("sim: volume %s, fees %s, gas %s, reward budget %s, rewards paid %s (%s%% of budget)",
+    usd(vol), usd(fees), usd(gas), usd(budget), usd(cost), ((Number(cost) / Math.max(Number(budget), 1)) * 100).toFixed(1))
+  console.log("sim: WondrPay margin after gas and rewards %s", usd(fees - gas - cost))
+  if (cost > budget * 105n / 100n) throw new Error("BUG: rewards exceed the gas-aware budget")
+  if (fees - gas - cost < 0n) throw new Error("BUG: rewards made the book lose money")
 }
 
 async function main() {
-  if (process.argv[2] === "sim") return sim()
+  if (process.argv[2] === "sim") return sim(process.argv[3])
   const pool = rewardsPool()
   if (!pool) throw new Error("REWARDS_PK not set")
 
@@ -92,9 +101,12 @@ async function main() {
     return
   }
 
-  const earn = async (from = customer) => {
+  const earnMaybe = async (from = customer) => {
     const paid = await push(from, shop.address, 100_000n, `rewards-test/${Date.now()}/${Math.random()}`)
-    const k = await awardScratchCard({ payer: from.address, merchant: shop.address, merchantName: shop.ensName, amount: 100_000n, txHash: paid.txHash })
+    return awardScratchCard({ payer: from.address, merchant: shop.address, merchantName: shop.ensName, amount: 100_000n, txHash: paid.txHash })
+  }
+  const earn = async (from = customer) => {
+    const k = await earnMaybe(from)
     if (!k) throw new Error("no card awarded")
     return k
   }
@@ -107,16 +119,23 @@ async function main() {
 
   console.log(`pool ${pool.address}: ${formatEther(await rewardPoolWbt())} WBT`)
   const before = await rewardsLedger()
-  console.log(`ledger: volume ${usd(before.volumeMicro)}, accrued ${usd(before.accruedMicro)} + launch ${usd(before.launchBudgetMicro)}, paid ${usd(before.paidMicro)}, available ${usd(before.availableMicro)}, WBT $${before.wbtUsd}`)
+  console.log(`ledger: volume ${usd(before.volumeMicro)}, fees ${usd(before.feesMicro)}, gas ${usd(before.gasMicro)}, accrued ${usd(before.accruedMicro)} + launch ${usd(before.launchBudgetMicro)}, paid ${usd(before.paidMicro)}, available ${usd(before.availableMicro)}, WBT $${before.wbtUsd}`)
+  console.log(`gas now ${usd(before.gasNowMicro)} per payment, break-even ${usd(before.breakEvenMicro)}`)
+  console.log(`P2P allowance of the test customer this month: ${JSON.stringify(await p2pAllowance(customer.address))}`)
 
   // a brand-new test wallet: its first cards are welcome wins
   const fresh = privateKeyToAccount(keccak256(toHex(`rewards-test-wallet/${Date.now()}`)))
   await push(customer, fresh.address, 400_000n, `fund-fresh/${Date.now()}`)
-  console.log(`1. fresh wallet ${fresh.address} funded 0.40 USDT; pays ${shop.ensName} 0.10 x 4`)
+  console.log(`1. fresh wallet ${fresh.address} funded 0.40 USDT; pays ${shop.ensName} 0.10 x 4 (below the break-even)`)
   const keys: Hex[] = []
-  for (let i = 0; i < 4; i++) keys.push(await earn(fresh))
+  for (let i = 0; i < 3; i++) keys.push(await earn(fresh))
+  const fourth = await earnMaybe(fresh)
+  console.log(`   3 welcome cards earned; 4th payment below break-even -> ${fourth ? "CARD (BUG)" : "no card (ok)"}`)
+  if (fourth) throw new Error("card awarded below the gas break-even")
+  const withGas = await listRewards(fresh.address)
+  console.log(`   gas recorded on the cards: ${withGas.map((c) => usd(c.gasMicro ?? "0")).join(", ")}`)
 
-  console.log("2. scratch all 4")
+  console.log("2. scratch all 3")
   const won: Hex[] = []
   for (const k of keys) {
     const r = await scratchCard(k, fresh.address)

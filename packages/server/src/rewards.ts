@@ -1,21 +1,24 @@
 // Rewards, earned by paying a listed shop. The numbers come from ECON in @whitepay/shared/rewards
 // (docs/REWARDS.md explains the math):
-//  earn:    a shop payment of >= 0.10 USDT writes one scratch card to Arkiv (one per payment tx, 30-day life).
+//  earn:    a shop payment writes one scratch card to Arkiv (one per payment tx, 30-day life) when its fee covers its
+//           gas (>= the break-even, ~$7.79 at 5 gwei), or when it is one of the wallet's first 3 (welcome) cards.
 //  scratch: the prize is derived from keccak(secret, cardKey): fixed per card, hidden until scratched, the same on
 //           every instance. About 1 card in 9 wins 1-5% WBT cashback; a person's first 3 cards always win (welcome).
 //  claim:   WBT cashback is claimed with a fresh World ID proof bound to the wallet + cards. Limits count per
 //           HUMAN (World ID nullifier) across all their wallets, so bots or wallet farms can't stack rewards. Payouts
-//           can never exceed the pool: 50% of the fees on rewarded volume + a fixed launch budget, minus what was paid.
+//           can never exceed the pool: 50% of (fee − gas) on rewarded volume + a fixed launch budget, minus what was paid.
 import { ExpirationTime, NoEntityFoundError } from "@arkiv-network/sdk"
 import { addr, u64, u256, str, i32, defineSchema } from "@arkiv-network/sdk/schema"
 import { eq, and, gte, desc } from "@arkiv-network/sdk/query"
+import { Receipt } from "@whitepay/shared/arkiv"
 import { createWalletClient, getAddress, http, keccak256, toBytes, verifyMessage, type Address, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { Reward, ShopOffer } from "@whitepay/shared/arkiv"
 import { whitechainSepolia } from "@whitepay/shared"
 import {
   REWARD_MIN_PAYMENT, REWARD_TTL_DAYS, OFFER_TEXT_MAX, OFFER_CODE_RE, ECON, offerMessage, rollPrize, rollRate, cashbackMicro, claimSignal,
-  type RewardCard, type OfferView, type RewardsLedger,
+  shopFeeMicro, rewardBudgetMicro, minCardPaymentMicro, gasMicroFor,
+  type RewardCard, type OfferView, type RewardsLedger, type P2PAllowance,
 } from "@whitepay/shared/rewards"
 import { arkiv, wc } from "./clients"
 import { config } from "./config"
@@ -68,6 +71,25 @@ export const rewardPoolWbt = () =>
     return pool ? wc().pub.getBalance({ address: pool.address }) : 0n
   })
 
+/** gas of one relayed payment right now, micro-USD (falls back to the ECON estimate) */
+export const gasNowMicro = () =>
+  cached("rewards:gas-now", 60_000, async () => {
+    try {
+      const [gp, price] = await Promise.all([wc().pub.getGasPrice(), wbtPrice()])
+      if (price) return gasMicroFor(ECON.relayGas, gp, price)
+    } catch {}
+    return ECON.gasFallbackMicro
+  })
+
+/** what relaying this tx actually cost WondrPay, micro-USD */
+async function gasOfTx(txHash: Hex) {
+  try {
+    const [rc, price] = await Promise.all([wc().pub.getTransactionReceipt({ hash: txHash }), wbtPrice()])
+    if (price && rc.effectiveGasPrice) return gasMicroFor(rc.gasUsed, rc.effectiveGasPrice, price)
+  } catch {}
+  return gasNowMicro()
+}
+
 // ------------------------------------------------------------------ earn
 /** Award one scratch card for a settled shop payment. Never throws (called after the payment response). */
 export async function awardScratchCard(p: { payer: Address; merchant: Address; merchantName?: string; amount: bigint; txHash: Hex }) {
@@ -80,12 +102,20 @@ export async function awardScratchCard(p: { payer: Address; merchant: Address; m
     const dup = await a.pub.select({ $key: true }).from(Reward).ownedBy(a.owner)
       .where(eq("paymentTx", p.txHash.toLowerCase())).limit(1).fetch()
     if (dup.entities.length) return (dup.entities[0] as any).$key as Hex
+    // a card is only given where the fee paid for the gas; below the break-even, only a wallet's welcome cards
+    const gasMicro = await gasOfTx(p.txHash)
+    if (p.amount < minCardPaymentMicro(gasMicro)) {
+      const mine = await a.pub.select({ $key: true }).from(Reward).ownedBy(a.owner)
+        .where(eq("owner", addr(getAddress(p.payer)))).limit(ECON.welcomeWins).fetch()
+      if (mine.entities.length >= ECON.welcomeWins) return null
+    }
     const r = await a.writer.createEntity(Reward, {
       owner: addr(p.payer),
       merchant: addr(p.merchant),
       merchantName: (p.merchantName || shop.ensName).slice(0, 120),
       paymentTx: p.txHash.toLowerCase(),
       paidAmount: p.amount,
+      gasMicro,
       earnedAt: u64(BigInt(now())),
       status: "new",
     }, { expiration: ExpirationTime.fromDays(REWARD_TTL_DAYS) }, { gas: 1_500_000n })
@@ -113,6 +143,7 @@ const toCard = (e: any): RewardCard => {
     merchant: getAddress(v(e.merchant)),
     merchantName: v(e.merchantName) || undefined,
     paidAmount: BigInt(v(e.paidAmount) ?? 0).toString(),
+    gasMicro: v(e.gasMicro) != null ? BigInt(v(e.gasMicro)).toString() : undefined,
     paymentTx: v(e.paymentTx) || undefined,
     earnedAt: Number(v(e.earnedAt)),
     expiresAt: Number(v(e.earnedAt)) + REWARD_TTL_DAYS * 86400,
@@ -127,7 +158,7 @@ const toCard = (e: any): RewardCard => {
     } : {}),
   }
 }
-const CARD_FIELDS = { $key: true, owner: true, merchant: true, merchantName: true, paymentTx: true, paidAmount: true, earnedAt: true,
+const CARD_FIELDS = { $key: true, owner: true, merchant: true, merchantName: true, paymentTx: true, paidAmount: true, gasMicro: true, earnedAt: true,
   status: true, prize: true, amount: true, offerText: true, offerCode: true, payoutTx: true } as const
 
 export const listRewards = (owner: Address): Promise<RewardCard[]> =>
@@ -181,8 +212,9 @@ async function doScratch(key: Hex, owner: Address): Promise<ScratchResult> {
   if (card.status !== "new") return { card, persist: async () => {} }
 
   const [offer, welcomed] = await Promise.all([getOffer(card.merchant as Address), welcomeCount(owner)])
-  const r = rollPrize(seedFor(key), { hasOffer: !!offer?.active, welcome: welcomed < ECON.welcomeWins })
   const paid = BigInt(card.paidAmount)
+  const r = rollPrize(seedFor(key), { hasOffer: !!offer?.active, welcome: welcomed < ECON.welcomeWins, paid,
+    gasMicro: card.gasMicro != null ? BigInt(card.gasMicro) : ECON.gasFallbackMicro })
   const result: RewardCard =
     r.prize === "wbt" || r.prize === "wbt_welcome"
       ? { ...card, status: "won", prize: r.prize, rateBps: r.rateBps, amount: cashbackMicro(paid, r.rateBps, r.prize === "wbt_welcome").toString() }
@@ -223,23 +255,29 @@ export const rewardsLedger = (): Promise<RewardsLedger> =>
       }
       return { entities: out }
     }
-    const [cards, claims, price, poolWbt] = await Promise.all([
-      all(() => a.pub.select({ paidAmount: true, earnedAt: true }).from(Reward).ownedBy(a.owner).orderBy(desc("earnedAt"))),
+    const [cards, claims, price, poolWbt, gasNow] = await Promise.all([
+      all(() => a.pub.select({ paidAmount: true, gasMicro: true, earnedAt: true }).from(Reward).ownedBy(a.owner).orderBy(desc("earnedAt"))),
       all(() => a.pub.select({ usd: true, human: true, claimedAt: true }).from(RewardClaim).ownedBy(a.owner).orderBy(desc("claimedAt"))),
       wbtPrice().catch(() => null),
       rewardPoolWbt().catch(() => 0n),
+      gasNowMicro().catch(() => ECON.gasFallbackMicro),
     ])
-    const volume = (cards.entities as any[]).reduce((s, e) => s + BigInt(v(e.paidAmount) ?? 0), 0n)
-    const fees = (volume * BigInt(ECON.feeBps)) / 10_000n
-    const accrued = (fees * BigInt(ECON.rewardShareBps)) / 10_000n
+    // per card: fee (0.50%, min $0.05), the gas actually paid, and share × (fee − gas) into the pool
+    let volume = 0n, fees = 0n, gas = 0n, accrued = 0n
+    for (const e of cards.entities as any[]) {
+      const paidAmt = BigInt(v(e.paidAmount) ?? 0)
+      const g = v(e.gasMicro) != null ? BigInt(v(e.gasMicro)) : ECON.gasFallbackMicro
+      volume += paidAmt; fees += shopFeeMicro(paidAmt); gas += g; accrued += rewardBudgetMicro(paidAmt, g)
+    }
     const paid = (claims.entities as any[]).reduce((s, e) => s + BigInt(v(e.usd) ?? 0), 0n)
     const available = accrued + ECON.launchBudgetMicro - paid
     return {
-      volumeMicro: volume.toString(), feesMicro: fees.toString(), accruedMicro: accrued.toString(),
+      volumeMicro: volume.toString(), feesMicro: fees.toString(), gasMicro: gas.toString(), accruedMicro: accrued.toString(),
       launchBudgetMicro: ECON.launchBudgetMicro.toString(), paidMicro: paid.toString(),
       availableMicro: (available > 0n ? available : 0n).toString(),
       claims: claims.entities.length, humans: new Set((claims.entities as any[]).map((e) => v(e.human))).size,
       wbtUsd: price, poolWbt: poolWbt.toString(),
+      gasNowMicro: gasNow.toString(), breakEvenMicro: minCardPaymentMicro(gasNow).toString(),
     }
   })
 
@@ -397,3 +435,27 @@ export async function setOffer(p: { merchant: Address; text: string; code: strin
   return { key, merchant, merchantName: shop.ensName, displayName: values.displayName, text, code, active: p.active, updatedAt: ts } satisfies OfferView
 }
 
+
+// ------------------------------------------------------------------ P2P allowance
+/** P2P earns no fee, so each sender gets ECON.p2pFreePerMonth free transfers per calendar month (UTC); after that a
+ *  transfer carries ECON.p2pFeeMicro. Payments to listed shops don't count (they pay the shop fee instead).
+ *  On testnet the fee is shown but not deducted: the router has no fee hook yet. */
+export const p2pAllowance = (payer: Address): Promise<P2PAllowance> =>
+  cached(`p2p-allowance:${getAddress(payer)}`, 10_000, async () => {
+    const d = new Date()
+    const monthStart = Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000)
+    const a = arkiv()
+    const page = await a.pub.select({ merchant: true }).from(Receipt).ownedBy(a.owner)
+      .where(and(eq("payer", addr(getAddress(payer))), eq("kind", "p2p"), gte("paidAt", u64(BigInt(monthStart))))).limit(100).fetch()
+    const payees = (page.entities as any[]).map((e) => getAddress(v(e.merchant)))
+    const shops = await Promise.all([...new Set(payees)].map(async (m) => [m, !!(await getMerchantByAddress(m).catch(() => null))] as const))
+    const isShop = new Map(shops)
+    const used = payees.filter((m) => !isShop.get(m)).length
+    const free = ECON.p2pFreePerMonth
+    const charged = Math.max(0, used - free)
+    return {
+      used, free, left: Math.max(0, free - used),
+      feeMicro: (BigInt(charged) * ECON.p2pFeeMicro).toString(),
+      nextFeeMicro: (used >= free ? ECON.p2pFeeMicro : 0n).toString(),
+    }
+  })
