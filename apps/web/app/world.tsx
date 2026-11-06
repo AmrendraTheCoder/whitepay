@@ -17,7 +17,19 @@ const ERRORS: Record<string, string> = {
   connection_failed: "Couldn't reach World App. Check your connection and try again.",
 }
 
-const REPEAT = "World App says your World ID already used this check. This check has to allow one scan per claim (\"unlimited\" for the whitepay-pay action in the World Developer Portal); ask the WondrPay team to enable it."
+/** resolves once IDKit's sheet (rendered in a shadow root) is on screen, or after `ms` */
+const sheetVisible = (ms: number) =>
+  new Promise<void>((done) => {
+    const t0 = Date.now()
+    const tick = () => {
+      const up = [...document.body.children].some((e) => e.shadowRoot?.querySelector(".idkit-modal, .idkit-backdrop"))
+      if (up || Date.now() - t0 > ms) return done()
+      setTimeout(tick, 120)
+    }
+    tick()
+  })
+
+const REPEAT ="World App says your World ID already used this check. This check has to allow one scan per claim (\"unlimited\" for the whitepay-pay action in the World Developer Portal); ask the WondrPay team to enable it."
 
 export function WorldVerify({
   purpose,
@@ -50,16 +62,21 @@ export function WorldVerify({
   const reported = useRef(false)
 
   const start = async () => {
+    if (busy) return
     setBusy(true)
     try {
-      const r = await fetch(`/api/world/context?purpose=${purpose}${paymentRef ? `&ref=${paymentRef}` : ""}`)
-      const d = await r.json()
+      // never spin forever: a dropped connection or a stale page gets a clear message within 15 s
+      const r = await fetch(`/api/world/context?purpose=${purpose}${paymentRef ? `&ref=${paymentRef}` : ""}`, { signal: AbortSignal.timeout(15_000), cache: "no-store" })
+        .catch((e) => { throw new Error((e as Error).name === "TimeoutError" ? "World ID took too long to start. Check your connection and try again." : "Couldn't reach WondrPay. Check your connection, reload the page and try again.") })
+      const d = await r.json().catch(() => ({ error: "World ID couldn't start. Reload the page and try again." }))
       if (!r.ok) throw new Error(d.error)
       backendData.current = null
       backendError.current = null
       reported.current = false
       setCtx(d)
       setOpen(true)
+      // the World ID sheet connects to World's bridge before it shows: keep "Opening World ID…" until it's on screen
+      await sheetVisible(8_000)
     } catch (e) {
       onDenied((e as Error).message)
     } finally {
@@ -70,7 +87,7 @@ export function WorldVerify({
   return (
     <>
       <button className={className} onClick={start} disabled={busy}>
-        {busy ? <span className="spinner" /> : <span aria-hidden>◎</span>} {label}
+        {busy ? <><span className="spinner" /> Opening World ID…</> : <><span aria-hidden>◎</span> {label}</>}
       </button>
       {ctx && (
         <IDKitRequestWidget

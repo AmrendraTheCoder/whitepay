@@ -5,7 +5,13 @@ import "./processing.css"
 import { useEffect, useState } from "react"
 import { onWalletPending, cancelWalletRequest, isMobile, type PendingWallet } from "@/lib/wallet"
 
-export function Processing({ title, steps, step, done = false, amount }: { title: string; steps: string[]; step: number; done?: boolean; amount?: string }) {
+export function Processing({ title, steps, step, done = false, amount, timer, hint }: {
+  title: string; steps: string[]; step: number; done?: boolean; amount?: string
+  /** show a running clock (m:ss) since the screen opened */
+  timer?: boolean
+  /** one quiet line under the clock, e.g. "Usually 10–20 seconds" */
+  hint?: string
+}) {
   return (
     <div className={`proc ${done ? "done" : ""}`} role="status" aria-live="polite" aria-label={done ? "Done" : steps[step]}>
       <div className="proc-mark">
@@ -26,6 +32,7 @@ export function Processing({ title, steps, step, done = false, amount }: { title
       <div className="proc-title">{done ? "Done" : title}</div>
       <div className="proc-step" key={done ? "d" : step}>{done ? steps[steps.length - 1] : steps[step]}</div>
       <div className="proc-dots" aria-hidden>{steps.map((_, i) => <i key={i} className={i < step || done ? "on" : i === step ? "now" : ""} />)}</div>
+      {timer && <Elapsed stopped={done} hint={hint} />}
       {!done && <WalletWait />}
     </div>
   )
@@ -57,6 +64,24 @@ export function WalletWait() {
       </div>
       {link && <a className="btn btn-primary proc-open" href={link.href}>Open {name}</a>}
       <button type="button" className="btn btn-ghost proc-cancel" onClick={cancelWalletRequest}>Cancel</button>
+    </div>
+  )
+}
+
+/** m:ss since mount; freezes when `stopped` */
+function Elapsed({ stopped, hint }: { stopped: boolean; hint?: string }) {
+  const [t0] = useState(() => Date.now())
+  const [now, setNow] = useState(t0)
+  useEffect(() => {
+    if (stopped) return
+    const id = setInterval(() => setNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [stopped])
+  const s = Math.max(0, Math.floor((now - t0) / 1000))
+  return (
+    <div className="proc-time" aria-live="off">
+      <span className="proc-clock">{Math.floor(s / 60)}:{String(s % 60).padStart(2, "0")}</span>
+      {hint && <span>{hint}</span>}
     </div>
   )
 }

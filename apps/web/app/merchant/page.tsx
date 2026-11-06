@@ -6,6 +6,7 @@ import { merchantSignupMessage, orderTypedData, receiveAuthTypedData, ROUTER_ADD
 import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, MiniLogo, Countdown, Identicon, Icon } from "../ui"
 import { WorldVerify } from "../world"
+import { Processing } from "../processing"
 import { ShopLink } from "./shop-link"
 import { ReviewSheet } from "./review"
 import type { RefundCase } from "../refund-timeline"
@@ -100,7 +101,9 @@ function Signup({ address, account, setAccount, onDone }: {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState("")
   const [verifyStep, setVerifyStep] = useState(false)
-  const [worldMsg, setWorldMsg] = useState("")
+  // creation loader: 0 = approve on device, 1 = registering on Whitechain + Arkiv, done = flash before the next screen
+  const [createStep, setCreateStep] = useState(0)
+  const [created, setCreated] = useState(false)
 
   useEffect(() => {
     setAvail(null)
@@ -111,16 +114,19 @@ function Signup({ address, account, setAccount, onDone }: {
   }, [label])
 
   const submit = async (acct: PrivateKeyAccount) => {
-    setUnlock(false); setAccount(acct); setBusy(true); setErr("")
+    setUnlock(false); setAccount(acct); setBusy(true); setErr(""); setCreateStep(0); setCreated(false)
     try {
       const issuedAt = Math.floor(Date.now() / 1000)
       const signature = await acct.signMessage({ message: merchantSignupMessage({ label, displayName: displayName.trim(), address: acct.address, issuedAt }) })
+      setCreateStep(1)
       const r = await fetch("/api/merchants", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ label, displayName: displayName.trim(), category: category.trim() || undefined, address: acct.address, issuedAt, signature }),
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
+      setCreated(true)
+      await new Promise((ok) => setTimeout(ok, 900)) // let the check land
       setVerifyStep(true) // World ID happens once, right here at shop creation
     } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
@@ -129,29 +135,12 @@ function Signup({ address, account, setAccount, onDone }: {
     return (
       <main className="shell with-nav">
         <TopBar back={null} />
-        <div className="card stack center">
+        <section className="card result shop-made">
           <SuccessCheck />
-          <div className="title">{label}.wondrpay.eth is yours</div>
-          <div className="sub">Last step: prove a real, unique person runs this shop with World ID (one World ID covers up to 5 of your shops). Customers see the Verified badge before they pay. You only do this once; payments never ask for it.</div>
-          <ShopLink shop={account} onVerified={onDone} />
-          <WorldVerify
-            purpose="shop"
-            signal={address}
-            label="Verify with World ID"
-            verify={async (proof) => {
-              const r = await fetch("/api/world/verify", { method: "POST", headers: { "content-type": "application/json" },
-                body: JSON.stringify({ purpose: "merchant", address, result: proof }) })
-              const d = await r.json()
-              if (!r.ok) throw new Error(d.error)
-              return d
-            }}
-            onVerified={() => { setWorldMsg("Verified"); setTimeout(onDone, 900) }}
-            onDenied={(reason) => setWorldMsg(`Not verified: ${reason}`)}
-          />
-          {worldMsg && <div className="sub">{worldMsg}</div>}
-          <button className="btn btn-ghost" onClick={onDone}>Skip, open my shop unverified</button>
-        </div>
-        
+          <h1>{label}.wondrpay.eth is yours</h1>
+          <div className="sub">Last step: prove a real, unique person runs this shop. Customers see the Verified badge before they pay. You do this once; payments never ask for it.</div>
+          <VerifyShop address={address} account={account} onDone={onDone} skipLabel="Skip, open my shop unverified" />
+        </section>
       </main>
     )
 
@@ -181,6 +170,16 @@ function Signup({ address, account, setAccount, onDone }: {
       <button className="btn btn-primary btn-big" disabled={!ok || busy} onClick={() => (account ? submit(account) : setUnlock(true))}>
         {busy ? <><span className="spinner" /> Registering on Whitechain…</> : "Register my shop"}
       </button>
+      {busy && (
+        <Processing
+          title={`Creating ${label}.wondrpay.eth`}
+          steps={["Approve on your device", "Registering your name on Whitechain", "Your shop is ready"]}
+          step={createStep}
+          done={created}
+          timer
+          hint="Keep this page open"
+        />
+      )}
       <div className="err">{err}</div>
       <div className="sub center">New shops start unverified. Verify with World ID to get the Verified badge.</div>
       {unlock && <UnlockSheet title="Sign shop registration" subtitle={`${label}.wondrpay.eth`} onUnlocked={submit} onCancel={() => setUnlock(false)} />}
@@ -195,8 +194,8 @@ const dayKey = (t: number) => { const d = new Date(t * 1000); return new Date(d.
 const dayLabel = (k: number) => { const today = dayKey(Date.now() / 1000); return k === today ? "Today" : k === today - 864e5 ? "Yesterday" : new Date(k).toLocaleDateString([], { day: "numeric", month: "short" }) }
 
 function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merchant; account: PrivateKeyAccount | null; setAccount: (a: PrivateKeyAccount | null) => void; onChange: () => void }) {
-  void onChange
   const [tab, setTabState] = useState<ShopTab>("charge")
+  const [verifyOpen, setVerifyOpen] = useState(false)
   const [amount, setAmount] = useState("")
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
@@ -291,11 +290,21 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
         <a className="chip" href="/app">Personal</a>
       </div>} />
 
+      {verifyOpen && (
+        <div className="sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setVerifyOpen(false) }}>
+          <div className="sheet stack center">
+            <div className="title">Get the Verified badge</div>
+            <div className="sub">Prove a real, unique person runs {merchant.displayName} with World ID. Customers see the badge before they pay. One World ID covers up to 5 of your shops.</div>
+            <VerifyShop address={merchant.address} account={account} onDone={() => { setVerifyOpen(false); onChange() }} skipLabel="Not now" />
+          </div>
+        </div>
+      )}
+
       <section className="shop-hero" aria-label="Your shop">
         <div className="shop-id">
           <Identicon seed={merchant.address} name={merchant.displayName} size={52} />
           <div className="shop-id-text">
-            <div className="shop-name">{merchant.displayName} {merchant.verified ? <span className="badge badge-ok">{Icon.check(12)} Verified</span> : <span className="badge badge-warn">Unverified</span>}</div>
+            <div className="shop-name">{merchant.displayName} {merchant.verified ? <span className="badge badge-ok">{Icon.check(12)} Verified</span> : <button className="badge badge-warn badge-btn" onClick={() => setVerifyOpen(true)} aria-label="Verify this shop with World ID">Unverified · Verify</button>}</div>
             <button className="shop-ens" onClick={() => { navigator.clipboard?.writeText(merchant.ensName); setCopied(true); setTimeout(() => setCopied(false), 1400) }} aria-label={`Copy ${merchant.ensName}`}>
               {copied ? "Copied" : merchant.ensName}
             </button>
@@ -540,5 +549,32 @@ function ShopSkeleton() {
       </div>
       
     </main>
+  )
+}
+
+/** World ID for a shop: approve from an already-verified wallet on this device if there is one, else a World App scan.
+ *  Used right after creating a shop and from the dashboard's Unverified badge. */
+function VerifyShop({ address, account, onDone, skipLabel }: { address: string; account: PrivateKeyAccount | null; onDone: () => void; skipLabel: string }) {
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  return (
+    <div className="stack verify-shop">
+      <ShopLink shop={account} onVerified={onDone} />
+      <WorldVerify
+        purpose="shop"
+        signal={address}
+        label="Verify with World ID"
+        verify={async (proof) => {
+          const r = await fetch("/api/world/verify", { method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ purpose: "merchant", address, result: proof }) })
+          const d = await r.json()
+          if (!r.ok) throw new Error(d.error)
+          return d
+        }}
+        onVerified={() => { setMsg({ ok: true, text: "Verified" }); setTimeout(onDone, 900) }}
+        onDenied={(reason) => setMsg({ ok: false, text: reason })}
+      />
+      {msg && <div className={msg.ok ? "text-ok strong" : "err"} role="status">{msg.ok ? `✓ ${msg.text}` : msg.text}</div>}
+      <button className="btn btn-ghost" onClick={onDone}>{skipLabel}</button>
+    </div>
   )
 }

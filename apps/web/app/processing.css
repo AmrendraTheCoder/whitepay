@@ -21,10 +21,13 @@
 .proc-check path { fill: none; stroke: #fff; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: proc-tick .4s .1s ease-out forwards; }
 @keyframes proc-tick { to { stroke-dashoffset: 0; } }
 .proc-amt { font-size: 34px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.proc-title { font-size: 18px; font-weight: 800; }
+.proc-title { font-size: 18px; font-weight: 800; text-align: center; max-width: 340px; overflow-wrap: anywhere; }
+.proc-step { text-align: center; }
 .proc-step { color: var(--muted); font-size: 14.5px; min-height: 20px; animation: proc-step .35s ease-out both; }
 @keyframes proc-step { from { opacity: 0; transform: translateY(6px); } }
 .proc-dots { display: flex; gap: 6px; margin-top: 6px; }
+.proc-time { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 8px; color: var(--muted); font-size: 12.5px; }
+.proc-clock { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; color: var(--text); letter-spacing: .02em; }
 .proc-dots i { width: 7px; height: 7px; border-radius: 50%; background: color-mix(in oklab, var(--text) 18%, transparent); transition: background .3s, width .3s; }
 .proc-dots i.on { background: var(--ok); } .proc-dots i.now { width: 20px; border-radius: 99px; background: var(--brand); }
 @media (prefers-reduced-motion: reduce) { .proc-arc, .proc-logo, .proc-logo path { animation: none; } .proc-logo path { stroke-dashoffset: 0; } }

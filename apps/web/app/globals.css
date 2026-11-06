@@ -627,3 +627,11 @@ html[data-nav-dir="back"] .shell.with-nav { animation: tab-in-back .28s cubic-be
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .sub-progress { display: flex; align-items: center; gap: 12px; } .sub-progress .progress { flex: 1; }
 .chip:disabled { opacity: .5; cursor: not-allowed; }
+
+/* shop: verification right after creating a shop and from the dashboard's Unverified badge */
+.shop-made { padding: 26px 18px 18px; }
+.shop-made h1 { font-size: var(--t-xl, 22px); line-height: 1.25; overflow-wrap: anywhere; }
+.verify-shop { width: 100%; margin-top: 6px; }
+.verify-shop .btn { width: 100%; }
+.badge-btn { border: 0; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.badge-btn:hover { filter: brightness(1.15); }
