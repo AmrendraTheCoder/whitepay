@@ -160,3 +160,34 @@ export const DueCycle = defineSchema("whitepay.due", {
   attempts: i32().default(0),
   lastError: str().optional(),
 })
+
+// ---------------------------------------------------------------- Rewards (see packages/server/src/rewards.ts)
+/** A scratch card earned by paying a listed shop. Arkiv expiry = the card's validity (30 days).
+ *  The prize is NOT stored until scratched: it is derived server-side from a secret, so nobody
+ *  can read the outcome off Arkiv before scratching. */
+export const Reward = defineSchema("whitepay.reward", {
+  owner: addr().indexed(),
+  merchant: addr().indexed(),
+  merchantName: str().optional(),
+  paymentTx: str().indexed(), // the qualifying Whitechain payment (idempotency: one card per payment)
+  paidAmount: u256(),
+  earnedAt: u64().indexed(),
+  status: str().indexed(), // "new" | "scratched"
+  prize: str().indexed().optional(), // "cashback" | "offer" | "none" (set on scratch)
+  amount: u256().optional(), // cashback in USDT base units
+  offerText: str().optional(),
+  offerCode: str().optional(),
+  payoutTx: str().optional(),
+  scratchedAt: u64().optional(),
+})
+
+/** A shop's public offer, shown on the Rewards page and won from scratch cards. Set by the merchant's signature. */
+export const ShopOffer = defineSchema("whitepay.offer", {
+  merchant: addr().indexed(),
+  merchantName: str().optional(),
+  displayName: str().optional(),
+  text: str(), // e.g. "10% off your next chai" (<=80 chars)
+  code: str(), // e.g. "CHAI10"
+  active: bool().indexed().default(true),
+  updatedAt: u64().indexed(),
+})

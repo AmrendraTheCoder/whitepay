@@ -1,7 +1,7 @@
 // Payer submits their signed EIP-3009 authorization. The server re-verifies the request,
 // the relayer settles on Whitechain (paying the gas), then the receipt is written to Arkiv.
 import { isAddress, isHex, type Address, type Hex } from "viem"
-import { fetchRequest, verifyRequest, relayOrderPayment, settleOnArkiv, PolicyError, deliverWebhook } from "@whitepay/server"
+import { fetchRequest, verifyRequest, relayOrderPayment, settleOnArkiv, PolicyError, deliverWebhook, awardScratchCard } from "@whitepay/server"
 import { after } from "next/server"
 import { json, errorMessage } from "@/lib/json"
 
@@ -51,6 +51,8 @@ export async function POST(req: Request) {
       } catch (e) {
         console.error("arkiv settle failed", errorMessage(e)) // re-indexable from the PaymentSettled event
       }
+      // paying a listed shop earns a scratch card (no-op below 0.10 USDT or for unlisted payees)
+      await awardScratchCard({ payer: auth.from as Address, merchant: v.order.merchant, merchantName: view!.merchantName, amount: v.order.amount, txHash: paid.txHash })
       if (view!.webhook) await deliverWebhook(view!.webhook, receiptKey ?? paid.txHash, {
         event: "payment.settled", entityKey, orderId: v.order.orderId, merchant: v.order.merchant, payer: auth.from,
         amount: v.order.amount.toString(), txHash: paid.txHash, explorer: paid.explorer, receiptKey, paidAt: Math.floor(Date.now() / 1000),

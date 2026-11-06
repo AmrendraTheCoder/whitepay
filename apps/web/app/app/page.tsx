@@ -6,6 +6,7 @@ import { Onboard } from "../onboard"
 import { Icon, avatarColor, initial, prettyName, useWalletData, AccountBadge, Toast, useCountUp, LogoLoader, Identicon } from "../ui"
 import { usdt } from "@/lib/format"
 import { useHideBalance } from "@/lib/prefs"
+import { RewardsEntry } from "../rewards/entry"
 
 export default function Home() {
   const data = useWalletData()
@@ -90,6 +91,9 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
           </a>
         )}
       </div>
+
+      <div className="section-title">Offers &amp; rewards</div>
+      <RewardsEntry address={wallet.address} />
 
       <div className="section-title">Manage your money</div>
       <div className="menu-list">

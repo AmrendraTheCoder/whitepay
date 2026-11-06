@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./arkiv": "./src/arkiv.ts",
     "./security": "./src/security.ts",
-    "./autopay": "./src/autopay.ts"
+    "./autopay": "./src/autopay.ts",
+    "./rewards": "./src/rewards.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

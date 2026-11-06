@@ -7,6 +7,7 @@ import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, MiniLogo, Countdown, Identicon, Icon } from "../ui"
 import { WorldVerify } from "../world"
 import { PlansCard } from "./plans"
+import { OfferCard } from "./offer"
 import { getWallet } from "@/lib/wallet"
 import { endSession } from "@/lib/session"
 import { usdt, short, ago, mmss } from "@/lib/format"
@@ -183,8 +184,8 @@ function Signup({ address, account, setAccount, onDone }: {
   )
 }
 
-type ShopTab = "charge" | "payments" | "plans"
-const SHOP_TABS: { id: ShopTab; label: string }[] = [{ id: "charge", label: "Charge" }, { id: "payments", label: "Payments" }, { id: "plans", label: "Plans" }]
+type ShopTab = "charge" | "payments" | "plans" | "offers"
+const SHOP_TABS: { id: ShopTab; label: string }[] = [{ id: "charge", label: "Charge" }, { id: "payments", label: "Payments" }, { id: "plans", label: "Plans" }, { id: "offers", label: "Offers" }]
 const QUICK = ["0.50", "1", "2", "5", "10"]
 const dayKey = (t: number) => { const d = new Date(t * 1000); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() }
 const dayLabel = (k: number) => { const today = dayKey(Date.now() / 1000); return k === today ? "Today" : k === today - 864e5 ? "Yesterday" : new Date(k).toLocaleDateString([], { day: "numeric", month: "short" }) }
@@ -209,7 +210,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
 
   // section lives in the URL hash (#payments) so a refresh or shared link opens the same view
   useEffect(() => {
-    const read = () => { const h = location.hash.slice(1); if (h === "charge" || h === "payments" || h === "plans") setTabState(h) }
+    const read = () => { const h = location.hash.slice(1); if (h === "charge" || h === "payments" || h === "plans" || h === "offers") setTabState(h) }
     read(); window.addEventListener("hashchange", read)
     return () => window.removeEventListener("hashchange", read)
   }, [])
@@ -392,6 +393,12 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
       {tab === "plans" && (
         <div id="shop-panel-plans" role="tabpanel" aria-labelledby="shop-tab-plans" className="shop-panel">
           <PlansCard merchant={merchant} account={account} setAccount={setAccount} />
+        </div>
+      )}
+
+      {tab === "offers" && (
+        <div id="shop-panel-offers" role="tabpanel" aria-labelledby="shop-tab-offers" className="shop-panel">
+          <OfferCard merchant={merchant} account={account} setAccount={setAccount} />
         </div>
       )}
 

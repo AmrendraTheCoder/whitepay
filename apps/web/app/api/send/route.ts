@@ -1,7 +1,7 @@
 // Person-to-person push (UPI "send money"): payer signs an EIP-3009 authorization whose nonce
 // binds recipient + memo; the relayer settles via PaymentRouter.payDirect; receipt goes to Arkiv.
 import { isAddress, isHex, type Address, type Hex } from "viem"
-import { relayDirectPayment, settleOnArkiv, PolicyError } from "@whitepay/server"
+import { relayDirectPayment, settleOnArkiv, PolicyError, awardScratchCard } from "@whitepay/server"
 import { after } from "next/server"
 import { json, errorMessage } from "@/lib/json"
 
@@ -39,7 +39,9 @@ export async function POST(req: Request) {
     const paid = await relayDirectPayment({ to: b.to as Address, amount, memo: b.memo as Hex, auth })
     // final on-chain: answer now, write the Arkiv receipt after the response
     after(() => settleOnArkiv({ merchant: b.to as Address, merchantName: b.toName?.slice(0, 100), payer: auth.from, amount,
-      paymentId: b.memo as Hex, txHash: paid.txHash, block: paid.block, kind: "p2p" }).then(() => {}, (e) => console.error("arkiv settle failed", errorMessage(e))))
+      paymentId: b.memo as Hex, txHash: paid.txHash, block: paid.block, kind: "p2p" }).then(() => {}, (e) => console.error("arkiv settle failed", errorMessage(e)))
+      // paying a listed shop by name/QR also earns a scratch card (awardScratchCard ignores people and small amounts)
+      .then(() => awardScratchCard({ payer: auth.from, merchant: b.to as Address, merchantName: b.toName?.slice(0, 100), amount, txHash: paid.txHash })))
     return json({ txHash: paid.txHash, explorer: paid.explorer, amount })
   } catch (e) {
     if (e instanceof PolicyError) return json({ error: e.message, code: e.code, paymentRef: b.memo }, { status: 403 })
