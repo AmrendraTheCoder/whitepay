@@ -9,6 +9,8 @@ import { getWallet, type WalletInfo } from "@/lib/wallet"
 import { UnlockSheet } from "../components"
 import { Icon, Identicon } from "../ui"
 import { CodeBlock, CopyField, Field, StepState, Steps } from "./kit"
+import { SiteHealth } from "./health"
+import { PaymentLinks } from "./links"
 import "./portal.css"
 
 type Merchant = { address: string; label: string; ensName: string; displayName: string; category?: string; verified: boolean; active: boolean }
@@ -212,6 +214,7 @@ export default function Portal() {
                         ) : <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => setConfirm(s.siteId)}>Switch off</button>}
                       </div>
                     )}
+                    {s.status === "active" && wallet && <SiteHealth merchant={wallet.address} siteId={s.siteId} hasWebhook={!!s.webhook} />}
                     {confirm === s.siteId && <p className="pt-fine">Its keys stop working at once, and checkouts that are still open can't be paid any more.</p>}
                   </li>
                 ))}
@@ -237,6 +240,12 @@ export default function Portal() {
       <section className="pt-card" aria-labelledby="h-int">
         <h2 id="h-int"><span className="pt-n" aria-hidden>4</span> Integrate</h2>
         <Quickstart secret={secret?.key} hasSite={active.length > 0} />
+      </section>
+
+      {/* 5. payment links */}
+      <section className="pt-card" aria-labelledby="h-links">
+        <h2 id="h-links"><span className="pt-n" aria-hidden>5</span> Payment links</h2>
+        {merchant && wallet ? <PaymentLinks merchant={wallet.address} sites={sites ?? []} /> : <p className="pt-sub">Set up your shop and a website first.</p>}
       </section>
 
       <footer className="pt-foot">

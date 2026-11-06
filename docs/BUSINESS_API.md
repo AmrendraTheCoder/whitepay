@@ -116,7 +116,29 @@ fixed above and covered by the test.
 payment → paid status → shop-signed QR still works → bad keys / foreign URLs / float amounts refused → rotate → revoke
 → rotate replay refused → signer handed back. 26 checks, all passing.
 
-## 10. Next (phase 2+)
+## 10. Phase 2 (shipped)
+
+| Piece | Where |
+|---|---|
+| Webhook delivery log (`whitepay.webhook`, 30 days: event, URL, HTTP status, tries, exact body), **Resend** (same bytes + event id) and **Send test webhook** (`test.ping`), wallet-approved, single use | `business.ts`, `POST /api/business/webhooks`, portal |
+| Integration check per website: keys, first paid checkout, webhook set, last webhook answered 2xx; last payment | `siteHealth`, `GET /api/business/sites/:id/health` |
+| Payment links (`whitepay.paylink`): fixed title + price on a website; `/l/:id` page; each visit = fresh session (`reference: link:pl_…`); stats from receipts | `createLink/disableLink/sessionFromLink`, `/api/business/links`, `/api/v1/links/:id[/session]` |
+| Receipts now carry `site`, `link`, `reference` | `settleOnArkiv` |
+| Checkout SDK **v1.4.0**: `<wondrpay-button link="pl_…">` works on a page with no server; error messages from the v1 API shape | `/sdk/v1.4.0/checkout.js` (SRI pinned) |
+| MetaMask / browser wallet on the hosted checkout (EIP-3009 signature, no gas) | `/checkout/:id` |
+| Node helpers `createWondrPayCheckoutSession`, `getWondrPayCheckoutSession` | `packages/checkout/src/server.ts` |
+| Demo store creates orders with its API key (`WONDRPAY_SECRET_KEY`); the old key-signed flow stays as a fallback | `apps/demo-store/app/api/create-order` |
+
+Arkiv's attribute index can trail a fresh patch by several seconds, so anything that must stop at once (a revoked or
+rotated key, a switched-off link) is re-read with `getEntity` by key before use.
+
+Test: `npx tsx --env-file=.env scripts/business-phase2-test.ts` (link → session → payment → link stats → health → ping →
+log → resend → all green → link off). 15 checks.
+
+## 11. Next (phase 3)
+
+Shared cache for keys and idempotency · WooCommerce / Shopify plugins · local currency display · team roles ·
+refund allowance (refunds without the owner's wallet each time) · live keys on mainnet.
 
 Shared cache for keys and idempotency · webhook delivery log + resend in the portal · `WondrPay.button` v2 with the
 publishable key · payment links with a fixed price · MetaMask/WalletConnect on the hosted checkout · live keys on mainnet.

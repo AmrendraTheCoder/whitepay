@@ -5,7 +5,9 @@
 //  <CopyField> read-only value + Copy button (clipboard with a select-text fallback, live "Copied" feedback)
 //  <CodeBlock> labelled, scrollable code with a Copy button
 import { useEffect, useId, useRef, useState } from "react"
+import type { PrivateKeyAccount } from "viem/accounts"
 import { Icon } from "../ui"
+import { UnlockSheet } from "../components"
 
 export type StepState = "todo" | "current" | "done"
 
@@ -88,4 +90,16 @@ export function CodeBlock({ label, code }: { label: string; code: string }) {
       <span className="sr-only" aria-live="polite">{copied === "ok" ? "Code copied" : copied === "select" ? "Selected. Press Ctrl or Cmd + C to copy." : ""}</span>
     </figure>
   )
+}
+
+/** Ask the shop wallet to sign something: renders the PIN / fingerprint / browser-wallet sheet when needed.
+ *  const { ask, sheet } = useWalletAction();  ask("Approve …", "sub", async (acct) => { … });  return <>{sheet}</> */
+export function useWalletAction() {
+  const [pending, setPending] = useState<{ title: string; subtitle?: string; run: (a: PrivateKeyAccount) => Promise<void> } | null>(null)
+  const ask = (title: string, subtitle: string | undefined, run: (a: PrivateKeyAccount) => Promise<void>) => setPending({ title, subtitle, run })
+  const sheet = pending ? (
+    <UnlockSheet title={pending.title} subtitle={pending.subtitle}
+      onUnlocked={(a) => { const p = pending; setPending(null); void p.run(a) }} onCancel={() => setPending(null)} />
+  ) : null
+  return { ask, sheet, asking: !!pending }
 }

@@ -1,10 +1,13 @@
-/*! WondrPay Checkout SDK v1.2.1 · USDT on Whitechain · MIT
+/*! WondrPay Checkout SDK v1.4.0 · USDT on Whitechain · MIT
  *
  * Works on ANY website (plain HTML, React, Vue, Svelte, WordPress, Shopify custom theme):
  *
  *   <script src="https://wondrpay.vercel.app/sdk/v1/checkout.js" integrity="sha384-…" crossorigin="anonymous" defer></script>
  *   <wondrpay-button order-endpoint="/api/create-order" payload='{"sku":"chai-kit"}' label="Pay 2.50 USDT"></wondrpay-button>
  *   <script>document.addEventListener("wondrpay:paid", (e) => showThankYou(e.detail))</script>
+ *
+ * Payment links (no server at all): <wondrpay-button link="pl_0123456789abcdef0123" label="Pay 12.40 USDT"></wondrpay-button>
+ *   the price and shop are fixed by the link you made in WondrPay Business (/portal); each click starts a fresh checkout.
  *
  * Subscriptions (Autopay): <wondrpay-button mode="subscribe" order-endpoint="/api/create-subscription" …>
  *   your endpoint returns createWondrPaySubscription(...) → QR to approve autopay → wondrpay:subscribed {mandateKey, subscriber}
@@ -24,7 +27,7 @@
 (() => {
   "use strict"
   if (typeof window === "undefined" || customElements.get("wondrpay-button")) return
-  const VERSION = "1.3.1"
+  const VERSION = "1.4.0"
   const ORIGIN = (document.currentScript && new URL(document.currentScript.src).origin) || "https://wondrpay.vercel.app"
   const RE = {
     key: /^0x[0-9a-fA-F]{64}$/, uint: /^\d{1,30}$/, tx: /^0x[0-9a-fA-F]{64}$/,
@@ -108,15 +111,26 @@
       logoEl.replaceWith(spin)
       this._labelEl.textContent = "Preparing secure checkout…"
       try {
-        const ep = new URL(this.getAttribute("order-endpoint") || "", location.href)
-        if (ep.origin !== location.origin) throw new Error("order-endpoint must be on this site (same origin)")
-        let payload
-        const raw = this.getAttribute("payload")
-        if (raw) { try { payload = JSON.parse(raw) } catch { throw new Error("payload attribute is not valid JSON") } }
-        const r = await fetch(ep, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload }) })
-        const d = await r.json().catch(() => ({}))
-        if (!r.ok) throw new Error(typeof d.error === "string" ? d.error.slice(0, 160) : "Couldn't create the order")
-        if (this.getAttribute("mode") === "subscribe") {
+        let d
+        const link = this.getAttribute("link")
+        if (link) {
+          // payment link: WondrPay makes the session (price + shop fixed by the link); no endpoint of yours involved
+          if (!/^pl_[0-9a-f]{20}$/.test(link)) throw new Error("link must look like pl_ followed by 20 hex characters")
+          const r = await fetch(`${ORIGIN}/api/v1/links/${link}/session`, { method: "POST", credentials: "omit", headers: { "content-type": "application/json" }, body: "{}" })
+          const s = await r.json().catch(() => ({}))
+          if (!r.ok) throw new Error(s && s.error && typeof s.error.message === "string" ? s.error.message.slice(0, 160) : "Couldn't start the payment")
+          d = s.button || {}
+        } else {
+          const ep = new URL(this.getAttribute("order-endpoint") || "", location.href)
+          if (ep.origin !== location.origin) throw new Error("order-endpoint must be on this site (same origin)")
+          let payload
+          const raw = this.getAttribute("payload")
+          if (raw) { try { payload = JSON.parse(raw) } catch { throw new Error("payload attribute is not valid JSON") } }
+          const r = await fetch(ep, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload }) })
+          d = await r.json().catch(() => ({}))
+          if (!r.ok) throw new Error(typeof d.error === "string" ? d.error.slice(0, 160) : d.error && typeof d.error.message === "string" ? d.error.message.slice(0, 160) : "Couldn't create the order")
+        }
+        if (!link && this.getAttribute("mode") === "subscribe") {
           if (!RE.key.test(d.planKey) || !RE.uint.test(String(d.amount)) || !/^\d{1,9}$/.test(String(d.period)) || !/^\d{1,2}$/.test(String(d.cycles)))
             throw new Error("unexpected plan response")
           const subscribeUrl = `${ORIGIN}/subscribe?plan=${d.planKey}`

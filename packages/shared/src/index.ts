@@ -231,6 +231,14 @@ export const merchantSignupMessage = (p: { label: string; displayName: string; a
 export const siteApprovalMessage = (p: { action: "create" | "rotate" | "revoke"; merchant: Address; siteId: string; name: string; domains: string[]; webhook?: string; orderSigner: Address; issuedAt: number }) =>
   `WondrPay for Business: ${p.action} website\nshop: ${p.merchant}\nsite: ${p.siteId}\nname: ${p.name}\ndomains: ${p.domains.join(",")}\nwebhook: ${p.webhook ?? ""}\norder signer: ${p.orderSigner}\nissued: ${p.issuedAt}`
 
+/** Wallet approval for payment links (create / disable). Single use: issuedAt must be newer than the link's last change. */
+export const paymentLinkMessage = (p: { action: "create" | "disable"; merchant: Address; site: string; linkId: string; title: string; amount: string; issuedAt: number }) =>
+  `WondrPay for Business: ${p.action} payment link\nshop: ${p.merchant}\nsite: ${p.site}\nlink: ${p.linkId}\ntitle: ${p.title}\namount: ${p.amount} USDT\nissued: ${p.issuedAt}`
+
+/** Wallet approval to re-send a webhook or send a test event to a website's webhook URL. */
+export const webhookActionMessage = (p: { action: "resend" | "ping"; merchant: Address; site: string; target: string; issuedAt: number }) =>
+  `WondrPay for Business: ${p.action} webhook\nshop: ${p.merchant}\nsite: ${p.site}\ntarget: ${p.target}\nissued: ${p.issuedAt}`
+
 export const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$/
 
 /** World ID step-up signal: binds the human check to ONE payment (digest for QR orders, memo for P2P). */

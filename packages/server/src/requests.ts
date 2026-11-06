@@ -43,7 +43,7 @@ export type CreatePaymentRequestParams = {
   /** https URL the WondrPay server POSTs to when this request is paid */
   webhook?: string
   /** WondrPay for Business checkout session fields */
-  session?: { site: string; reference?: string; successUrl?: string; cancelUrl?: string }
+  session?: { site: string; reference?: string; successUrl?: string; cancelUrl?: string; link?: string }
 }
 
 /** Merchant backend: sign the order and publish it as a pending request that lives for `ttlSeconds`. */
@@ -103,6 +103,7 @@ export async function preparePaymentRequest(p: CreatePaymentRequestParams) {
         ...(p.session.reference ? { reference: p.session.reference.slice(0, 64) } : {}),
         ...(p.session.successUrl ? { successUrl: p.session.successUrl } : {}),
         ...(p.session.cancelUrl ? { cancelUrl: p.session.cancelUrl } : {}),
+        ...(p.session.link ? { link: p.session.link } : {}),
       } : {}),
   }
   return { values, ttl, digest, order }
@@ -135,6 +136,7 @@ export type RequestView = {
   reference?: string
   successUrl?: string
   cancelUrl?: string
+  link?: string
   expiresAtBlock: bigint
 }
 
@@ -186,6 +188,7 @@ async function fetchRequestByKey(entityKey: Hex): Promise<RequestView | null> {
       reference: v(e.reference) || undefined,
       successUrl: v(e.successUrl) || undefined,
       cancelUrl: v(e.cancelUrl) || undefined,
+      link: v(e.link) || undefined,
       expiresAtBlock: BigInt(e.$expiresAt),
     }
   } catch (err) {
@@ -278,6 +281,9 @@ export async function settleOnArkiv(p: {
     // keep what was bought and the shop's order id: the request itself expires within minutes
     ...(p.request?.note ? { item: p.request.note.slice(0, 120) } : {}),
     ...(p.request?.orderId ? { orderId: String(p.request.orderId).toLowerCase() } : {}),
+    ...(p.request?.site ? { site: p.request.site } : {}),
+    ...(p.request?.link ? { link: p.request.link } : {}),
+    ...(p.request?.reference ? { reference: p.request.reference } : {}),
   }
 
   if (p.request) {

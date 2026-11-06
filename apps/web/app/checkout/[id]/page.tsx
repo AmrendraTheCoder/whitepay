@@ -4,6 +4,10 @@
 // pay with the WondrPay app (QR on desktop, a button on phones), watches for the payment, then sends them back to the
 // shop's successUrl. It never signs or holds anything itself: paying happens on /pay with the customer's own wallet.
 import { use, useCallback, useEffect, useRef, useState } from "react"
+import { hashTypedData, type Hex } from "viem"
+import { orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, type Order } from "@whitepay/shared"
+import { connectInjectedWallet, hasInjectedWallet, injectedSigner } from "@/lib/wallet"
+import { settle, type SettleError } from "@/lib/settle"
 import { Countdown, Icon, Identicon, LogoLoader, SuccessCheck } from "../../ui"
 import { usdt } from "@/lib/format"
 import "./checkout.css"
@@ -15,7 +19,7 @@ type Req = {
 type Status =
   | { state: "loading" }
   | { state: "publishing" }
-  | { state: "pending"; request: Req; verifiedMerchant: boolean; merchantDisplayName?: string }
+  | { state: "pending"; request: Req; verifiedMerchant: boolean; merchantDisplayName?: string; order: Record<keyof Order, string>; digest: Hex }
   | { state: "paid"; request: Req; receipt?: { explorer?: string; txHash?: string } }
   | { state: "gone"; reason: string; request?: Req }
 
@@ -38,13 +42,14 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
   const valid = /^0x[0-9a-fA-F]{64}$/.test(id)
   const [s, setS] = useState<Status>({ state: "loading" })
   const [isPhone, setIsPhone] = useState(false)
+  const [injected, setInjected] = useState(false)
   const tries = useRef(0)
 
-  useEffect(() => setIsPhone(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)), [])
+  useEffect(() => { setIsPhone(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)); setInjected(hasInjectedWallet()) }, [])
 
   const load = useCallback(async (): Promise<Status> => {
     const r = await fetch(`/api/requests/${id}`, { cache: "no-store" }).then((x) => x.json()).catch(() => ({ state: "error" }))
-    if (r.state === "pending") return { state: "pending", request: r.request, verifiedMerchant: !!r.verifiedMerchant, merchantDisplayName: r.merchantDisplayName }
+    if (r.state === "pending") return { state: "pending", request: r.request, verifiedMerchant: !!r.verifiedMerchant, merchantDisplayName: r.merchantDisplayName, order: r.order, digest: r.digest }
     if (r.state === "paid") return { state: "paid", request: r.request, receipt: r.receipt }
     if (r.state === "publishing") return tries.current++ < 24 ? { state: "publishing" } : { state: "gone", reason: "This checkout link expired or doesn't exist. Go back to the shop and try again." }
     if (r.state === "error") return { state: "publishing" } // network blip: keep trying quietly
@@ -111,11 +116,56 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
           </>
         )}
         <a className="btn btn-primary" href={payUrl}>{isPhone ? "Pay with WondrPay" : "Pay in this browser"}</a>
+        {injected && <BrowserWalletPay id={id} order={s.order} digest={s.digest} amount={r.amount} shop={shop} />}
         <div className="co-wait" role="status" aria-live="polite"><span className="co-dot" aria-hidden /> Waiting for your payment…</div>
         <p className="co-fine">No WondrPay yet? <a href="/app">Create a wallet</a> in 20 seconds, then come back to this page.</p>
         {r.cancelUrl && <a className="co-cancel" href={returnUrl(r.cancelUrl, id, "cancelled")}>Cancel and go back to the shop</a>}
       </section>
     </Shell>
+  )
+}
+
+type MMPhase = "idle" | "connecting" | "signing" | "paying" | "failed"
+
+/** Pay with MetaMask / any browser wallet, right here: the wallet only signs (EIP-3009), WondrPay pays the gas. */
+function BrowserWalletPay({ id, order, digest, amount, shop }: { id: string; order: Record<keyof Order, string>; digest: Hex; amount: string; shop: string }) {
+  const [phase, setPhase] = useState<MMPhase>("idle")
+  const [err, setErr] = useState("")
+  const pay = async () => {
+    setErr("")
+    try {
+      setPhase("connecting")
+      const from = (await connectInjectedWallet()) as Hex
+      const signer = await injectedSigner(from)
+      const o: Order = { merchant: order.merchant as Hex, amount: BigInt(order.amount), orderId: order.orderId as Hex, deadline: BigInt(order.deadline) }
+      // don't trust the server: recompute the digest the wallet will sign
+      const d = hashTypedData(orderTypedData(ROUTER_ADDRESS, o))
+      if (d.toLowerCase() !== digest.toLowerCase() || d.toLowerCase() !== id.toLowerCase()) throw new Error("Order digest mismatch. Not signing.")
+      if (o.amount !== BigInt(amount)) throw new Error("The amount to sign doesn't match the amount shown. Not signing.")
+      if (Number(o.deadline) <= Date.now() / 1000 + 20) throw new Error("This checkout is about to expire. Go back to the shop to start again.")
+      setPhase("signing")
+      const signature = await signer.signTypedData(receiveAuthTypedData({ from, to: ROUTER_ADDRESS, value: o.amount, validAfter: 0n, validBefore: o.deadline, nonce: d }))
+      setPhase("paying")
+      await settle("/api/pay", { entityKey: id, auth: { from, validAfter: "0", validBefore: o.deadline.toString(), signature } }, { from, nonce: d })
+      // the page's status poll picks up "paid" and shows the receipt
+    } catch (e) {
+      const m = (e as SettleError).message ?? String(e)
+      setErr(/reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was charged."
+        : /insufficient|exceeds balance|not enough/i.test(m) ? "Not enough USDT in this wallet on Whitechain Sepolia."
+        : m.slice(0, 200))
+      setPhase("failed")
+    }
+  }
+  const busy = phase === "connecting" || phase === "signing" || phase === "paying"
+  return (
+    <>
+      <button className="btn btn-ghost" onClick={pay} disabled={busy} aria-describedby="mm-note">
+        {busy ? <span className="spinner" /> : null}
+        {phase === "connecting" ? "Connecting wallet…" : phase === "signing" ? "Approve in your wallet…" : phase === "paying" ? "Paying on Whitechain…" : "Pay with MetaMask"}
+      </button>
+      <p id="mm-note" className="co-fine">{phase === "signing" ? `Your wallet asks you to sign ${usdt(amount)} USDT to ${shop}. It's a signature, not a transaction: no gas.` : "Browser wallet on Whitechain Sepolia. You only sign; WondrPay pays the gas."}</p>
+      {err && <p className="co-fine" role="alert" style={{ color: "var(--bad)" }}>{err}</p>}
+    </>
   )
 }
 

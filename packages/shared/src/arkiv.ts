@@ -23,6 +23,10 @@ export const Receipt = defineSchema("whitepay.receipt", {
   memo: bytes().optional(), // encrypted envelope only
   item: str().optional(), // what was bought, from the shop's signed order note (e.g. "1×Masala Chai Kit")
   orderId: str().indexed().optional(), // the shop's order id (bytes32 hex), to map back to its own records
+  // WondrPay for Business: which website / payment link it came from, and the shop's own reference
+  site: str().indexed().optional(),
+  link: str().indexed().optional(),
+  reference: str().indexed().optional(),
 })
 
 /** A payment in progress. Lives only for its TTL (Arkiv expiration == on-chain order deadline).
@@ -50,6 +54,37 @@ export const PayRequest = defineSchema("whitepay.request", {
   reference: str().indexed().optional(), // the shop's own order id (<=64 chars)
   successUrl: str().optional(), // where the hosted checkout sends the customer after paying
   cancelUrl: str().optional(),
+  link: str().indexed().optional(), // PayLink.linkId when a payment link created it
+})
+
+/** One webhook delivery to a shop's website (WondrPay for Business): what was sent and how the shop's server
+ *  answered, for the portal's delivery log and "Resend". Lives 30 days. */
+export const WebhookDelivery = defineSchema("whitepay.webhook", {
+  site: str().indexed(),
+  merchant: addr().indexed(),
+  eventId: str().indexed(),
+  event: str().indexed(), // "checkout.session.completed" | "test.ping"
+  sessionId: str().indexed().optional(),
+  url: str(),
+  status: str().indexed(), // "delivered" | "failed"
+  httpStatus: i32(), // 0 = no answer / unsafe URL
+  attempts: i32(),
+  at: u64().indexed(),
+  payload: bytes(), // the JSON body, so it can be re-sent byte for byte
+})
+
+/** A fixed-price payment link (WondrPay for Business): anyone with the link can pay it; each visit makes a fresh
+ *  checkout session signed by WondrPay's order key for the link's website. */
+export const PayLink = defineSchema("whitepay.paylink", {
+  linkId: str().indexed(), // "pl_" + 20 hex
+  merchant: addr().indexed(),
+  site: str().indexed(),
+  title: str(),
+  amount: u256(),
+  status: str().indexed(), // "active" | "disabled"
+  createdAt: u64().indexed(),
+  updatedAt: u64(),
+  approval: bytes(),
 })
 
 /** A shop's website on WondrPay for Business: its keys and allowed domains. The secret key is stored only as a

@@ -51,7 +51,13 @@ const signer = () => {
 export const webhookSignerAddress = () => signer().address
 
 export async function deliverWebhook(url: string, eventId: string, payload: Record<string, unknown>) {
-  const body = JSON.stringify(payload)
+  return (await deliverWebhookDetailed(url, eventId, JSON.stringify(payload))).httpStatus
+}
+
+/** Same as deliverWebhook, sending `body` exactly as given and reporting how it went (for the delivery log). */
+export async function deliverWebhookDetailed(url: string, eventId: string, body: string): Promise<{ httpStatus: number; attempts: number; error?: string }> {
+  let error: string | undefined
+  let last = 0
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       await assertSafeWebhookUrl(url) // re-check right before sending (DNS rebinding)
@@ -73,12 +79,15 @@ export async function deliverWebhook(url: string, eventId: string, payload: Reco
       })
       await r.body?.cancel().catch(() => {})
       console.log("[webhook]", new URL(url).host, r.status, "attempt", attempt)
-      if (r.status < 500 && r.status !== 429) return r.status
+      last = r.status
+      if (r.status < 500 && r.status !== 429) return { httpStatus: r.status, attempts: attempt }
+      error = `HTTP ${r.status}`
     } catch (e) {
-      console.warn("[webhook] attempt", attempt, (e as Error).message.split("\n")[0])
-      if ((e as Error).message.startsWith("webhook")) return 0 // unsafe URL: never retry
+      error = (e as Error).message.split("\n")[0].slice(0, 120)
+      console.warn("[webhook] attempt", attempt, error)
+      if (error.startsWith("webhook")) return { httpStatus: 0, attempts: attempt, error } // unsafe URL: never retry
     }
-    await new Promise((res) => setTimeout(res, attempt * 1500))
+    if (attempt < 3) await new Promise((res) => setTimeout(res, attempt * 1500))
   }
-  return 0
+  return { httpStatus: last, attempts: 3, error }
 }

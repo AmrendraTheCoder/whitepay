@@ -1,7 +1,7 @@
 // Payer submits their signed EIP-3009 authorization. The server re-verifies the request,
 // the relayer settles on Whitechain (paying the gas), then the receipt is written to Arkiv.
 import { isAddress, isHex, type Address, type Hex } from "viem"
-import { fetchRequest, verifyRequest, relayOrderPayment, settleOnArkiv, PolicyError, deliverWebhook, awardScratchCard } from "@whitepay/server"
+import { fetchRequest, verifyRequest, relayOrderPayment, settleOnArkiv, PolicyError, deliverWebhook, awardScratchCard, sendSiteWebhook, siteRowFor } from "@whitepay/server"
 import { after } from "next/server"
 import { json, errorMessage } from "@/lib/json"
 
@@ -53,11 +53,18 @@ export async function POST(req: Request) {
       }
       // paying a listed shop earns a scratch card (no-op below 0.10 USDT or for unlisted payees)
       await awardScratchCard({ payer: auth.from as Address, merchant: v.order.merchant, merchantName: view!.merchantName, amount: v.order.amount, txHash: paid.txHash })
-      if (view!.webhook) await deliverWebhook(view!.webhook, receiptKey ?? paid.txHash, {
-        event: view!.site ? "checkout.session.completed" : "payment.settled", entityKey, orderId: v.order.orderId, merchant: v.order.merchant, payer: auth.from,
-        ...(view!.site ? { sessionId: v.digest, site: view!.site, reference: view!.reference } : {}),
-        amount: v.order.amount.toString(), txHash: paid.txHash, explorer: paid.explorer, receiptKey, paidAt: Math.floor(Date.now() / 1000),
-      })
+      if (view!.webhook) {
+        const payload = {
+          event: view!.site ? "checkout.session.completed" : "payment.settled", entityKey, orderId: v.order.orderId, merchant: v.order.merchant, payer: auth.from,
+          ...(view!.site ? { sessionId: v.digest, site: view!.site, reference: view!.reference, ...(view!.link ? { link: view!.link } : {}) } : {}),
+          amount: v.order.amount.toString(), txHash: paid.txHash, explorer: paid.explorer, receiptKey, paidAt: Math.floor(Date.now() / 1000),
+        }
+        const eventId = receiptKey ?? paid.txHash
+        // websites (WondrPay for Business) get a delivery log with Resend in the portal
+        const site = view!.site ? await siteRowFor(view!.site).catch(() => null) : null
+        if (site) await sendSiteWebhook({ site, eventId, event: payload.event, sessionId: v.digest, body: JSON.stringify(payload), url: view!.webhook })
+        else await deliverWebhook(view!.webhook, eventId, payload)
+      }
     })
     return json({ txHash: paid.txHash, explorer: paid.explorer, gasUsed: paid.gasUsed, amount: v.order.amount })
   } catch (e) {

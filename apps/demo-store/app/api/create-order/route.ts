@@ -1,5 +1,6 @@
-// ── WONDRPAY INTEGRATION ③ (server) ── sign the order with the shop's key and publish it on WondrPay.
-import { createWondrPayOrder } from "@whitepay/checkout/server"
+// ── WONDRPAY INTEGRATION ③ (server) ── create the checkout: with the store's API key (WondrPay for Business), or by
+// signing the order with the shop's own key (the original SDK flow).
+import { createWondrPayOrder, createWondrPayCheckoutSession } from "@whitepay/checkout/server"
 import { formatUnits, parseUnits, type Hex } from "viem"
 import { recordEvent } from "@/lib/events"
 import { PRICE, MAX_QTY, PRODUCTS } from "@/lib/catalog"
@@ -27,10 +28,21 @@ export async function POST(req: Request) {
   const t = total(body?.payload)
   if (!t) return Response.json({ error: "unknown product or quantity" }, { status: 400 })
   try {
+    const whitepayUrl = process.env.WHITEPAY_URL ?? "https://wondrpay.vercel.app"
+    // WondrPay for Business: an API key creates the checkout; selling needs no wallet key (set STORE_MERCHANT_ADDRESS
+    // for the webhook; refunds from the dashboard still use the shop wallet)
+    if (process.env.WONDRPAY_SECRET_KEY) {
+      const reference = `kesar_${crypto.randomUUID().slice(0, 18)}`
+      const session = await createWondrPayCheckoutSession({ secretKey: process.env.WONDRPAY_SECRET_KEY, whitepayUrl, amount: t.amount, reference, description: t.note })
+      if (!session.button) throw new Error("WondrPay returned no button payload")
+      recordEvent(session.button.orderId, `checkout session ${session.id.slice(0, 10)}… created with the store's API key (${t.amount} USDT · ${t.note})`)
+      return Response.json({ ...session.button, sessionId: session.id, checkoutUrl: session.url })
+    }
+    // older integration (still supported): the shop's own key signs the order
     const order = await createWondrPayOrder({
       merchantKey: process.env.STORE_MERCHANT_PK as Hex,
       amount: t.amount,
-      whitepayUrl: process.env.WHITEPAY_URL ?? "https://wondrpay.vercel.app",
+      whitepayUrl,
       webhook: process.env.STORE_URL?.startsWith("https://") ? `${process.env.STORE_URL}/api/webhook` : undefined,
       note: t.note,
     })

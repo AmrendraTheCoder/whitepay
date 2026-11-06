@@ -20,7 +20,8 @@ export async function POST(req: Request) {
   seen.add(auth.eventId)
 
   const e = auth.event as typeof auth.event & { subscriber?: Hex; cycle?: number; cycles?: number; mandateKey?: string }
-  const shop = privateKeyToAccount(process.env.STORE_MERCHANT_PK as Hex).address
+  // the shop's address is all a webhook needs; the key is only a fallback for older setups
+  const shop = (process.env.STORE_MERCHANT_ADDRESS as Hex | undefined) ?? privateKeyToAccount(process.env.STORE_MERCHANT_PK as Hex).address
   if (e.event.startsWith("subscription.")) {
     // autopay: started / charged / completed carry a tx to confirm; cancelled / failed are status only
     const ok = e.txHash && e.subscriber ? (await verifyWondrPaySubscriptionCharge({ txHash: e.txHash, merchant: shop, subscriber: e.subscriber as Hex, minAmount: BigInt(e.amount) })).ok : true

@@ -6,13 +6,13 @@ import { SDK_SRI } from "./sri"
 export const metadata: Metadata = { alternates: { canonical: "/developers" }, title: "Developers · API & Checkout SDK", description: "Accept USDT on Whitechain on any website: API keys from the WondrPay Business portal, hosted checkout, a Pay button and signed webhooks." }
 
 const ORIGIN = "https://wondrpay.vercel.app"
-const SRC = `${ORIGIN}/sdk/v1.3.1/checkout.js`
+const SRC = `${ORIGIN}/sdk/v1.4.0/checkout.js`
 const Code = ({ children }: { children: string }) => <CodeBlock code={children} />
 
 export default function Developers() {
   return (
     <Section>
-      <SectionHeader level={1} eyebrow="API v1 · Checkout SDK v1.3.1" title="Accept USDT on any website."
+      <SectionHeader level={1} eyebrow="API v1 · Checkout SDK v1.4.0" title="Accept USDT on any website."
         description="Get API keys in the WondrPay Business portal, create a checkout session from your server and send the customer to WondrPay's hosted checkout. They pay with no gas; the money lands in your own wallet and you get a signed webhook."
         actions={<><ButtonLink href="/portal" variant="highlight">Get API keys</ButtonLink><ButtonLink href="https://wondrpay-demo-store.vercel.app" variant="secondary">Live demo store</ButtonLink><ButtonLink href="https://wondrpay-demo-store.vercel.app/plain.html" variant="secondary">Plain HTML demo</ButtonLink><ButtonLink href="https://github.com/AmrendraTheCoder/whitepay/tree/main/packages/checkout" variant="ghost">Source</ButtonLink></>} />
       <div className="doc">
@@ -20,7 +20,7 @@ export default function Developers() {
       <nav className="doc-toc" aria-label="On this page">
         <a href="#api">API keys (recommended)</a><a href="#auth">Authentication</a><a href="#sessions">Checkout sessions</a>
         <a href="#hosted">Hosted checkout</a><a href="#button-api">Pay button + API keys</a><a href="#session-webhooks">Webhooks</a>
-        <a href="#errors">Errors & limits</a><a href="#sdk">Sign orders yourself</a><a href="#security">Security</a>
+        <a href="#links">Payment links</a><a href="#node">Node helpers</a><a href="#errors">Errors & limits</a><a href="#sdk">Sign orders yourself</a><a href="#security">Security</a>
       </nav>
 
       <section id="api">
@@ -95,7 +95,8 @@ return Response.redirect(session.url, 303)`}</Code>
       <section id="hosted">
         <h2><span className="doc-step">D</span>Hosted checkout</h2>
         <p><code>/checkout/:id</code> shows your shop name (ENS), the World ID badge, the amount, your description and order reference, and a live countdown. On a computer it shows a QR for the WondrPay app; on a phone, a Pay button. It watches for the payment and then sends the customer to your <code>successUrl</code> after 5 seconds (they can stay). Expired or invalid sessions explain what happened and link back to <code>cancelUrl</code>.</p>
-        <p>The page never signs anything or touches money. The customer approves on <code>/pay</code> with their own wallet, which re-checks the order against the on-chain registry before signing.</p>
+        <p>Customers pay with the WondrPay app (QR or <code>/pay</code>), or with <b>MetaMask or any browser wallet</b> right on the page: the wallet switches to Whitechain Sepolia, recomputes the order digest and signs one EIP-3009 authorization. It's a signature, not a transaction, so they pay no gas.</p>
+        <p>The page never signs anything or touches money itself. Wallets re-check the order against the on-chain registry before signing.</p>
       </section>
 
       <section id="button-api">
@@ -124,10 +125,40 @@ return Response.redirect(session.url, 303)`}</Code>
   "receiptKey": "0x…", "paidAt": 1793974321
 }`}</Code>
         <p>Fulfil once per <code>x-whitepay-event-id</code>. To double-check, retrieve the session or call <code>verifyWondrPayPayment</code> with the tx hash.</p>
+        <p>Every delivery to your website is logged in the <a href="/portal">portal</a> for 30 days: event, HTTP status your server answered, tries. <b>Resend</b> re-sends the exact same bytes with the same event id (so your de-duplication still works). <b>Send test webhook</b> posts a signed <code>{"{ \"event\": \"test.ping\" }"}</code> so you can check your endpoint before the first sale. Answer <code>2xx</code> quickly; anything else is retried 3 times and shown as failed.</p>
+      </section>
+
+      <section id="links">
+        <h2><span className="doc-step">G</span>Payment links (no code)</h2>
+        <p>Make a link with a fixed title and price in the portal (<i>Payment links</i>). Share <code>{ORIGIN}/l/pl_…</code> or its QR anywhere. Each visit starts a fresh 15-minute checkout on that website, and the payment shows up in the link's stats and in your webhooks with <code>link</code> and <code>reference: "link:pl_…"</code>. Switch a link off at any time.</p>
+        <p>Put a link's button on any page, even a static one with no server:</p>
+        <Code>{`<script src="${SRC}" integrity="${SDK_SRI}" crossorigin="anonymous" defer></script>
+<wondrpay-button link="pl_3c4bfa1a852b395c983e" label="Pay 12.40 USDT"></wondrpay-button>`}</Code>
+        <div className="table-wrap"><table className="table"><tbody>
+          <tr><td><code>GET /api/v1/links/:id</code></td><td>Public facts: title, amount (micro-USDT), shop name, verified, active</td></tr>
+          <tr><td><code>POST /api/v1/links/:id/session</code></td><td>Send <code>{"{}"}</code> as JSON. Creates a session for the link (no key needed: price and shop are fixed by the link). 10 a minute per IP.</td></tr>
+        </tbody></table></div>
+      </section>
+
+      <section id="node">
+        <h2><span className="doc-step">H</span>Node helpers</h2>
+        <p><code>@whitepay/checkout/server</code> wraps the API:</p>
+        <Code>{`import { createWondrPayCheckoutSession, getWondrPayCheckoutSession } from "@whitepay/checkout/server"
+
+const session = await createWondrPayCheckoutSession({
+  secretKey: process.env.WONDRPAY_SECRET_KEY!,
+  amount: "12.40", reference: cart.id, description: "Kulhad mug ×2",
+  successUrl: "https://shop.example.com/thank-you", idempotencyKey: cart.id,
+})
+// hosted:  res.redirect(303, session.url)
+// button:  res.json(session.button)
+
+const s = await getWondrPayCheckoutSession({ secretKey: process.env.WONDRPAY_SECRET_KEY!, id: session.id })
+if (s.status === "paid") fulfil(cart.id, s.payment!.txHash)`}</Code>
       </section>
 
       <section id="errors">
-        <h2><span className="doc-step">G</span>Errors and limits</h2>
+        <h2><span className="doc-step">I</span>Errors and limits</h2>
         <p>Errors are <code>{"{ \"error\": { \"type\", \"message\" } }"}</code>; messages are written to show to a developer as is.</p>
         <div className="table-wrap"><table className="table"><thead><tr><th>Status</th><th>type</th><th>When</th></tr></thead><tbody>
           <tr><td>400</td><td><code>bad_request</code></td><td>Bad amount, reference, URL or expiresIn</td></tr>
@@ -137,7 +168,7 @@ return Response.redirect(session.url, 303)`}</Code>
           <tr><td>429</td><td>-</td><td>More than 60 session creates a minute per IP (respect <code>retry-after</code>)</td></tr>
           <tr><td>500</td><td><code>api_error</code></td><td>Our side. Retry with the same <code>Idempotency-Key</code>; nothing was charged</td></tr>
         </tbody></table></div>
-        <p>Up to 5 websites per shop. A website's domains also limit where customers can be sent back to.</p>
+        <p>Up to 5 websites and 20 active payment links per shop. A website's domains also limit where customers can be sent back to.</p>
       </section>
 
       <section id="sdk">
@@ -147,7 +178,7 @@ return Response.redirect(session.url, 303)`}</Code>
 
       <section>
         <h2><span className="doc-step">1</span>Load the SDK (browser)</h2>
-        <p>Pin an exact version with Subresource Integrity: versioned files (<code>/sdk/v1.3.1/</code>) never change, and if the bytes ever differ the browser refuses to run them. <code>/sdk/v1/checkout.js</code> always serves the latest 1.x for quick prototypes (no SRI).</p>
+        <p>Pin an exact version with Subresource Integrity: versioned files (<code>/sdk/v1.4.0/</code>) never change, and if the bytes ever differ the browser refuses to run them. <code>/sdk/v1/checkout.js</code> always serves the latest 1.x for quick prototypes (no SRI).</p>
         <Code>{`<script src="${SRC}"\n        integrity="${SDK_SRI}"\n        crossorigin="anonymous" defer></script>`}</Code>
         <p>Using a Content-Security-Policy? Allow <code>{ORIGIN}</code> in <code>script-src</code> (or put your nonce on the tag), <code>connect-src</code> and <code>img-src</code>.</p>
       </section>

@@ -140,6 +140,8 @@ async function setOrderSigner(merchant: Address, on: boolean) {
 }
 
 /** Create a website: returns its keys. The secret key is returned ONLY here (and on rotate). */
+export { serial as serialShop }
+
 export async function createSite(p: { merchant: Address; siteId: string; name: string; domains: unknown; webhook?: string; issuedAt: number; signature: Hex }) {
   return serial(getAddress(p.merchant), () => createSiteNow(p))
 }
@@ -217,6 +219,10 @@ export async function revokeSite(p: { merchant: Address; siteId: string; issuedA
   })
 }
 
+/** Internal: the full site row (with its webhook), for business.ts. Never return it from an API. */
+export const siteRowFor = (siteId: string) => siteRow(siteId)
+export type { SiteRow }
+
 async function ownSite(merchant: Address, siteId: string) {
   const row = await siteRow(siteId)
   if (!row || row.merchant !== getAddress(merchant)) throw new SiteError("not_found", "No such website for this shop")
@@ -229,9 +235,12 @@ export async function authenticateSecretKey(header: string | null): Promise<Site
   const key = m?.[1] ?? ""
   const parts = SECRET_RE.exec(key)
   if (!parts) throw new SiteError("unauthorized", "Missing or malformed secret key. Send Authorization: Bearer wp_sk_test_…")
-  const row = await siteRow(parts[1])
+  const found = await siteRow(parts[1])
+  // the attribute index can trail a rotate/revoke by a few seconds: compare against the entity itself
+  const e: any = found ? await arkiv().pub.getEntity(found.key, MerchantSite).catch(() => null) : null
+  const row = e ? { ...found!, secretHash: v(e.secretHash), secretHint: v(e.secretHint), status: v(e.status), updatedAt: Number(v(e.updatedAt)) } as SiteRow : null
   const want = Buffer.from(row?.secretHash ?? "0".repeat(64), "hex"), got = Buffer.from(sha256(key), "hex")
-  if (!row || !timingSafeEqual(want, got)) throw new SiteError("unauthorized", "Invalid secret key")
+  if (!row || want.length !== got.length || !timingSafeEqual(want, got)) throw new SiteError("unauthorized", "Invalid secret key")
   if (row.status !== "active") throw new SiteError("forbidden", "This website was switched off in WondrPay for Business")
   return row
 }
@@ -257,7 +266,7 @@ export function parseUsdt(raw: unknown): bigint {
 }
 const fmt = (micro: bigint) => { const s = micro.toString().padStart(7, "0"); return `${s.slice(0, -6)}.${s.slice(-6).replace(/0{1,4}$/, "")}` }
 
-export async function createCheckoutSession(site: SiteRow, input: SessionInput, origin: string): Promise<{ session: SessionView; publish: () => Promise<void> }> {
+export async function createCheckoutSession(site: SiteRow, input: SessionInput, origin: string, opts: { link?: string } = {}): Promise<{ session: SessionView; publish: () => Promise<void> }> {
   const amount = parseUsdt(input.amount)
   const reference = input.reference == null ? undefined : String(input.reference).trim()
   if (reference && !/^[\w.:#/-]{1,64}$/.test(reference)) throw new SiteError("bad_request", "reference must be 1-64 letters, digits or . _ - : # /")
@@ -271,7 +280,7 @@ export async function createCheckoutSession(site: SiteRow, input: SessionInput, 
   if (!profile) throw new SiteError("forbidden", "This shop isn't set up on WondrPay")
   const prepared = await preparePaymentRequest({
     merchant: site.merchant, amount, kind: "invoice", ttlSeconds: ttl, note: description, webhook: site.webhook,
-    session: { site: site.siteId, reference, successUrl, cancelUrl },
+    session: { site: site.siteId, reference, successUrl, cancelUrl, link: opts.link },
   })
   ;(prepared.values as Record<string, unknown>).merchantName = profile.ensName
   const id = prepared.digest

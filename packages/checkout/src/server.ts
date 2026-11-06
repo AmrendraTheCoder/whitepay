@@ -3,6 +3,7 @@
 //  verifyWondrPayPayment: trustlessly confirm a payment on Whitechain from its tx hash (use in webhooks).
 //  listWondrPayOrders: every paid order (item, payer, time, refunds) with its refund request, if any.
 //  respondToWondrPayRefund: approve a share (paid on-chain right away) or decline a customer's refund request.
+//  createWondrPayCheckoutSession / getWondrPayCheckoutSession: WondrPay for Business, with a secret API key instead.
 import { createPublicClient, decodeEventLog, getAddress, http, keccak256, parseUnits, recoverMessageAddress, toBytes, toHex, type Address, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { orderTypedData, receiveAuthTypedData, refundResponseMessage, ROUTER_ADDRESS, ROUTER_ABI, whitechainSepolia, type Order } from "@whitepay/shared"
@@ -41,6 +42,48 @@ export async function createWondrPayOrder(p: {
   const d = await r.json()
   if (!r.ok) throw new Error(d.error ?? `WondrPay ${r.status}`)
   return d as CreatedOrder
+}
+
+export type WondrPayCheckoutSession = {
+  id: Hex; object: "checkout.session"; status: "open" | "paid" | "expired"; amount: string; currency: "USDT"; reference?: string; description?: string
+  url: string; payUrl: string; expiresAt: number; successUrl?: string; cancelUrl?: string; merchant: Address; merchantName?: string
+  payment?: { txHash: Hex; payer: Address; explorer: string }
+  /** what <wondrpay-button order-endpoint> expects: return this from your order endpoint */
+  button?: CreatedOrder
+}
+
+/** WondrPay for Business: create a checkout session with your secret API key (no wallet key on your server).
+ *  Send the customer to `session.url`, or return `session.button` to the Pay button. */
+export async function createWondrPayCheckoutSession(p: {
+  secretKey: string
+  amount: string
+  reference?: string
+  description?: string
+  successUrl?: string
+  cancelUrl?: string
+  /** 300-1800 seconds, default 900 */
+  expiresIn?: number
+  /** retry-safe: the same key returns the same session for 24 h */
+  idempotencyKey?: string
+  whitepayUrl?: string
+}): Promise<WondrPayCheckoutSession> {
+  const { secretKey, whitepayUrl, idempotencyKey, ...body } = p
+  const r = await fetch(`${whitepayUrl ?? "https://wondrpay.vercel.app"}/api/v1/checkout/sessions`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secretKey}`, "content-type": "application/json", ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}) },
+    body: JSON.stringify(body),
+  })
+  const d = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(d?.error?.message ?? `WondrPay ${r.status}`)
+  return d as WondrPayCheckoutSession
+}
+
+/** Status of a session you created (open | paid | expired), e.g. when the customer lands on your successUrl. */
+export async function getWondrPayCheckoutSession(p: { secretKey: string; id: Hex; whitepayUrl?: string }): Promise<WondrPayCheckoutSession> {
+  const r = await fetch(`${p.whitepayUrl ?? "https://wondrpay.vercel.app"}/api/v1/checkout/sessions/${p.id}`, { headers: { authorization: `Bearer ${p.secretKey}` }, cache: "no-store" })
+  const d = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(d?.error?.message ?? `WondrPay ${r.status}`)
+  return d as WondrPayCheckoutSession
 }
 
 /** Don't trust a webhook body: read the PaymentSettled event from Whitechain yourself. */
