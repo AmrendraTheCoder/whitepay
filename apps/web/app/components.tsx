@@ -125,14 +125,19 @@ export function UnlockSheet({
     }
   }
 
-  const tryPasskey = async () => {
+  // auto = opened by the sheet itself, not a tap. iPhone Safari only shows a passkey prompt right after a tap, so an
+  // automatic attempt can fail through no fault of the person: then just wait for their tap on the button (no error,
+  // no fall-back to the PIN pad), which was the "fingerprint fails the first time" bug.
+  const tryPasskey = async (auto = false) => {
     setBusy(true)
     setErr("")
     try {
       if (external) { await verifyExternalPasskey(w!.address); setMode("wallet"); setBusy(false); void tryWallet(); return }
       finish(await unlockWithPasskey(w?.address))
     } catch (e) {
-      setErr((e as Error).message.includes("NotAllowed") ? "Fingerprint cancelled" : (e as Error).message)
+      const notAllowed = /NotAllowed|not allowed|user gesture|activation/i.test(`${(e as Error).name} ${(e as Error).message}`)
+      if (auto && notAllowed) { setMode("passkey"); return } // wait for the tap on "Confirm with fingerprint"
+      setErr(notAllowed ? "Fingerprint cancelled. Try again or use your PIN." : (e as Error).message)
       setMode("pin")
     } finally {
       setBusy(false)
@@ -149,7 +154,8 @@ export function UnlockSheet({
       // (an effect may only return a cleanup function, so never `return onUnlocked(...)` here)
       if (s?.pk && !external) { finish(privateKeyToAccount(s.pk)); return }
       if (s && external) { void tryWallet(); return }
-      if (m === "passkey") void tryPasskey()
+      // try the fingerprint straight away where the browser allows it (it must follow a tap on iPhone)
+      if (m === "passkey" && (navigator as any).userActivation?.isActive !== false) void tryPasskey(true)
     })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,7 +220,7 @@ export function UnlockSheet({
             )}
           </>
         ) : mode === "passkey" ? (
-          <button className="btn btn-primary btn-big" onClick={tryPasskey} disabled={busy}>
+          <button className="btn btn-primary btn-big" onClick={() => tryPasskey()} disabled={busy}>
             {busy ? <span className="spinner" /> : null} Confirm with fingerprint
           </button>
         ) : mode === "setpin" || mode === "confirmpin" ? (

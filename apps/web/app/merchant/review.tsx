@@ -96,7 +96,8 @@ export function ReviewSheet({ c, account, setAccount, onClose }: {
           </>
         )}
       </div>
-      {unlock && <UnlockSheet title={decision === "approve" ? `Refund ${usdt(amount)} USDT` : "Decline refund"} subtitle={`to ${short(c.payer)}`} onUnlocked={run} onCancel={() => setUnlock(false)} />}
+      {unlock && <UnlockSheet title={decision === "approve" ? `Refund ${usdt(amount)} USDT` : "Decline refund"} subtitle={`to ${short(c.payer)}`} onUnlocked={run} onCancel={() => setUnlock(false)}
+        payment={decision === "approve" ? { amountMicro: amount } : undefined} />}
     </div>
   )
 }

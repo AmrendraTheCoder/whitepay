@@ -495,7 +495,8 @@ function RefundSheet({ row, account, setAccount, onClose }: {
           </>
         )}
       </div>
-      {unlock && <UnlockSheet title={`Refund ${amt} USDT`} subtitle={`to ${short(row.payer)}`} onUnlocked={run} onCancel={() => setUnlock(false)} />}
+      {unlock && <UnlockSheet title={`Refund ${amt} USDT`} subtitle={`to ${short(row.payer)}`} onUnlocked={run} onCancel={() => setUnlock(false)}
+        payment={{ amountMicro: valid ? parseUnits(amt, 6) : 0n }} />}
     </div>
   )
 }
