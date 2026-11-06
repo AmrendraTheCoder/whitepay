@@ -7,7 +7,7 @@ export const generateStaticParams = () => PRODUCTS.map((p) => ({ sku: p.sku }))
 
 export async function generateMetadata({ params }: { params: Promise<{ sku: string }> }): Promise<Metadata> {
   const p = BY_SKU[(await params).sku]
-  return p ? { title: `${p.brand} ${p.name} · Kesar`, description: `${p.brand} ${p.name} for ${p.price} USDT. Pay with WondrPay, zero gas.` } : {}
+  return p ? { title: `${p.brand} ${p.name} · Amaron`, description: `${p.brand} ${p.name} for ${p.price} USDT. Pay with WondrPay, zero gas.` } : {}
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ sku: string }> }) {

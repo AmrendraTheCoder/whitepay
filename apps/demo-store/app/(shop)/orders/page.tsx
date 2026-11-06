@@ -100,7 +100,7 @@ export default function MyOrders() {
         <div>
           <h1 className="ks-orders-title">Orders</h1>
           <p className="ks-muted">
-            {data ? <>Paid from <b>{data.name ?? short(data.payer)}</b>{data.name && <> · {short(data.payer)}</>} · {rows.length} {rows.length === 1 ? "order" : "orders"} · {fmt(spent)} USDT spent</> : "Every order you paid with WondrPay at Kesar"}
+            {data ? <>Paid from <b>{data.name ?? short(data.payer)}</b>{data.name && <> · {short(data.payer)}</>} · {rows.length} {rows.length === 1 ? "order" : "orders"} · {fmt(spent)} USDT spent</> : "Every order you paid with WondrPay at Amaron"}
           </p>
         </div>
         <form className="ks-orders-find" onSubmit={(e) => { e.preventDefault(); if (input.trim()) setWho(input.trim()) }}>

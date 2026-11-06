@@ -11,7 +11,7 @@ const brand = Outfit({ subsets: ["latin"], weight: ["500", "700", "800", "900"],
 const sans = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--f-sans", display: "swap" })
 
 export const metadata: Metadata = {
-  title: { default: "Kesar · Fashion & beauty, paid with WondrPay", template: "%s" },
+  title: { default: "Amaron · Fashion & beauty, paid with WondrPay", template: "%s" },
   description: "Demo fashion and beauty store integrating the WondrPay Checkout SDK: USDT on Whitechain, zero gas for shoppers.",
 }
 

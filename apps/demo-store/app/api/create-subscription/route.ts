@@ -3,7 +3,7 @@ import { createWondrPaySubscription } from "@whitepay/checkout/server"
 import type { Hex } from "viem"
 
 // the plan terms live on the SERVER (demo: 3 × 0.05 USDT, every 2 minutes so judges can watch it run)
-const CLUB = { title: "Kesar Glow Box (demo)", amount: "0.05", period: "demo" as const, cycles: 3 }
+const CLUB = { title: "Amaron Glow Box (demo)", amount: "0.05", period: "demo" as const, cycles: 3 }
 
 export async function POST() {
   try {

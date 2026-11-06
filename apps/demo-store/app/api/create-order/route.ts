@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     // WondrPay for Business: an API key creates the checkout; selling needs no wallet key (set STORE_MERCHANT_ADDRESS
     // for the webhook; refunds from the dashboard still use the shop wallet)
     if (process.env.WONDRPAY_SECRET_KEY) {
-      const reference = `kesar_${crypto.randomUUID().slice(0, 18)}`
+      const reference = `amaron_${crypto.randomUUID().slice(0, 18)}`
       const session = await createWondrPayCheckoutSession({ secretKey: process.env.WONDRPAY_SECRET_KEY, whitepayUrl, amount: t.amount, reference, description: t.note })
       if (!session.button) throw new Error("WondrPay returned no button payload")
       recordEvent(session.button.orderId, `checkout session ${session.id.slice(0, 10)}… created with the store's API key (${t.amount} USDT · ${t.note})`)

@@ -9,13 +9,13 @@ import { useStore } from "../store-context"
 
 export function Logo() {
   return (
-    <Link href="/" className="ks-logo" aria-label="Kesar home">
+    <Link href="/" className="ks-logo" aria-label="Amaron home">
       <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden>
         <defs><linearGradient id="ksl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ff8a00" /><stop offset=".55" stopColor="#ff3d6e" /><stop offset="1" stopColor="#7b2ff7" /></linearGradient></defs>
         <rect width="40" height="40" rx="12" fill="url(#ksl)" />
         <path d="M13 9v22M13 21l12-12M17 18l10 13" stroke="#fff" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </svg>
-      <span>kesar</span>
+      <span>amaron</span>
     </Link>
   )
 }
@@ -163,12 +163,12 @@ export function Footer() {
           <ul><li><a href="/dashboard">Seller dashboard (shop owner)</a></li><li><a href="/plain.html">Plain HTML checkout</a></li><li><a href="https://wondrpay.vercel.app/developers">Checkout SDK docs</a></li><li><a href="https://github.com/AmrendraTheCoder/whitepay/tree/main/apps/demo-store">Source code</a></li></ul>
         </div>
         <div className="ks-footer-promise">
-          <p><b>100% original</b> guarantee for all products on kesar</p>
+          <p><b>100% original</b> guarantee for all products on amaron</p>
           <p><b>Return within 14 days</b> of receiving your order</p>
           <p><b>No card, no gas fees</b>: pay in USDT with WondrPay</p>
         </div>
       </div>
-      <p className="ks-wrap ks-footer-note">Kesar is a demo store for the WondrPay Checkout SDK. Brands and products are invented, product photos are from Unsplash, payments use test USDT on Whitechain Sepolia, and nothing is shipped.</p>
+      <p className="ks-wrap ks-footer-note">Amaron is a demo store for the WondrPay Checkout SDK. Brands and products are invented, product photos are from Unsplash, payments use test USDT on Whitechain Sepolia, and nothing is shipped.</p>
     </footer>
   )
 }

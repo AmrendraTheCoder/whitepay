@@ -55,7 +55,7 @@ function FestiveBanner() {
       </Link>
 
       <div className="ks-hero-copy">
-        <span className="ks-hero-kicker">kesar</span>
+        <span className="ks-hero-kicker">amaron</span>
         <h1 id="sale-title"><span>Festive</span> Sale</h1>
         <p className="ks-hero-big">Big Bright Prices</p>
         <p className="ks-hero-off">50–80% OFF</p>
@@ -125,7 +125,7 @@ export default function Home() {
             {["neel-serum", "ketaki-spf", "dew-lipbalm"].map((s, i) => <span key={s} style={{ ["--i" as string]: i }}><ProductImage p={BY_SKU[s]} /></span>)}
           </div>
           <div className="ks-box-copy">
-            <span className="ks-eyebrow">Kesar Glow Box · subscription</span>
+            <span className="ks-eyebrow">Amaron Glow Box · subscription</span>
             <h2 id="box-title">Three beauty minis, every cycle.</h2>
             <p>Pay for the first box now. When the next one is due, WondrPay asks you to approve it with one tap, or turn on Autopay once. Cancel any time from WondrPay.</p>
             <ul className="ks-ticks">

@@ -234,7 +234,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else push({ src: "sdk", msg: `Subscription offer ${d.planKey?.slice(0, 10)}… signed by the store` })
       }),
       on("wondrpay:paid", (d: Paid) => { push({ src: "sdk", msg: `Paid ${Number(d.amount) / 1e6} USDT · tx ${d.txHash?.slice(0, 10)}…`, tone: "ok" }); markPaid(d.entityKey, d, "sdk") }),
-      on("wondrpay:subscribed", (d: Sub) => { push({ src: "sdk", msg: `Subscribed · mandate ${d.mandateKey.slice(0, 10)}… · first ${Number(d.amount) / 1e6} USDT paid`, tone: "ok" }); setSub(d); toast.show({ message: "Welcome to Kesar Glow Box", tone: "success" }) }),
+      on("wondrpay:subscribed", (d: Sub) => { push({ src: "sdk", msg: `Subscribed · mandate ${d.mandateKey.slice(0, 10)}… · first ${Number(d.amount) / 1e6} USDT paid`, tone: "ok" }); setSub(d); toast.show({ message: "Welcome to Amaron Glow Box", tone: "success" }) }),
       on("wondrpay:expired", () => push({ src: "sdk", msg: "Payment window expired · request removed from Arkiv", tone: "bad" })),
       on("wondrpay:error", (d) => {
         push({ src: "sdk", msg: `Error · ${d.message}`, tone: "bad" })
