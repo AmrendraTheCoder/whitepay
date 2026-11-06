@@ -55,6 +55,7 @@ export const PayRequest = defineSchema("whitepay.request", {
   successUrl: str().optional(), // where the hosted checkout sends the customer after paying
   cancelUrl: str().optional(),
   link: str().indexed().optional(), // PayLink.linkId when a payment link created it
+  idem: str().indexed().optional(), // sha256(site:Idempotency-Key): retries find this session on any server
 })
 
 /** One webhook delivery to a shop's website (WondrPay for Business): what was sent and how the shop's server

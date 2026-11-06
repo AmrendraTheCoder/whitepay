@@ -12,6 +12,8 @@ import { CodeBlock, CopyField, Field, StepState, Steps } from "./kit"
 import { SiteHealth } from "./health"
 import { PaymentLinks } from "./links"
 import { Team } from "./team"
+import { RefundAllowance } from "./refunds"
+import { USDT_ADDRESS, WHITECHAIN_CHAIN_ID } from "@whitepay/shared"
 import "./portal.css"
 
 type Merchant = { address: string; label: string; ensName: string; displayName: string; category?: string; verified: boolean; active: boolean }
@@ -288,10 +290,18 @@ export default function Portal() {
         {merchant && shop ? <PaymentLinks merchant={shop} sites={sites ?? []} /> : <p className="pt-sub">Set up your shop and a website first.</p>}
       </section>
 
-      {/* 6. team (owner) */}
+      {/* refunds by API (owner) */}
+      {merchant && shop && role === "owner" && (
+        <section className="pt-card" aria-labelledby="h-refunds">
+          <h2 id="h-refunds"><span className="pt-n" aria-hidden>6</span> Refunds by API</h2>
+          <RefundAllowance merchant={shop} usdtAddress={USDT_ADDRESS} chainId={WHITECHAIN_CHAIN_ID} />
+        </section>
+      )}
+
+      {/* 7. team (owner) */}
       {merchant && shop && role === "owner" && (
         <section className="pt-card" aria-labelledby="h-team">
-          <h2 id="h-team"><span className="pt-n" aria-hidden>6</span> Team</h2>
+          <h2 id="h-team"><span className="pt-n" aria-hidden>7</span> Team</h2>
           <Team merchant={shop} />
         </section>
       )}

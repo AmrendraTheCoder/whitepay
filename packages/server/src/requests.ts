@@ -43,7 +43,7 @@ export type CreatePaymentRequestParams = {
   /** https URL the WondrPay server POSTs to when this request is paid */
   webhook?: string
   /** WondrPay for Business checkout session fields */
-  session?: { site: string; reference?: string; successUrl?: string; cancelUrl?: string; link?: string }
+  session?: { site: string; reference?: string; successUrl?: string; cancelUrl?: string; link?: string; idem?: string }
 }
 
 /** Merchant backend: sign the order and publish it as a pending request that lives for `ttlSeconds`. */
@@ -104,6 +104,7 @@ export async function preparePaymentRequest(p: CreatePaymentRequestParams) {
         ...(p.session.successUrl ? { successUrl: p.session.successUrl } : {}),
         ...(p.session.cancelUrl ? { cancelUrl: p.session.cancelUrl } : {}),
         ...(p.session.link ? { link: p.session.link } : {}),
+        ...(p.session.idem ? { idem: p.session.idem } : {}),
       } : {}),
   }
   return { values, ttl, digest, order }

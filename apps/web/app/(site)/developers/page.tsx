@@ -20,7 +20,7 @@ export default function Developers() {
       <nav className="doc-toc" aria-label="On this page">
         <a href="#api">API keys (recommended)</a><a href="#auth">Authentication</a><a href="#sessions">Checkout sessions</a>
         <a href="#hosted">Hosted checkout</a><a href="#button-api">Pay button + API keys</a><a href="#session-webhooks">Webhooks</a>
-        <a href="#links">Payment links</a><a href="#node">Node helpers</a><a href="#team">Team</a><a href="#errors">Errors & limits</a><a href="#sdk">Sign orders yourself</a><a href="#security">Security</a>
+        <a href="#links">Payment links</a><a href="#refunds">Refunds API</a><a href="#node">Node helpers</a><a href="#woocommerce">WooCommerce</a><a href="#shopify">Shopify</a><a href="#team">Team</a><a href="#errors">Errors & limits</a><a href="#sdk">Sign orders yourself</a><a href="#security">Security</a>
       </nav>
 
       <section id="api">
@@ -141,8 +141,29 @@ return Response.redirect(session.url, 303)`}</Code>
         </tbody></table></div>
       </section>
 
+      <section id="refunds">
+        <h2><span className="doc-step">H</span>Refunds by API</h2>
+        <p>Refund from your server with your secret key, with no wallet prompt each time. First approve a <b>refund allowance</b> in the <a href="/portal">portal</a> (<i>Refunds by API</i>): your payout wallet signs one USDT approval (EIP-2612 permit) for a cap, such as 50 USDT, and WondrPay submits it and pays the gas.</p>
+        <Code>{`curl ${ORIGIN}/api/v1/refunds \\
+  -H "Authorization: Bearer $WONDRPAY_SECRET_KEY" \\
+  -H "Content-Type: application/json" \\
+  -H "Idempotency-Key: refund_order_1042" \\
+  -d '{ "paymentId": "0x9f3c…e1", "amount": "2.50", "reason": "damaged item" }'
+
+→ 201 { "object": "refund", "amount": "2500000", "refunded": "2500000", "refundable": "9900000",
+        "txHash": "0x…", "explorer": "…", "allowanceLeft": "47500000" }`}</Code>
+        <ul className="doc-list">
+          <li><b>Where the money goes:</b> always back to the wallet that paid, never anywhere else.</li>
+          <li><b>How much:</b> never more than was paid, counting every refund so far (refund requests, the dashboard and the API all see one total).</li>
+          <li><b>Exposure:</b> at most the allowance left. Raise it or switch it off in the portal at any time.</li>
+          <li><b>Default amount:</b> leave out <code>amount</code> to refund everything still refundable.</li>
+          <li><b>Retries:</b> the same <code>Idempotency-Key</code> returns the first refund, even on another server.</li>
+          <li><b>Webhook:</b> your website gets a signed <code>refund.succeeded</code> event.</li>
+        </ul>
+      </section>
+
       <section id="node">
-        <h2><span className="doc-step">H</span>Node helpers</h2>
+        <h2><span className="doc-step">I</span>Node helpers</h2>
         <p><code>@whitepay/checkout/server</code> wraps the API:</p>
         <Code>{`import { createWondrPayCheckoutSession, getWondrPayCheckoutSession } from "@whitepay/checkout/server"
 
@@ -158,8 +179,39 @@ const s = await getWondrPayCheckoutSession({ secretKey: process.env.WONDRPAY_SEC
 if (s.status === "paid") fulfil(cart.id, s.payment!.txHash)`}</Code>
       </section>
 
+      <section id="woocommerce">
+        <h2><span className="doc-step">J</span>WooCommerce</h2>
+        <p><a href="/downloads/wondrpay-for-woocommerce.zip">Download the WondrPay for WooCommerce plugin</a> (v0.1.0, MIT). Then, in WordPress, go to Plugins → Add New → Upload Plugin and activate it.</p>
+        <ol className="doc-list">
+          <li>In the <a href="/portal">portal</a>, add a website with your shop's domain and set its webhook URL to <code>https://your-shop/?wc-api=wondrpay</code>.</li>
+          <li>WooCommerce → Settings → Payments → <i>WondrPay (USDT)</i>: enable it and paste the secret key.</li>
+          <li>Optional: approve a refund allowance to refund from the WooCommerce order screen.</li>
+        </ol>
+        <p>At checkout the plugin creates a session and sends the customer to WondrPay's hosted checkout. When the webhook arrives, or the customer comes back to the thank-you page, the plugin asks the WondrPay API whether that order's session is paid, and only then completes the order. USD stores charge 1:1; other currencies are converted at WondrPay's display rate.</p>
+      </section>
+
+      <section id="shopify">
+        <h2><span className="doc-step">K</span>Shopify</h2>
+        <p>Shopify only lists new payment providers through its Payments Partner program, so for now use payment links. No app is needed.</p>
+        <ul className="doc-list">
+          <li><b>Pay button on product pages.</b> Make a payment link per product in the portal, then in <i>Online Store → Themes → Edit code</i> add the SDK to <code>theme.liquid</code> and a button to your product template:</li>
+        </ul>
+        <Code>{`<!-- theme.liquid, before </head> -->
+<script src="${SRC}" integrity="${SDK_SRI}" crossorigin="anonymous" defer></script>
+
+<!-- sections/main-product.liquid: product metafield custom.wondrpay_link = "pl_…" -->
+{% if product.metafields.custom.wondrpay_link %}
+  <wondrpay-button link="{{ product.metafields.custom.wondrpay_link }}"
+                   label="Pay {{ product.price | money_without_currency }} USDT"></wondrpay-button>
+{% endif %}`}</Code>
+        <ul className="doc-list">
+          <li><b>Manual payment method.</b> In <i>Settings → Payments → Manual payment methods</i>, add "Pay with WondrPay (USDT)". When an order comes in, send the customer a payment link for the total (or the product's link) and mark the order paid when the webhook arrives.</li>
+          <li><b>Confirming payments:</b> the link's webhook carries <code>link</code> and <code>reference: "link:pl_…"</code>, and each link's stats show up in the portal.</li>
+        </ul>
+      </section>
+
       <section id="team">
-        <h2><span className="doc-step">I</span>Team access</h2>
+        <h2><span className="doc-step">L</span>Team access</h2>
         <p>In the portal's <i>Team</i> section the shop owner can add a teammate's wallet as a <b>developer</b>, for example a web agency. The developer opens <a href="/portal">/portal</a> with their own wallet and manages the shop's websites, with no shared passwords and no access to the owner's wallet.</p>
         <div className="table-wrap"><table className="table"><thead><tr><th>Action</th><th>Owner</th><th>Developer</th></tr></thead><tbody>
           <tr><td>Add or switch off a website</td><td>✓</td><td>-</td></tr>
@@ -173,7 +225,7 @@ if (s.status === "paid") fulfil(cart.id, s.payment!.txHash)`}</Code>
       </section>
 
       <section id="errors">
-        <h2><span className="doc-step">J</span>Errors and limits</h2>
+        <h2><span className="doc-step">M</span>Errors and limits</h2>
         <p>Errors are <code>{"{ \"error\": { \"type\", \"message\" } }"}</code>; messages are written to show to a developer as is.</p>
         <div className="table-wrap"><table className="table"><thead><tr><th>Status</th><th>type</th><th>When</th></tr></thead><tbody>
           <tr><td>400</td><td><code>bad_request</code></td><td>Bad amount, reference, URL or expiresIn</td></tr>

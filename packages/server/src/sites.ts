@@ -15,7 +15,7 @@ import { addr, u64 } from "@arkiv-network/sdk/schema"
 import { eq } from "@arkiv-network/sdk/query"
 import { getAddress, hexToBytes, verifyMessage, type Address, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { MerchantSite } from "@whitepay/shared/arkiv"
+import { MerchantSite, PayRequest } from "@whitepay/shared/arkiv"
 import { REGISTRY_ABI, REQUEST_TTL, siteApprovalMessage } from "@whitepay/shared"
 import { arkiv, wc } from "./clients"
 import { config } from "./config"
@@ -284,7 +284,22 @@ export function parseUsdt(raw: unknown): bigint {
 }
 const fmt = (micro: bigint) => { const s = micro.toString().padStart(7, "0"); return `${s.slice(0, -6)}.${s.slice(-6).replace(/0{1,4}$/, "")}` }
 
-export async function createCheckoutSession(site: SiteRow, input: SessionInput, origin: string, opts: { link?: string } = {}): Promise<{ session: SessionView; publish: () => Promise<void> }> {
+/** sha256(site:Idempotency-Key): stored on the session / refund so a retry finds it on ANY server instance. */
+export const idemHash = (siteId: string, key: string) => sha256(`${siteId}:${key}`)
+
+/** An open-or-paid session this website already made for this Idempotency-Key, if any. */
+export async function sessionByIdem(site: SiteRow, idem: string, origin: string): Promise<SessionView | null> {
+  const a = arkiv()
+  const r = await a.pub.select({ digest: true, site: true, requestedAt: true }).from(PayRequest).ownedBy(a.owner).where(eq("idem", idem)).limit(10).fetch()
+  const mine = (r.entities as any[]).filter((e) => v(e.site) === site.siteId).sort((x, y) => Number(v(y.requestedAt)) - Number(v(x.requestedAt)))
+  for (const e of mine) {
+    const s = await getCheckoutSession(site, v(e.digest) as Hex, origin).catch(() => null)
+    if (s && s.status !== "expired") return s
+  }
+  return null
+}
+
+export async function createCheckoutSession(site: SiteRow, input: SessionInput, origin: string, opts: { link?: string; idem?: string } = {}): Promise<{ session: SessionView; publish: () => Promise<void> }> {
   const amount = parseUsdt(input.amount)
   const reference = input.reference == null ? undefined : String(input.reference).trim()
   if (reference && !/^[\w.:#/-]{1,64}$/.test(reference)) throw new SiteError("bad_request", "reference must be 1-64 letters, digits or . _ - : # /")
@@ -298,7 +313,7 @@ export async function createCheckoutSession(site: SiteRow, input: SessionInput, 
   if (!profile) throw new SiteError("forbidden", "This shop isn't set up on WondrPay")
   const prepared = await preparePaymentRequest({
     merchant: site.merchant, amount, kind: "invoice", ttlSeconds: ttl, note: description, webhook: site.webhook,
-    session: { site: site.siteId, reference, successUrl, cancelUrl, link: opts.link },
+    session: { site: site.siteId, reference, successUrl, cancelUrl, link: opts.link, idem: opts.idem },
   })
   ;(prepared.values as Record<string, unknown>).merchantName = profile.ensName
   const id = prepared.digest

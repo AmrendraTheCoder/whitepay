@@ -146,12 +146,15 @@ Shipped:
 
 Test: `scripts/business-phase3-test.ts` (14 checks).
 
-Not built, and why:
+Also shipped (without the pieces they were blocked on):
 
-| Item | Blocker |
-|---|---|
-| Live keys on mainnet | No mainnet deployment of the router/registry and no real-USDT relayer budget yet |
-| Refund allowance (refunds without the owner's wallet each time) | The router only accepts refunds signed by the payout wallet per refund; needs a new router function (allowance-capped `refundFrom`) and a redeploy |
-| WooCommerce plugin | Can be written against the v1 API, but needs a WordPress + PHP test environment (Docker) to ship tested |
-| Shopify | Shopify only lists payment providers through its Payments Partner program; until then shops can use payment links |
-| Shared cache for keys/idempotency | Needs a Redis/Upstash (or Vercel KV) instance on the account |
+| Piece | How it works without the missing piece | Where |
+|---|---|---|
+| Refund allowance | No router change: the payout wallet signs one **EIP-2612 permit** (Whitechain USDT supports it, domain "Tether USD" v1) for a cap to WondrPay's refund agent; `POST /api/v1/refunds` (secret key) checks the payment is the shop's and `amount ≤ paid − refunded`, then `transferFrom(payout → original payer)`. Each refund is a `whitepay.refundx` ledger record; `refundInfo()` adds them to the router's counter so every refund path shares one total. Webhook `refund.succeeded`. | `refund-allowance.ts`, `refunds.ts`, `/api/v1/refunds`, `/api/business/refund-allowance`, portal Refunds |
+| Shared idempotency | No Redis: the `Idempotency-Key` hash is stored on the session (`PayRequest.idem`) and on refund records (`refundx.idem`), so a retry finds the first result on any instance. Keys, links and roles were already re-read by entity key. | `sites.ts sessionByIdem`, `refund-allowance.ts` |
+| WooCommerce plugin | Written against the v1 API, packaged at `/downloads/wondrpay-for-woocommerce.zip`. Confirms orders by re-reading the session from the API (no crypto in PHP); refunds via the refund API. **Not run in WordPress here** (no PHP/Docker on this machine). | `integrations/woocommerce/` |
+| Shopify | Payment links: a Liquid snippet for product pages (`<wondrpay-button link>`), or a manual payment method paid by link. | developers docs `#shopify` |
+
+Test: `scripts/business-refunds-test.ts` (13 checks: permit, refund, payer balance, totals, idempotency replay, caps, switch off).
+
+Not built: live keys on mainnet (not needed: the product runs on Whitechain Sepolia testnet).

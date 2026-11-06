@@ -3,7 +3,7 @@
 //   { "amount": "12.40", "reference": "order_1042", "description": "2 items", "successUrl": "https://…", "cancelUrl": "https://…" }
 // → 201 { id, object: "checkout.session", status: "open", url (hosted page), payUrl (WondrPay app), expiresAt, … }
 import { after } from "next/server"
-import { authenticateSecretKey, createCheckoutSession, SiteError } from "@whitepay/server"
+import { authenticateSecretKey, createCheckoutSession, sessionByIdem, idemHash, parseUsdt, SiteError } from "@whitepay/server"
 import { json, errorMessage } from "@/lib/json"
 import { apiError, idempotent, origin } from "../../_lib"
 
@@ -13,11 +13,23 @@ export const maxDuration = 60
 export async function POST(req: Request) {
   try {
     const site = await authenticateSecretKey(req.headers.get("authorization"))
-    const idem = idempotent(site.siteId, req.headers.get("idempotency-key"))
+    const rawKey = req.headers.get("idempotency-key")
+    const idem = idempotent(site.siteId, rawKey)
     if (idem.hit) return json(idem.hit, { status: 201, headers: { "idempotent-replayed": "true" } })
+    // shared across server instances: the key's hash is stored on the session itself (Arkiv)
+    const hash = rawKey ? idemHash(site.siteId, rawKey) : undefined
     let body: Record<string, unknown>
     try { body = await req.json() } catch { throw new SiteError("bad_request", "Body must be JSON") }
-    const { session, publish } = await createCheckoutSession(site, body ?? {}, origin(req))
+    if (hash) {
+      const prev = await sessionByIdem(site, hash, origin(req))
+      if (prev) {
+        // a key reused with a different amount is a client bug: never hand back a session for another price
+        if (parseUsdt(body?.amount) !== parseUsdt(prev.amount)) throw new SiteError("conflict", "This Idempotency-Key was already used for a different amount")
+        idem.save(prev)
+        return json(prev, { status: 201, headers: { "idempotent-replayed": "true" } })
+      }
+    }
+    const { session, publish } = await createCheckoutSession(site, body ?? {}, origin(req), { idem: hash })
     // the hosted page is addressed by the order digest and works before the Arkiv write lands (~5 s): write after
     after(async () => {
       for (let i = 0; i < 3; i++) {

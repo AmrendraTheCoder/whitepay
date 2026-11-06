@@ -7,6 +7,7 @@ import { Receipt } from "@whitepay/shared/arkiv"
 import { arkiv, wc } from "./clients"
 import { config } from "./config"
 import type { PayerAuth } from "./relayer"
+import { allowanceRefunded, claimRefund } from "./refund-allowance"
 
 const AUTH = { name: "a", type: "tuple", components: [
   { name: "from", type: "address" }, { name: "validAfter", type: "uint256" }, { name: "validBefore", type: "uint256" },
@@ -25,7 +26,20 @@ export const REFUND_ABI = [
 
 export type RefundInfo = { paymentId: Hex; payer: Address; merchant: Address; amount: bigint; refunded: bigint; refundable: bigint; nonce: Hex }
 
-export async function refundInfo(paymentId: Hex): Promise<RefundInfo | null> {
+/** Refund state of a payment: what was paid, and everything refunded so far by ANY path (router refunds on-chain +
+ *  refund-allowance refunds from the Arkiv ledger). `refundable` is what every refund path may still pay. */
+export async function refundInfo(paymentId: Hex): Promise<(RefundInfo & { routerRefunded: bigint }) | null> {
+  // fails closed: if the ledger can't be read, this throws (no refund path pays on a guess)
+  const [r, extra] = await Promise.all([refundInfoRouter(paymentId), allowanceRefunded(paymentId)])
+  if (!r) return null
+  const refunded = r.refunded + extra
+  return { ...r, refunded, refundable: r.amount > refunded ? r.amount - refunded : 0n, routerRefunded: r.refunded }
+}
+
+export const refundInfoRouterFresh = (paymentId: Hex) => refundInfoRouter(paymentId)
+
+/** The router's own view (its `refunded` counter only counts router refunds). */
+export async function refundInfoRouter(paymentId: Hex): Promise<RefundInfo | null> {
   const [p, nonce] = await Promise.all([
     wc().pub.readContract({ address: config.router, abi: REFUND_ABI, functionName: "payments", args: [paymentId] }),
     wc().pub.readContract({ address: config.router, abi: REFUND_ABI, functionName: "refundNonce", args: [paymentId] }),
@@ -38,13 +52,21 @@ export async function refundInfo(paymentId: Hex): Promise<RefundInfo | null> {
 /** Submit a merchant-signed refund, then mirror the new state onto the Arkiv receipt. */
 export async function relayRefund(p: { paymentId: Hex; amount: bigint; auth: PayerAuth }) {
   const { r, s, v, yParity } = parseSignature(p.auth.signature)
-  const { request } = await wc().pub.simulateContract({
-    account: wc().relayer.account, address: config.router, abi: REFUND_ABI, functionName: "refund",
-    args: [p.paymentId, p.amount, { from: p.auth.from, validAfter: p.auth.validAfter, validBefore: p.auth.validBefore, v: Number(v ?? BigInt(27 + (yParity ?? 0))), r, s }],
+  const before = await refundInfo(p.paymentId)
+  if (!before) throw new Error("unknown payment")
+  if (p.amount > before.refundable) throw new Error("amount exceeds what can still be refunded")
+  // same ledger claim as allowance refunds, so the two paths can't both pay the same refundable amount
+  const { txHash, block } = await claimRefund({ paymentId: p.paymentId, merchant: before.merchant, payer: before.payer, amount: p.amount, paid: before.amount, source: "router" }, async () => {
+    const { request } = await wc().pub.simulateContract({
+      account: wc().relayer.account, address: config.router, abi: REFUND_ABI, functionName: "refund",
+      args: [p.paymentId, p.amount, { from: p.auth.from, validAfter: p.auth.validAfter, validBefore: p.auth.validBefore, v: Number(v ?? BigInt(27 + (yParity ?? 0))), r, s }],
+    })
+    const txHash = await wc().relayer.writeContract(request)
+    const rc = await wc().pub.waitForTransactionReceipt({ hash: txHash }).catch((e) => { throw Object.assign(e as Error, { txHash }) })
+    if (rc.status !== "success") throw new Error("refund reverted")
+    return { txHash, block: rc.blockNumber }
   })
-  const txHash = await wc().relayer.writeContract(request)
-  const rc = await wc().pub.waitForTransactionReceipt({ hash: txHash })
-  if (rc.status !== "success") throw new Error("refund reverted")
+  const rc = { blockNumber: block }
 
   const info = await refundInfo(p.paymentId)
   let receiptKey: Hex | null = null

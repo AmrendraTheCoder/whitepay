@@ -41,6 +41,8 @@ const LIMITS: [string, string, number, number][] = [
   ["/api/business/webhooks", "POST", 6, 60_000],
   ["/api/business/links", "POST", 10, 60_000],
   ["/api/business/team", "POST", 6, 60_000],
+  ["/api/business/refund-allowance", "POST", 6, 60_000],
+  ["/api/v1/refunds", "POST", 30, 60_000],
   ["/api/business/sites", "POST", 6, 60_000],
   ["/api/", "*", 240, 60_000],
 ]
