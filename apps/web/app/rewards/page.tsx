@@ -2,11 +2,10 @@
 // Rewards: scratch cards earned by paying listed shops, WBT cashback claimed with World ID, every shop's
 // current offer, and the public books that show where reward money comes from.
 import { useCallback, useEffect, useState } from "react"
-import { keccak256, toHex } from "viem"
 import { ECON, claimSignal, economicsPer100, type OfferView, type RewardCard, type RewardsLedger } from "@whitepay/shared/rewards"
 import { getWallet } from "@/lib/wallet"
 import { Icon, Identicon } from "../ui"
-import { WorldVerify } from "../world"
+import { ClaimVerify, rewardMode } from "./claim-verify"
 import { Chest, Gift } from "./art"
 import { PrizeFace, usd } from "./prize"
 import { ScratchSheet, prettyShop } from "./scratch"
@@ -22,6 +21,8 @@ export default function RewardsPage() {
   const [toast, setToast] = useState("")
   const [claimErr, setClaimErr] = useState("")
   const [claimed, setClaimed] = useState<{ wbt: string; explorer: string } | null>(null)
+  const [mode, setMode] = useState<"enroll" | "session" | null>(null)
+  const [stage, setStage] = useState<"idle" | "world" | "paying">("idle")
 
   const say = (t: string, ms = 3200) => { setToast(t); setTimeout(() => setToast(""), ms) }
   const cacheKey = (a: string) => `whitepay.rewards.${a.toLowerCase()}`
@@ -43,6 +44,7 @@ export default function RewardsPage() {
     if (!w) return
     try { const c = localStorage.getItem(cacheKey(w.address)); if (c) setData(JSON.parse(c)) } catch {}
     void load(w.address)
+    void rewardMode(w.address).then(setMode)
   }, [load])
 
   const onRevealed = (c: RewardCard) => {
@@ -63,7 +65,15 @@ export default function RewardsPage() {
   const gasNow = data?.ledger?.gasNowMicro ? BigInt(data.ledger.gasNowMicro) : ECON.gasFallbackMicro
   const E = economicsPer100(gasNow)
   const wbtOf = (micro: bigint) => (price ? (Number(micro) / 1e6 / price).toPrecision(3) : null)
-  const signal = owner ? claimSignal(owner, toClaim.map((c) => c.key)) : ""
+  const signal = owner && toClaim.length ? claimSignal(owner, toClaim.map((c) => c.key)) : ""
+  // where this person is in the earn -> scratch -> claim -> receive flow
+  const step = claimed ? 4 : toClaim.length ? 3 : fresh ? 2 : 1
+  const STEPS = [
+    { t: "Pay a shop", d: `Pay any listed shop $${E.breakEven.toFixed(2)} or more and a scratch card lands here. Your first ${ECON.welcomeWins} cards come with any shop payment.` },
+    { t: "Scratch the card", d: `Tap a new card and scratch it. About 1 in ${E.oneIn} wins 1–5% cashback; your first ${ECON.welcomeWins} always win.` },
+    { t: "Claim with World ID", d: mode === "session" ? "World App asks you to confirm it's you: a fresh check on every claim, a few seconds." : "The first time, World App sets up WondrPay rewards for you (once per person). After that it's a quick check on each claim." },
+    { t: "Get WBT", d: "Your cashback arrives as WBT in this wallet on Whitechain, in one transfer." },
+  ]
 
   return (
     <main className="rw-page">
@@ -103,36 +113,58 @@ export default function RewardsPage() {
                 ) : (
                   <>
                     <div className="rw-claim-amt">{usd(pending)}<small>{wbtOf(pending) ? `≈ ${wbtOf(pending)} WBT` : "in WBT"}</small></div>
-                    <p>Cashback from {toClaim.length} card{toClaim.length > 1 ? "s" : ""}, ready to claim. One World ID check proves a real
-                      person is claiming, so bots and wallet farms can't stack rewards.</p>
-                    <WorldVerify
-                      purpose="reward"
-                      paymentRef={keccak256(toHex(signal))}
+                    <p>Cashback from {toClaim.length} card{toClaim.length > 1 ? "s" : ""}, ready to claim.</p>
+                    <ol className="rw-claim-steps">
+                      <li className={stage === "world" ? "on" : stage === "paying" ? "done" : ""}>
+                        <b>{mode === "session" ? "Confirm it's you in World App" : "Set up rewards in World App"}</b>
+                        <span>{mode === "session"
+                          ? "Scan the code with World App (or tap Open World App) and approve. It's a new check every claim, so no one else can claim for you."
+                          : "One time per person: scan the code with World App and approve \u201cSet up WondrPay rewards\u201d. Every later claim is a quick fresh check."}</span>
+                      </li>
+                      <li className={stage === "paying" ? "on" : ""}>
+                        <b>WBT is sent to this wallet</b>
+                        <span>WondrPay checks the per-person limits ({ECON.humanClaimsPerDay} claims a day, ${Number(ECON.humanMonthlyCapMicro) / 1e6} a month) and pays on Whitechain.</span>
+                      </li>
+                    </ol>
+                    <ClaimVerify
+                      owner={owner}
                       signal={signal}
-                      label="Claim with World ID"
-                      className="btn"
-                      verify={async (proof) => {
+                      label={stage === "paying" ? "Sending WBT…" : mode === "session" ? "Claim with World ID" : "Set up & claim with World ID"}
+                      claim={async (proof) => {
                         const r = await fetch("/api/rewards/claim", { method: "POST", headers: { "content-type": "application/json" },
                           body: JSON.stringify({ owner, keys: toClaim.map((c) => c.key), proof }) })
                         const d = await r.json()
                         if (!r.ok) throw new Error(d.error || "Claim failed")
                         return d
                       }}
-                      onVerified={(d) => {
-                        setClaimErr("")
+                      onStage={setStage}
+                      onClaimed={(d) => {
+                        setClaimErr(""); setMode("session")
                         const wbt = (Number(BigInt(d.wbtWei)) / 1e18).toPrecision(3)
                         setClaimed({ wbt, explorer: d.explorer })
                         if (d.expired?.length) say(`${d.expired.length} card${d.expired.length > 1 ? "s" : ""} over the per-person limit`, 5000)
                         else say(`${wbt} WBT cashback received`)
                         void load(owner)
                       }}
-                      onDenied={(reason) => setClaimErr(reason)}
+                      onError={(reason) => setClaimErr(reason)}
                     />
                     {claimErr && <div className="rw-err">{claimErr}</div>}
                   </>
                 )}
               </section>
             )}
+
+            <section className="rw-guide" aria-label="How to get rewards">
+              <h2 className="rw-h">How to get rewards</h2>
+              <ol className="rw-steps">
+                {STEPS.map((x, i) => (
+                  <li key={x.t} className={i + 1 < step ? "done" : i + 1 === step ? "on" : ""}>
+                    <span className="rw-step-n" aria-hidden>{i + 1 < step ? "✓" : i + 1}</span>
+                    <div><b>{x.t}</b><span>{x.d}</span></div>
+                  </li>
+                ))}
+              </ol>
+            </section>
 
             <h2 className="rw-h">Your rewards</h2>
             {err && !data && <div className="notice">{err} <button className="chip" onClick={() => void load(owner)}>Retry</button></div>}

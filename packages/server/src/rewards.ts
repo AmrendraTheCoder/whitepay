@@ -23,7 +23,7 @@ import {
 import { arkiv, wc } from "./clients"
 import { config } from "./config"
 import { getMerchantByAddress } from "./merchants"
-import { verifyProof, WORLD_ACTIONS } from "./world"
+import { verifyProof, verifySessionProof, WORLD_ACTIONS } from "./world"
 import { cached, invalidate } from "./cache"
 
 const now = () => Math.floor(Date.now() / 1000)
@@ -50,6 +50,16 @@ export const RewardClaim = defineSchema("whitepay.rewardclaim", {
   tx: str().indexed(),
   keysHash: str().indexed(),
   claimedAt: u64().indexed(),
+})
+
+/** A human's World ID rewards session: created once (uniqueness proof on WORLD_ACTIONS.reward with
+ *  session_id "create"), then re-proven on every claim. One row per wallet that has used the session;
+ *  `human` is the hash of the enrolment nullifier, so limits stay per person across wallets. */
+export const RewardSession = defineSchema("whitepay.rewardsession", {
+  sessionId: str().indexed(),
+  human: str().indexed(),
+  owner: addr().indexed(),
+  createdAt: u64().indexed(),
 })
 
 // ------------------------------------------------------------------ prices + pool
@@ -287,9 +297,58 @@ export type ClaimResult = {
   claimed: string[]; expired: { key: string; reason: string }[]
 }
 const claimLocks = new Set<string>()
+const usedSessionProofs = new Set<string>()
 const humanHash = (nullifier: string) => keccak256(toBytes(`wondrpay-human:${nullifier}`))
+const SESSION_RE = /^session_[0-9a-fA-F]{8,256}$/
 
-/** Claim WBT cashback for `keys` with a World ID proof (action whitepay-pay, signal = claimSignal(owner, keys)).
+async function sessionRows(where: any) {
+  const a = arkiv()
+  const page = await a.pub.select({ sessionId: true, human: true, owner: true }).from(RewardSession).ownedBy(a.owner).where(where as never).limit(20).fetch()
+  return (page.entities as any[]).map((e) => ({ sessionId: v(e.sessionId) as string, human: v(e.human) as string, owner: getAddress(v(e.owner)) }))
+}
+
+/** The rewards session to re-prove for `owner`: the one this wallet used before, else `hint` (a session id this
+ *  device remembers from another wallet) when it exists. null = first time: enrol with one uniqueness proof. */
+export async function rewardSessionFor(owner: Address, hint?: string): Promise<{ sessionId: string } | null> {
+  const mine = await sessionRows(eq("owner", addr(getAddress(owner))))
+  if (mine[0]) return { sessionId: mine[0].sessionId }
+  if (hint && SESSION_RE.test(hint)) {
+    const known = await sessionRows(eq("sessionId", hint))
+    if (known[0]) return { sessionId: hint }
+  }
+  return null
+}
+
+async function saveSession(sessionId: string, human: string, owner: Address) {
+  const a = arkiv()
+  await a.writer.createEntity(RewardSession, { sessionId, human, owner: addr(owner), createdAt: u64(BigInt(now())) },
+    { expiration: ExpirationTime.max() }, { gas: 1_000_000n })
+}
+
+/** Who is claiming: verifies the World ID proof and returns the per-human key.
+ *  - enrolment (first claim): a uniqueness proof on WORLD_ACTIONS.reward that also created a session
+ *  - every later claim: a fresh session proof for that session (a real World App check, no "already verified") */
+async function claimingHuman(owner: Address, proof: any, signal: string): Promise<{ human: string; save?: () => Promise<void> }> {
+  if (proof?.action) {
+    const { nullifier } = await verifyProof(proof, WORLD_ACTIONS.reward, signal)
+    const sessionId = proof.session_id
+    if (typeof sessionId !== "string" || !SESSION_RE.test(sessionId)) throw new RewardError("bad_claim", "World ID didn't create a rewards session. Update World App and try again.")
+    const human = humanHash(`${WORLD_ACTIONS.reward}:${nullifier}`)
+    return { human, save: () => saveSession(sessionId, human, owner) }
+  }
+  const sessionId = proof?.session_id
+  if (typeof sessionId !== "string" || !SESSION_RE.test(sessionId)) throw new RewardError("bad_claim", "Missing World ID session")
+  const rows = await sessionRows(eq("sessionId", sessionId))
+  if (!rows[0]) throw new RewardError("bad_claim", "Unknown rewards session. Set up rewards with World ID first.")
+  const { sessionNullifier } = await verifySessionProof(proof, sessionId, signal)
+  if (usedSessionProofs.has(sessionNullifier)) throw new RewardError("bad_claim", "This World ID check was already used. Verify again.")
+  usedSessionProofs.add(sessionNullifier)
+  const human = rows[0].human
+  return { human, save: rows.some((r) => r.owner === owner) ? undefined : () => saveSession(sessionId, human, owner) }
+}
+
+/** Claim WBT cashback for `keys` with a World ID proof bound to signal = claimSignal(owner, keys): the rewards
+ *  enrolment proof the first time, a session proof after that.
  *  `trustedHuman` is for server-side tests only (skips the proof, never reachable from the API). */
 export async function claimRewards(p: { owner: Address; keys: Hex[]; proof?: unknown; trustedHuman?: string }): Promise<ClaimResult> {
   const owner = getAddress(p.owner)
@@ -297,12 +356,10 @@ export async function claimRewards(p: { owner: Address; keys: Hex[]; proof?: unk
   if (!keys.length || keys.length > 20) throw new RewardError("bad_claim", "Pick 1-20 cards to claim")
 
   // 1. a live human, bound to this wallet and exactly these cards
-  let nullifier = p.trustedHuman
-  if (!nullifier) {
-    const r = await verifyProof(p.proof as any, WORLD_ACTIONS.stepUp(), claimSignal(owner, keys))
-    nullifier = r.nullifier
-  }
-  const human = humanHash(nullifier)
+  let human: string, save: (() => Promise<void>) | undefined
+  if (p.trustedHuman) human = humanHash(p.trustedHuman)
+  else ({ human, save } = await claimingHuman(owner, p.proof, claimSignal(owner, keys)))
+  if (save) await save().catch((e) => console.error("[rewards] session save failed", (e as Error).message.split("\n")[0]))
   if (claimLocks.has(human) || claimLocks.has(owner)) throw new RewardError("busy", "A claim is already in progress")
   claimLocks.add(human); claimLocks.add(owner)
   try {

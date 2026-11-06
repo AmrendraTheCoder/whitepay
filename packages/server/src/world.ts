@@ -29,6 +29,9 @@ export const WORLD_ACTIONS = {
    *  Set WORLD_REFUND_ACTION=whitepay-refund once that action exists; until then the unlimited step-up
    *  action is reused (each proof is still bound to one refund case through its signal). */
   refund: process.env.WORLD_REFUND_ACTION || "whitepay-pay",
+  /** Rewards enrolment: ONE uniqueness proof per human that also creates a World ID session. Every claim
+   *  after that is a fresh session proof (a real World App check each time, never "already verified"). */
+  reward: process.env.WORLD_REWARD_ACTION || "wondrpay-rewards",
 } as const
 type Action = string
 export const ACTION_DESCRIPTIONS: Record<string, string> = {
@@ -36,6 +39,7 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   "whitepay-shop": "Verify that a real person runs this WondrPay shop",
   "whitepay-pay": "Confirm a large WondrPay payment",
   "whitepay-refund": "Request a refund on WondrPay (one human, verified)",
+  "wondrpay-rewards": "Set up WondrPay rewards (one per person)",
 }
 export const describeAction = (a: string) => ACTION_DESCRIPTIONS[a] ?? "Confirm this WondrPay payment"
 
@@ -65,13 +69,25 @@ export function rpContext(action: Action, description?: string) {
   }
 }
 
-type V4Item = { identifier: string; signal_hash?: string; nullifier: string }
-type IDKitResultLike = { protocol_version?: string; action?: string; nonce?: string; responses?: V4Item[] }
-
-/** Verify a proof with the Developer Portal and check it is bound to `signal` and `action`. */
-export async function verifyProof(result: IDKitResultLike, action: Action, signal: string) {
+/** RP context for a session proof (no action: the RP signature omits it). */
+export function rpSessionContext(description: string) {
   const e = env()
-  if (!result || result.action !== action) throw new Error("proof is for a different action")
+  const s = signRequest({ signingKeyHex: e.key, ttl: 300 })
+  return {
+    action_description: description,
+    app_id: e.appId as `app_${string}`,
+    environment: e.environment,
+    rp_context: { rp_id: e.rpId, nonce: s.nonce, created_at: s.createdAt, expires_at: s.expiresAt, signature: s.sig },
+  }
+}
+
+type V4Item = { identifier: string; signal_hash?: string; nullifier: string }
+type IDKitResultLike = { protocol_version?: string; action?: string; nonce?: string; session_id?: string; responses?: V4Item[] }
+type SessionResultLike = { protocol_version?: string; nonce?: string; session_id?: string; action?: string
+  responses?: { identifier: string; signal_hash?: string; session_nullifier?: string[] }[] }
+
+async function portalVerify(result: unknown) {
+  const e = env()
   const res = await fetch(`https://developer.world.org/api/v4/verify/${e.rpId}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -84,6 +100,25 @@ export async function verifyProof(result: IDKitResultLike, action: Action, signa
   }
   if (body.environment && body.environment !== e.environment)
     throw new Error(`World ID ${body.environment} proof, but server expects ${e.environment} (set WORLD_ENV)`)
+}
+
+/** Verify a SESSION proof (a returning human re-proving a session they created): checked by the Developer
+ *  Portal, bound to `signal`, and for the expected session. Returns the session nullifier (one per proof). */
+export async function verifySessionProof(result: SessionResultLike, sessionId: string, signal: string) {
+  if (!result || result.action) throw new Error("expected a session proof")
+  if (result.session_id !== sessionId) throw new Error("proof is for a different World ID session")
+  await portalVerify(result)
+  const item = result.responses?.[0]
+  const sn = item?.session_nullifier?.[0]
+  if (!sn) throw new Error("proof has no session nullifier")
+  if (!item.signal_hash || item.signal_hash.toLowerCase() !== hashSignal(signal).toLowerCase()) throw new Error("proof is not bound to this claim")
+  return { sessionNullifier: sn }
+}
+
+/** Verify a proof with the Developer Portal and check it is bound to `signal` and `action`. */
+export async function verifyProof(result: IDKitResultLike, action: Action, signal: string) {
+  if (!result || result.action !== action) throw new Error("proof is for a different action")
+  await portalVerify(result)
 
   const item = result.responses?.[0]
   if (!item?.nullifier) throw new Error("proof has no nullifier")

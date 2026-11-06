@@ -154,3 +154,26 @@
 .rw-kv dd { margin: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
 .rw-rules { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; color: var(--muted); }
 .rw-rules b { color: var(--text); }
+
+/* claim: what happens when you tap the button */
+.rw-claim-steps { list-style: none; margin: 2px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rw-claim-steps li { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; border-radius: 14px; background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12); transition: background .2s, border-color .2s; }
+.rw-claim-steps li b { font-size: 14px; }
+.rw-claim-steps li span { font-size: 12.5px; opacity: .8; line-height: 1.4; }
+.rw-claim-steps li.on { border-color: var(--lime); background: rgba(221,240,90,.14); }
+.rw-claim-steps li.done { opacity: .6; }
+
+/* how to get rewards: earn -> scratch -> claim -> receive */
+.rw-guide .rw-h { margin-top: 6px; }
+.rw-steps { list-style: none; margin: 10px 0 0; padding: 4px 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.rw-steps li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.rw-steps li:last-child { border-bottom: 0; }
+.rw-steps li > div { display: flex; flex-direction: column; gap: 2px; }
+.rw-steps b { font-size: 14.5px; }
+.rw-steps li > div span { font-size: 13px; color: var(--muted); line-height: 1.45; }
+.rw-step-n { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800;
+  background: var(--surface-2); color: var(--muted); }
+.rw-steps li.on .rw-step-n { background: var(--brand); color: #fff; box-shadow: 0 0 0 4px color-mix(in oklab, var(--brand) 25%, transparent); }
+.rw-steps li.done .rw-step-n { background: color-mix(in oklab, var(--ok) 22%, transparent); color: var(--ok); }
+.rw-steps li.done b { color: var(--muted); }
