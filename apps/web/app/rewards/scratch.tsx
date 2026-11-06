@@ -19,10 +19,10 @@ export function ScratchSheet({ card, owner, onClose, onRevealed }: {
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
-  const [result, setResult] = useState<RewardCard | null>(card.status === "scratched" ? card : null)
+  const [result, setResult] = useState<RewardCard | null>(card.status !== "new" ? card : null)
   const [payout, setPayout] = useState<{ txHash: string; explorer: string } | null>(null)
   const [err, setErr] = useState("")
-  const [cleared, setCleared] = useState(card.status === "scratched")
+  const [cleared, setCleared] = useState(card.status !== "new")
   const [confetti, setConfetti] = useState(false)
   const requested = useRef(false)
   const scratchedEnough = useRef(false)
@@ -145,9 +145,16 @@ export function ScratchSheet({ card, owner, onClose, onRevealed }: {
 function Outcome({ card, payout }: { card: RewardCard; payout: { txHash: string; explorer: string } | null }) {
   if (card.prize === "cashback")
     return <div className="rw-outcome">Cashback sent to your wallet{payout ? <> · <a href={payout.explorer} target="_blank" rel="noreferrer">View on Whitechain</a></> : null}</div>
+  if (card.prize === "wbt" || card.prize === "wbt_welcome")
+    return (
+      <div className="rw-outcome">
+        {card.prize === "wbt_welcome" ? "Welcome bonus! " : ""}{(card.rateBps ?? 0) / 100}% back, paid in WBT. Claim it with one World ID
+        check, so only real people collect rewards. <a href="/rewards#claim">Claim now</a>
+      </div>
+    )
   if (card.prize === "offer")
     return <div className="rw-outcome">Show code <b className="rw-code">{card.offerCode}</b> at {prettyShop(card.merchantName)}, or use it on your next order.</div>
-  return <div className="rw-outcome">No prize this time. Every shop payment of 0.10 USDT or more earns another card.</div>
+  return <div className="rw-outcome">No prize this time. About 1 card in 9 wins cashback, and every shop payment of 0.10 USDT or more earns another card.</div>
 }
 
 export const prettyShop = (n?: string) =>

@@ -53,7 +53,7 @@ export function OfferCard({ merchant, account, setAccount }: { merchant: { addre
       <div className="row"><h2 className="m-0">Scratch-card offer</h2>{offer?.active ? <span className="badge badge-lime">Live</span> : offer ? <span className="sub">Paused</span> : null}</div>
       <div className="row gap-2" style={{ justifyContent: "flex-start", alignItems: "flex-start" }}>
         <span style={{ flex: "none", width: 48, height: 48, borderRadius: 14, display: "grid", placeItems: "center", background: "linear-gradient(135deg,#3a5cff,#142aa8)" }}><Gift size={30} /></span>
-        <p className="sub m-0">Customers who pay you 0.10 USDT or more get a scratch card. Some cards win your offer; the rest win USDT cashback paid by WondrPay. Your shop and offer are listed on everyone's Rewards page.</p>
+        <p className="sub m-0">Customers who pay you 0.10 USDT or more get a scratch card. Some cards win your offer, and about 1 in 9 wins 1–5% cashback in WBT, funded by WondrPay from the fee. Your shop and offer are listed on everyone's Rewards page.</p>
       </div>
       {offer === undefined ? <span className="skel" style={{ height: 96 }} /> : (
         <>

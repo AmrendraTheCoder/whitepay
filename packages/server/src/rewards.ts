@@ -1,25 +1,26 @@
-// Scratch-card rewards (GPay-style), earned by paying a listed shop.
-//  earn:    after a QR payment of >= 0.10 USDT to a registered merchant, one Reward entity is written to Arkiv
-//           (one per payment tx; lives 30 days unscratched).
-//  scratch: the prize is derived from keccak(secret, rewardKey), so it is fixed per card, hidden until scratched,
-//           and the same on every server instance (a double scratch can never re-roll or double-pay).
-//  payout:  cashback is a gasless payDirect from the rewards pool wallet (REWARDS_PK) to the card owner.
-//           The EIP-3009 nonce is derived from the card key, so the chain itself guarantees one payout per card.
+// Rewards, earned by paying a listed shop. The numbers come from ECON in @whitepay/shared/rewards
+// (docs/REWARDS.md explains the math):
+//  earn:    a shop payment of >= 0.10 USDT writes one scratch card to Arkiv (one per payment tx, 30-day life).
+//  scratch: the prize is derived from keccak(secret, cardKey): fixed per card, hidden until scratched, the same on
+//           every instance. About 1 card in 9 wins 1-5% WBT cashback; a person's first 3 cards always win (welcome).
+//  claim:   WBT cashback is claimed with a fresh World ID proof bound to the wallet + cards. Limits count per
+//           HUMAN (World ID nullifier) across all their wallets, so bots or wallet farms can't stack rewards. Payouts
+//           can never exceed the pool: 50% of the fees on rewarded volume + a fixed launch budget, minus what was paid.
 import { ExpirationTime, NoEntityFoundError } from "@arkiv-network/sdk"
-import { addr, u64 } from "@arkiv-network/sdk/schema"
-import { eq, desc } from "@arkiv-network/sdk/query"
-import { erc20Abi, getAddress, keccak256, toBytes, verifyMessage, type Address, type Hex } from "viem"
+import { addr, u64, u256, str, i32, defineSchema } from "@arkiv-network/sdk/schema"
+import { eq, and, gte, desc } from "@arkiv-network/sdk/query"
+import { createWalletClient, getAddress, http, keccak256, toBytes, verifyMessage, type Address, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { Reward, ShopOffer } from "@whitepay/shared/arkiv"
-import { receiveAuthTypedData, directNonce, ROUTER_ADDRESS, USDT_ADDRESS } from "@whitepay/shared"
+import { whitechainSepolia } from "@whitepay/shared"
 import {
-  REWARD_MIN_PAYMENT, CASHBACK_MIN, CASHBACK_MAX, REWARD_TTL_DAYS, OFFER_TEXT_MAX, OFFER_CODE_RE, offerMessage,
-  type RewardCard, type OfferView,
+  REWARD_MIN_PAYMENT, REWARD_TTL_DAYS, OFFER_TEXT_MAX, OFFER_CODE_RE, ECON, offerMessage, rollPrize, rollRate, cashbackMicro, claimSignal,
+  type RewardCard, type OfferView, type RewardsLedger,
 } from "@whitepay/shared/rewards"
 import { arkiv, wc } from "./clients"
+import { config } from "./config"
 import { getMerchantByAddress } from "./merchants"
-import { relayDirectPayment } from "./relayer"
-import { settleOnArkiv } from "./requests"
+import { verifyProof, WORLD_ACTIONS } from "./world"
 import { cached, invalidate } from "./cache"
 
 const now = () => Math.floor(Date.now() / 1000)
@@ -34,15 +35,37 @@ export const rewardsPool = () => {
   return k ? privateKeyToAccount(k) : null
 }
 
-const AUTH_STATE_ABI = [{ type: "function", name: "authorizationState", stateMutability: "view",
-  inputs: [{ name: "authorizer", type: "address" }, { name: "nonce", type: "bytes32" }], outputs: [{ type: "bool" }] }] as const
+/** One row per claim: the per-human ledger (human = hash of the World ID nullifier, never the raw value). */
+export const RewardClaim = defineSchema("whitepay.rewardclaim", {
+  human: str().indexed(),
+  owner: addr().indexed(),
+  cards: i32(),
+  welcome: i32(),
+  usd: u256(), // micro-USD
+  wbt: u256(), // wei
+  price: u256(), // micro-USD per WBT at claim time
+  tx: str().indexed(),
+  keysHash: str().indexed(),
+  claimedAt: u64().indexed(),
+})
 
-/** USDT left in the rewards pool (0 when no pool is configured). Cached briefly: the Rewards page polls it. */
-export const rewardsPoolBalance = () =>
-  cached("rewards:pool", 15_000, async () => {
+// ------------------------------------------------------------------ prices + pool
+/** WBT/USD: live from CoinGecko (cached 10 min), else WBT_USD from the environment. null = unknown (claims wait). */
+export const wbtPrice = () =>
+  cached("rewards:wbt-usd", 600_000, async (): Promise<number | null> => {
+    try {
+      const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=whitebit&vs_currencies=usd", { signal: AbortSignal.timeout(4000) })
+      const p = Number((await r.json())?.whitebit?.usd)
+      if (p > 0) return p
+    } catch {}
+    const env = Number(process.env.WBT_USD)
+    return env > 0 ? env : null
+  }, (p) => p !== null)
+
+export const rewardPoolWbt = () =>
+  cached("rewards:pool-wbt", 15_000, async () => {
     const pool = rewardsPool()
-    if (!pool) return 0n
-    return wc().pub.readContract({ address: USDT_ADDRESS, abi: erc20Abi, functionName: "balanceOf", args: [pool.address] })
+    return pool ? wc().pub.getBalance({ address: pool.address }) : 0n
   })
 
 // ------------------------------------------------------------------ earn
@@ -52,7 +75,7 @@ export async function awardScratchCard(p: { payer: Address; merchant: Address; m
     if (p.amount < REWARD_MIN_PAYMENT) return null
     if (getAddress(p.payer) === getAddress(p.merchant)) return null
     const shop = await getMerchantByAddress(p.merchant)
-    if (!shop) return null // only listed shops give rewards
+    if (!shop) return null // only listed shops give rewards (P2P earns no fee, so it earns no reward)
     const a = arkiv()
     const dup = await a.pub.select({ $key: true }).from(Reward).ownedBy(a.owner)
       .where(eq("paymentTx", p.txHash.toLowerCase())).limit(1).fetch()
@@ -67,6 +90,7 @@ export async function awardScratchCard(p: { payer: Address; merchant: Address; m
       status: "new",
     }, { expiration: ExpirationTime.fromDays(REWARD_TTL_DAYS) }, { gas: 1_500_000n })
     invalidate(`rewards:${getAddress(p.payer)}`)
+    invalidate("rewards:ledger")
     return r.entityKey
   } catch (e) {
     console.warn("reward award failed:", (e as Error).message.split("\n")[0])
@@ -75,23 +99,34 @@ export async function awardScratchCard(p: { payer: Address; merchant: Address; m
 }
 
 // ------------------------------------------------------------------ read
-const toCard = (e: any): RewardCard => ({
-  key: e.$key,
-  merchant: getAddress(v(e.merchant)),
-  merchantName: v(e.merchantName) || undefined,
-  paidAmount: BigInt(v(e.paidAmount) ?? 0).toString(),
-  paymentTx: v(e.paymentTx) || undefined,
-  earnedAt: Number(v(e.earnedAt)),
-  expiresAt: Number(v(e.earnedAt)) + REWARD_TTL_DAYS * 86400,
-  status: v(e.status) === "scratched" ? "scratched" : "new",
-  ...(v(e.status) === "scratched" ? {
-    prize: v(e.prize),
-    amount: e.amount != null ? BigInt(v(e.amount)).toString() : undefined,
-    offerText: v(e.offerText) || undefined,
-    offerCode: v(e.offerCode) || undefined,
-    payoutTx: v(e.payoutTx) || undefined,
-  } : {}),
-})
+/** Deterministic, secret seed per card: same on every instance, unknowable without REWARDS_PK. */
+const seedFor = (cardKey: string) => {
+  const secret = rewardsKey() ?? (process.env.ARKIV_WRITER_PK ?? "whitepay")
+  return BigInt(keccak256(toBytes(`whitepay-reward:${secret}:${cardKey.toLowerCase()}`)))
+}
+const STATUSES = new Set(["new", "scratched", "won", "claimed", "expired"])
+const toCard = (e: any): RewardCard => {
+  const status = STATUSES.has(v(e.status)) ? v(e.status) : "new"
+  const prize = status === "new" ? undefined : v(e.prize)
+  return {
+    key: e.$key,
+    merchant: getAddress(v(e.merchant)),
+    merchantName: v(e.merchantName) || undefined,
+    paidAmount: BigInt(v(e.paidAmount) ?? 0).toString(),
+    paymentTx: v(e.paymentTx) || undefined,
+    earnedAt: Number(v(e.earnedAt)),
+    expiresAt: Number(v(e.earnedAt)) + REWARD_TTL_DAYS * 86400,
+    status,
+    ...(status !== "new" ? {
+      prize,
+      amount: e.amount != null && v(e.amount) != null ? BigInt(v(e.amount)).toString() : undefined,
+      rateBps: prize === "wbt" || prize === "wbt_welcome" ? rollRate(seedFor(e.$key)) : undefined,
+      offerText: v(e.offerText) || undefined,
+      offerCode: v(e.offerCode) || undefined,
+      payoutTx: v(e.payoutTx) || undefined,
+    } : {}),
+  }
+}
 const CARD_FIELDS = { $key: true, owner: true, merchant: true, merchantName: true, paymentTx: true, paidAmount: true, earnedAt: true,
   status: true, prize: true, amount: true, offerText: true, offerCode: true, payoutTx: true } as const
 
@@ -115,30 +150,13 @@ async function getCard(key: Hex) {
 }
 
 // ------------------------------------------------------------------ scratch
-type Outcome = { prize: "cashback" | "offer" | "none"; amount?: bigint; offerText?: string; offerCode?: string }
-
-/** Deterministic, secret prize for a card: same answer on every instance, unknowable without REWARDS_PK. */
-function roll(cardKey: Hex, paid: bigint, hasOffer: boolean) {
-  const secret = rewardsKey() ?? (process.env.ARKIV_WRITER_PK ?? "whitepay")
-  const seed = BigInt(keccak256(toBytes(`whitepay-reward:${secret}:${cardKey.toLowerCase()}`)))
-  const pct = Number(seed % 100n)
-  const span = (CASHBACK_MAX - CASHBACK_MIN) / 1000n + 1n // in 0.001 USDT steps
-  let amount = CASHBACK_MIN + ((seed >> 8n) % span) * 1000n
-  const cap = paid / 10n
-  if (amount > cap) amount = cap < CASHBACK_MIN ? CASHBACK_MIN : cap - (cap % 1000n)
-  // with a shop offer: 35% cashback, 40% offer, 25% no luck. Without: 50% cashback, 50% no luck.
-  const prize: Outcome["prize"] = hasOffer ? (pct < 35 ? "cashback" : pct < 75 ? "offer" : "none") : pct < 50 ? "cashback" : "none"
-  return { prize, amount }
-}
-
-const memoFor = (cardKey: Hex) => keccak256(toBytes(`whitepay-reward-payout:${cardKey.toLowerCase()}`))
 const inflight = new Map<string, Promise<ScratchResult>>()
-export type ScratchResult = { card: RewardCard; payout?: { txHash: Hex; explorer: string; block: bigint }; persist: () => Promise<void> }
+export type ScratchResult = { card: RewardCard; persist: () => Promise<void> }
 
-/** Scratch a card: decide (deterministically), pay cashback if won, and return a `persist` step that writes
- *  the result to Arkiv (call it after responding; repeating a scratch before it lands is harmless). */
+/** Scratch a card: decide (deterministically) and return a `persist` step that writes the result to Arkiv
+ *  (call it after responding; repeating a scratch before it lands gives the same answer). Nothing is paid here:
+ *  WBT cashback waits for a World ID claim. */
 export function scratchCard(key: Hex, owner: Address): Promise<ScratchResult> {
-  // de-dupe concurrent scratches of one card by its owner; a failure (e.g. a stranger's attempt) is never cached
   const k = `${key.toLowerCase()}:${getAddress(owner)}`
   const running = inflight.get(k)
   if (running) return running
@@ -148,69 +166,182 @@ export function scratchCard(key: Hex, owner: Address): Promise<ScratchResult> {
   return job
 }
 
+/** welcome wins this WALLET already got (the per-human welcome limit is enforced again at claim) */
+async function welcomeCount(owner: Address) {
+  const a = arkiv()
+  const page = await a.pub.select({ $key: true }).from(Reward).ownedBy(a.owner)
+    .where(and(eq("owner", addr(owner)), eq("prize", "wbt_welcome"))).limit(10).fetch()
+  return page.entities.length
+}
+
 async function doScratch(key: Hex, owner: Address): Promise<ScratchResult> {
   const card = await getCard(key)
   if (!card) throw new RewardError("not_found", "This scratch card has expired or does not exist")
   if (card.owner !== owner) throw new RewardError("not_owner", "This scratch card belongs to another wallet")
-  if (card.status === "scratched") return { card, persist: async () => {} }
+  if (card.status !== "new") return { card, persist: async () => {} }
 
-  const offer = await getOffer(card.merchant as Address)
-  const r = roll(key, BigInt(card.paidAmount), !!offer?.active)
-  let out: Outcome = r.prize === "offer" ? { prize: "offer", offerText: offer!.text, offerCode: offer!.code } : { prize: r.prize }
-  let payout: ScratchResult["payout"]
-
-  if (r.prize === "cashback") {
-    const pool = rewardsPool()
-    const memo = memoFor(key)
-    const nonce = directNonce(owner, memo)
-    const already = pool
-      ? await wc().pub.readContract({ address: USDT_ADDRESS, abi: AUTH_STATE_ABI, functionName: "authorizationState", args: [pool.address, nonce] })
-      : false
-    if (already) {
-      out = { prize: "cashback", amount: r.amount } // paid by an earlier scratch whose Arkiv write had not landed yet
-    } else if (pool && (await rewardsPoolBalance()) >= r.amount) {
-      const validBefore = BigInt(now() + 600)
-      const signature = await pool.signTypedData(receiveAuthTypedData({
-        from: pool.address, to: ROUTER_ADDRESS, value: r.amount, validAfter: 0n, validBefore, nonce,
-      }))
-      const paid = await relayDirectPayment({ to: owner, amount: r.amount, memo, auth: { from: pool.address, validAfter: 0n, validBefore, signature } })
-      invalidate("rewards:pool")
-      payout = { txHash: paid.txHash, explorer: paid.explorer, block: paid.block }
-      out = { prize: "cashback", amount: r.amount }
-    } else {
-      // pool empty or not configured: never promise money we can't pay
-      out = offer?.active ? { prize: "offer", offerText: offer.text, offerCode: offer.code } : { prize: "none" }
-    }
-  }
-
-  const scratchedAt = now()
-  const result: RewardCard = {
-    ...card, status: "scratched", prize: out.prize,
-    amount: out.amount?.toString(), offerText: out.offerText, offerCode: out.offerCode, payoutTx: payout?.txHash,
-  }
+  const [offer, welcomed] = await Promise.all([getOffer(card.merchant as Address), welcomeCount(owner)])
+  const r = rollPrize(seedFor(key), { hasOffer: !!offer?.active, welcome: welcomed < ECON.welcomeWins })
+  const paid = BigInt(card.paidAmount)
+  const result: RewardCard =
+    r.prize === "wbt" || r.prize === "wbt_welcome"
+      ? { ...card, status: "won", prize: r.prize, rateBps: r.rateBps, amount: cashbackMicro(paid, r.rateBps, r.prize === "wbt_welcome").toString() }
+      : r.prize === "offer"
+        ? { ...card, status: "scratched", prize: "offer", offerText: offer!.text, offerCode: offer!.code }
+        : { ...card, status: "scratched", prize: "none" }
   const persist = async () => {
     try {
       await arkiv().writer.patchEntity(Reward, key, {
         set: {
-          status: "scratched", prize: out.prize, scratchedAt: u64(BigInt(scratchedAt)),
-          ...(out.amount != null ? { amount: out.amount } : {}),
-          ...(out.offerText ? { offerText: out.offerText.slice(0, 120), offerCode: out.offerCode } : {}),
-          ...(payout ? { payoutTx: payout.txHash.toLowerCase() } : {}),
+          status: result.status, prize: result.prize!, scratchedAt: u64(BigInt(now())),
+          ...(result.amount != null ? { amount: BigInt(result.amount) } : {}),
+          ...(result.offerText ? { offerText: result.offerText.slice(0, 120), offerCode: result.offerCode } : {}),
         },
       }, { gas: 1_000_000n })
     } catch (e) {
       console.warn("reward patch failed (re-scratch is idempotent):", (e as Error).message.split("\n")[0])
     }
-    // the cashback also appears in the owner's history as an incoming payment from WondrPay Rewards
-    if (payout) await settleOnArkiv({ merchant: owner, merchantName: "WondrPay Rewards", payer: rewardsPool()!.address, amount: out.amount!,
-      paymentId: memoFor(key), txHash: payout.txHash, block: payout.block, kind: "p2p" }).catch(() => {})
     invalidate(`rewards:${owner}`)
   }
-  return { card: result, payout, persist }
+  return { card: result, persist }
+}
+
+// ------------------------------------------------------------------ ledger
+/** The pool's books, recomputed from Arkiv: what fees funded, what was paid, what's left. Public on /rewards. */
+export const rewardsLedger = (): Promise<RewardsLedger> =>
+  cached("rewards:ledger", 20_000, async () => {
+    const a = arkiv()
+    // the node returns <= 100 rows per query: page through (stable order by $key-equivalent timestamps)
+    const all = async (q: () => any, max = 20) => {
+      const out: any[] = []
+      for (let off = 0, i = 0; i < max; i++) {
+        const page = await q().limit(100).offset(off).fetch()
+        out.push(...page.entities)
+        const step = page.entities.length + Number(page.skipped ?? 0)
+        if (page.entities.length < 100 && step < 100) break
+        off += step
+      }
+      return { entities: out }
+    }
+    const [cards, claims, price, poolWbt] = await Promise.all([
+      all(() => a.pub.select({ paidAmount: true, earnedAt: true }).from(Reward).ownedBy(a.owner).orderBy(desc("earnedAt"))),
+      all(() => a.pub.select({ usd: true, human: true, claimedAt: true }).from(RewardClaim).ownedBy(a.owner).orderBy(desc("claimedAt"))),
+      wbtPrice().catch(() => null),
+      rewardPoolWbt().catch(() => 0n),
+    ])
+    const volume = (cards.entities as any[]).reduce((s, e) => s + BigInt(v(e.paidAmount) ?? 0), 0n)
+    const fees = (volume * BigInt(ECON.feeBps)) / 10_000n
+    const accrued = (fees * BigInt(ECON.rewardShareBps)) / 10_000n
+    const paid = (claims.entities as any[]).reduce((s, e) => s + BigInt(v(e.usd) ?? 0), 0n)
+    const available = accrued + ECON.launchBudgetMicro - paid
+    return {
+      volumeMicro: volume.toString(), feesMicro: fees.toString(), accruedMicro: accrued.toString(),
+      launchBudgetMicro: ECON.launchBudgetMicro.toString(), paidMicro: paid.toString(),
+      availableMicro: (available > 0n ? available : 0n).toString(),
+      claims: claims.entities.length, humans: new Set((claims.entities as any[]).map((e) => v(e.human))).size,
+      wbtUsd: price, poolWbt: poolWbt.toString(),
+    }
+  })
+
+// ------------------------------------------------------------------ claim (World ID)
+export type ClaimResult = {
+  txHash: Hex; explorer: string; usdMicro: string; wbtWei: string; wbtUsd: number
+  claimed: string[]; expired: { key: string; reason: string }[]
+}
+const claimLocks = new Set<string>()
+const humanHash = (nullifier: string) => keccak256(toBytes(`wondrpay-human:${nullifier}`))
+
+/** Claim WBT cashback for `keys` with a World ID proof (action whitepay-pay, signal = claimSignal(owner, keys)).
+ *  `trustedHuman` is for server-side tests only (skips the proof, never reachable from the API). */
+export async function claimRewards(p: { owner: Address; keys: Hex[]; proof?: unknown; trustedHuman?: string }): Promise<ClaimResult> {
+  const owner = getAddress(p.owner)
+  const keys = [...new Set(p.keys.map((k) => k.toLowerCase() as Hex))]
+  if (!keys.length || keys.length > 20) throw new RewardError("bad_claim", "Pick 1-20 cards to claim")
+
+  // 1. a live human, bound to this wallet and exactly these cards
+  let nullifier = p.trustedHuman
+  if (!nullifier) {
+    const r = await verifyProof(p.proof as any, WORLD_ACTIONS.stepUp(), claimSignal(owner, keys))
+    nullifier = r.nullifier
+  }
+  const human = humanHash(nullifier)
+  if (claimLocks.has(human) || claimLocks.has(owner)) throw new RewardError("busy", "A claim is already in progress")
+  claimLocks.add(human); claimLocks.add(owner)
+  try {
+    // 2. the cards: this wallet's, won, unclaimed
+    const cards = (await Promise.all(keys.map(getCard))).filter(Boolean) as (RewardCard & { owner: Address })[]
+    if (cards.length !== keys.length || cards.some((c) => c.owner !== owner)) throw new RewardError("not_owner", "Some of these cards aren't yours")
+    const open = cards.filter((c) => c.status === "won").sort((x, y) => x.earnedAt - y.earnedAt)
+    if (!open.length) throw new RewardError("bad_claim", "Nothing left to claim on these cards")
+
+    // 3. this HUMAN's history, across every wallet they own
+    const a = arkiv()
+    const since30 = now() - 30 * 86400, since1 = now() - 86400
+    const hist = await a.pub.select({ usd: true, welcome: true, claimedAt: true }).from(RewardClaim).ownedBy(a.owner)
+      .where(and(eq("human", human), gte("claimedAt", u64(BigInt(since30))))).limit(100).fetch()
+    const allTime = await a.pub.select({ welcome: true }).from(RewardClaim).ownedBy(a.owner).where(eq("human", human)).limit(100).fetch()
+    const rows = hist.entities as any[]
+    if (rows.filter((e) => Number(v(e.claimedAt)) >= since1).length >= ECON.humanClaimsPerDay)
+      throw new RewardError("limit", `You can claim ${ECON.humanClaimsPerDay} times a day. Try again tomorrow.`)
+    let monthUsd = rows.reduce((s, e) => s + BigInt(v(e.usd) ?? 0), 0n)
+    let welcomeUsed = (allTime.entities as any[]).reduce((s, e) => s + Number(v(e.welcome) ?? 0), 0)
+
+    const pay: typeof open = [], expired: ClaimResult["expired"] = []
+    let usd = 0n, welcome = 0
+    for (const c of open) {
+      const amt = BigInt(c.amount ?? 0)
+      if (c.prize === "wbt_welcome" && welcomeUsed >= ECON.welcomeWins) { expired.push({ key: c.key, reason: "Welcome bonus already used by this person on another wallet" }); continue }
+      if (monthUsd + usd + amt > ECON.humanMonthlyCapMicro) { expired.push({ key: c.key, reason: "Over the monthly cashback limit per person" }); continue }
+      pay.push(c); usd += amt
+      if (c.prize === "wbt_welcome") { welcome++; welcomeUsed++ }
+    }
+
+    // 4. the pool: never pay beyond what fees + launch budget funded, nor beyond the WBT actually held
+    const ledger = await rewardsLedger()
+    if (usd > BigInt(ledger.availableMicro)) throw new RewardError("pool", "The reward pool is refilling from new payments. Try again later.")
+    const price = await wbtPrice()
+    if (!price) throw new RewardError("pool", "WBT price unavailable right now. Try again in a minute.")
+    const priceMicro = BigInt(Math.round(price * 1e6))
+    const wei = pay.length ? (usd * 10n ** 18n) / priceMicro : 0n
+    const pool = rewardsPool()
+    if (pay.length && (!pool || (await rewardPoolWbt()) < wei + 2n * 10n ** 15n)) throw new RewardError("pool", "The reward pool is being topped up. Try again later.")
+
+    // 5. pay (one transfer for all cards: one gas fee), then write the books
+    let txHash = "0x" as Hex
+    if (pay.length && wei > 0n) {
+      const gasPrice = await wc().pub.getGasPrice()
+      if (gasPrice > config.maxGasPrice) throw new RewardError("pool", "Network is busy. Try again in a minute.")
+      const w = createWalletClient({ chain: whitechainSepolia, transport: http(config.wcRpc), account: pool! })
+      txHash = await w.sendTransaction({ to: owner, value: wei })
+      const rc = await wc().pub.waitForTransactionReceipt({ hash: txHash })
+      if (rc.status !== "success") throw new Error("WBT payout reverted")
+    }
+    try {
+      await a.writer.executeBatch({
+        creates: pay.length ? [{
+          schema: RewardClaim,
+          values: { human, owner: addr(owner), cards: pay.length, welcome, usd, wbt: wei, price: priceMicro, tx: txHash.toLowerCase(),
+            keysHash: keccak256(toBytes(pay.map((c) => c.key).sort().join(","))), claimedAt: u64(BigInt(now())) },
+          expiration: ExpirationTime.max(),
+        }] : [],
+        patches: [
+          ...pay.map((c) => ({ schema: Reward, entityKey: c.key as Hex, set: { status: "claimed", payoutTx: txHash.toLowerCase() } })),
+          ...expired.map((x) => ({ schema: Reward, entityKey: x.key as Hex, set: { status: "expired" } })),
+        ],
+      } as any, { gas: 4_000_000n })
+    } catch (e) {
+      console.error("reward claim paid but Arkiv write failed", txHash, (e as Error).message.split("\n")[0])
+    }
+    invalidate(`rewards:${owner}`); invalidate("rewards:ledger"); invalidate("rewards:pool-wbt")
+    return { txHash, explorer: `${config.explorer}/tx/${txHash}`, usdMicro: usd.toString(), wbtWei: wei.toString(), wbtUsd: price,
+      claimed: pay.map((c) => c.key), expired }
+  } finally {
+    claimLocks.delete(human); claimLocks.delete(owner)
+  }
 }
 
 export class RewardError extends Error {
-  constructor(public code: "not_found" | "not_owner" | "bad_offer", msg: string) { super(msg) }
+  constructor(public code: "not_found" | "not_owner" | "bad_offer" | "bad_claim" | "limit" | "pool" | "busy", msg: string) { super(msg) }
 }
 
 // ------------------------------------------------------------------ shop offers

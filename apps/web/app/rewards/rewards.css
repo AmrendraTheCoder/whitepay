@@ -43,7 +43,8 @@
 .rw-tile.done { background: var(--surface); border: 1px solid var(--line); color: var(--text); }
 .rw-new { position: absolute; top: 10px; left: 10px; background: var(--lime); color: var(--lime-ink); font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; letter-spacing: .02em; }
 .rw-tile-from { font-size: 12.5px; font-weight: 600; opacity: .9; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rw-tile.done .rw-tile-from { color: var(--muted); position: absolute; bottom: 10px; left: 12px; right: 12px; }
+.rw-tile.done .rw-tile-from { color: var(--muted); max-width: 100%; }
+.rw-tile.done { gap: 8px; }
 .rw-exp { font-size: 11px; opacity: .7; }
 
 /* prize face */
@@ -124,3 +125,30 @@
 .rw-home .t1 { font-weight: 700; font-size: 15px; }
 .rw-home .t2 { font-size: 12.5px; color: var(--muted); }
 .rw-home .dot { position: absolute; top: 8px; right: 10px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--lime); color: var(--lime-ink); font-size: 11.5px; font-weight: 800; display: grid; place-items: center; }
+
+/* WBT cashback (v2): prize states, the World ID claim panel, and the "where rewards come from" explainer */
+.rw-coin-wbt { background: #2448ff; color: #fff; border-color: #0b1033; font-size: 18px; }
+.rw-state { font-size: 11.5px; font-weight: 700; margin-top: 4px; padding: 3px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.rw-state-won { background: var(--lime); color: var(--lime-ink); }
+.rw-state-claimed { color: var(--ok); }
+.rw-dim { opacity: .55; }
+.rw-claim { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; color: #fff;
+  background: radial-gradient(circle at center, rgba(255,255,255,.14) 0 1.4px, transparent 2px) 0 0 / 14px 14px, linear-gradient(135deg, #3a5cff, #1d39d9 60%, #142aa8); }
+.rw-claim-amt { font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+.rw-claim-amt small { font-size: 14px; font-weight: 600; opacity: .8; margin-left: 6px; }
+.rw-claim p { margin: 0; font-size: 13.5px; opacity: .85; line-height: 1.4; }
+.rw-claim .btn { background: var(--lime); color: var(--lime-ink); }
+.rw-claim .rw-err { color: #ffd0d0; padding: 0; text-align: left; }
+.rw-claim a { color: var(--lime); font-weight: 700; }
+.rw-econ { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.rw-econ h3 { margin: 0; font-size: 16px; }
+.rw-econ p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+.rw-split { display: flex; height: 36px; border-radius: 10px; overflow: hidden; font-size: 12px; font-weight: 700; }
+.rw-split > span { display: grid; place-items: center; white-space: nowrap; padding: 0 6px; flex: 1; }
+.rw-split .rew { background: var(--lime); color: var(--lime-ink); }
+.rw-split .mar { background: var(--brand); color: #fff; }
+.rw-kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 13.5px; margin: 0; }
+.rw-kv dt { color: var(--muted); }
+.rw-kv dd { margin: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.rw-rules { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; color: var(--muted); }
+.rw-rules b { color: var(--text); }
