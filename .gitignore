@@ -16,3 +16,6 @@ contracts/broadcast/*/31337/
 *.recovery.lock
 *.tsbuildinfo
 .env*
+
+# local tool output
+.playwright-mcp/

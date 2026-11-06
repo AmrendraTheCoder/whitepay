@@ -1,130 +1,189 @@
 # WondrPay
 
-**UPI-style stablecoin payments on Whitechain.** Pay a name like `chai-shop.wondrpay.eth` in USDT, with no gas, no seed phrase and no chain knowledge. Merchants get a drop-in checkout, signed orders, collect requests, refunds and an accountant export.
+**UPI for digital dollars.** Pay a name like `chai-shop.wondrpay.eth` in USDT on Whitechain. No gas, no seed phrase, no chain knowledge: a 6-digit PIN or your fingerprint, and the money lands in about 3 seconds. Shops get QR payments, a checkout for any website, refunds, subscriptions and an API.
 
-> Built at ETHGlobal Mumbai (Nov 2026). Work in progress. See [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md).
+Built at **ETHGlobal Mumbai 2026** on **Whitechain** (payments), **Arkiv** (live data), **ENS v2** (names) and **World ID** (one human, many wallets).
 
-**Live demo: https://wondrpay.vercel.app** (mobile-first; open on a phone for the camera scanner and fingerprint)
+| | |
+|---|---|
+| **App** (mobile-first, open on a phone) | https://wondrpay-app.vercel.app |
+| **Demo store** (pays with WondrPay) | https://wondrpay-shop.vercel.app |
+| **Business portal** (API keys, links, team) | https://wondrpay-app.vercel.app/portal |
+| **Developer docs** | https://wondrpay-app.vercel.app/developers |
 
-## Live on Whitechain Sepolia (chain 1874)
+<p align="center">
+  <img src="docs/screens/wondrpay-1-home.png" width="210" alt="Home: balance, Send money, live on Whitechain" />
+  <img src="docs/screens/wondrpay-2-money.png" width="210" alt="Money: balance and activity" />
+  <img src="docs/screens/order-v2-dark.png" width="210" alt="Order receipt with refund request" />
+</p>
+<p align="center">
+  <img src="docs/screens/dashboard-v2-dark.png" width="650" alt="WondrPay Business orders dashboard" />
+</p>
 
-| | Address |
+---
+
+## What you can do
+
+**People**
+- **Pay anyone**: scan a QR, or type a name (`priya.wondrpay.eth`) or an address. USDT, gasless.
+- **Send money** threads: every person or shop you pay has a chat-style history, with a Pay button at the bottom.
+- **A PIN or fingerprint on every payment**, with World ID required above a limit you choose (default $100).
+- **Receive** with your own QR. A "money received" pop-up and sound arrive within about a second of the block.
+- **Rewards**: scratch cards on shop payments, with cashback in WBT claimed with World ID. Payment sounds can be turned on or off.
+- **Refund requests**: ask a shop for a refund with proof. The whole case is signed and stored on Arkiv, so neither side can edit it.
+- **MetaMask works too**, extension or WalletConnect, guarded by a WondrPay PIN.
+
+**Shops**
+- **Shop QR terminal**: type an amount and show the QR. The screen confirms the moment it settles.
+- **Website checkout** with a secret API key, a hosted checkout page, or a one-line Pay button.
+- **Payment links and QR codes**, no code needed.
+- **Refunds**, by hand or from a capped refund allowance by API, always to the original payer.
+- **Subscriptions** (Autopay), a live orders dashboard, CSV export, webhooks with a delivery log, and team roles.
+
+---
+
+## How a payment works
+
+```mermaid
+sequenceDiagram
+  participant P as Payer's phone
+  participant W as WondrPay server
+  participant A as Arkiv
+  participant R as PaymentRouter (Whitechain)
+  Note over W,A: Shop signs an EIP-712 Order → WondrPay publishes it as a request on Arkiv (expires with the order)
+  P->>A: read the request, run 4 checks (owner, digest, merchant signer on-chain, still pending)
+  P->>P: PIN / fingerprint unlocks the key, device re-hashes the order
+  P->>W: EIP-3009 receiveWithAuthorization (to = router, nonce = order digest)
+  W->>R: relayer submits payOrder, pays the WBT gas
+  R-->>P: USDT moves payer → shop payout wallet, PaymentSettled
+  W->>A: receipt entity + request marked paid, signed webhook to the shop
+```
+
+- **The signature can only settle that one order.** Its nonce is the order digest, and only the router can submit it, so it can't be front-run or replayed.
+- **Refunds** go only to the original payer and are capped at the amount paid, counted across every refund path.
+- **Settlement takes about 3 s.** Whitechain makes a block every ~1 s, and the app watches the chain directly for live updates.
+
+---
+
+## Sponsor integrations
+
+### Whitechain (Sepolia, chain 1874)
+| Contract | Address |
 |---|---|
 | PaymentRouter (verified) | [`0x9f38d33010345dcd62e26640b539263fa139026e`](https://explorer.testnet.whitechain.io/address/0x9f38d33010345dcd62e26640b539263fa139026e) |
 | MerchantRegistry (verified) | [`0xe063c2fb8f80c20ff699f9f211be300f58781f68`](https://explorer.testnet.whitechain.io/address/0xe063c2fb8f80c20ff699f9f211be300f58781f68) |
+| Autopay factory | [`0x00F61E008AAC480f3D81F959d659c43dDe72ac66`](https://explorer.testnet.whitechain.io/address/0x00F61E008AAC480f3D81F959d659c43dDe72ac66) |
 | USDT (official test token) | [`0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7`](https://explorer.testnet.whitechain.io/address/0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7) |
 
-**USDT payment settled in the main flow:** [`0x1c9057fc…c362f`](https://explorer.testnet.whitechain.io/tx/0x1c9057fc24477b69f37e8da80b2c1e1bf80908a55a84e908139e07cac86c362f)
-- 1 USDT from a customer wallet holding **0 WBT** to `chai-shop.wondrpay.eth`.
-- Settled through `PaymentRouter.payOrder` with a merchant-signed order.
-- Gas was paid by the WondrPay relayer.
+- **Gasless for users.** Payers sign EIP-3009 authorizations and allow-listed relayers pay the WBT gas. Each relayer gets its nonces one at a time, and every transaction is signed once and only ever re-broadcast as-is, so a payment can never go out twice.
+- **Autopay.** Subscribers sign one EIP-2612 permit for a dedicated subscription contract. The keeper charges each period, never early, never more than amount × cycles.
+- **Refund allowance.** A shop approves a capped USDT allowance with one permit, then refunds by API with no wallet prompt each time.
 
-## Why onchain stablecoin settlement on Whitechain
-A UPI or card payment settles in one country's currency, in bank batches, through licensed intermediaries, and the receipt lives in a private bank database. WondrPay settles each payment atomically in USDT on Whitechain:
-- A client in Dubai can pay a studio in Mumbai in seconds.
-- There is no "pending" state and no chargeback-style settlement risk.
-- Refunds are capped and verifiable by anyone from the transaction hash.
-- Anyone can build a front end on the open router, with no bank license.
+### Arkiv (Rabdi testnet, chain 7794095)
+Arkiv is the live data layer: payment requests whose expiry matches the order deadline, receipts, shop profiles, World ID claims, refund cases (append-only, owned by a burn address), scratch cards, websites and API keys (as hashes), payment links, the webhook log and team members. Every read filters on the WondrPay writer (`0x4D5910272479420d1383100b3986d5fc9d5D658F`), because anyone can write an entity with the same schema name.
 
-A regular payment rail can't give a cross-border merchant instant, final, programmable settlement with a public, customer-checkable receipt.
+```
+arkiv.schema = str('whitepay.receipt') AND $owner = addr(0x4D5910272479420d1383100b3986d5fc9d5D658F)
+  AND merchant = addr(<shop>) ORDER BY paidAt:u64 DESC
+```
 
-## How a payment works
-1. **Merchant backend signs an EIP-712 `Order`** (merchant, amount, orderId, deadline). This is UPI's "Reference ID".
-2. **Customer signs USDT `receiveWithAuthorization` (EIP-3009)**, with `to` = router and `nonce` = order digest.
-   - The signature can only settle that exact order.
-   - Only the router can submit it, so it can't be front-run.
-3. **Relayer submits `payOrder` and pays the WBT gas.** The router pulls the USDT, pays the merchant's payout wallet and emits `PaymentSettled`.
-4. **Refunds:** the merchant signs an EIP-3009 authorization and the router refunds the original payer. Refunds are capped at the amount paid, and partial refunds are supported.
+### ENS v2 (Ethereum Sepolia)
+`wondrpay.eth` has its own UserRegistry (`0xd6cf033a6875456835CeE5F429f9e944a263a1E9`) and PermissionedResolver (`0xc10Ffe23aada8a5cb09DDbe09259e251971844ea`). Each `<name>.wondrpay.eth` stores the holder's Whitechain address under coinType `2147485522` (ENSIP-11, chain 1874), plus `display`, `kind` and `verified` text records. Shops get their name at sign-up, and people claim theirs with World ID. Paying a name resolves it live.
+
+### World ID (IDKit 4, verified on the backend)
+- **Unique humans:** one World ID covers up to 5 wallets or shops. An already-verified wallet approves the next one, so no second scan is needed.
+- **Step-up above a limit:** large payments need a fresh World ID proof bound to that one payment.
+- **Rewards:** each claim is a fresh session proof, and limits count per human across all their wallets.
+- **Refund requests:** World ID is required to open one, which deters receipt fraud.
+
+---
+
+## WondrPay for Business (API)
 
 ```bash
-node scripts/first-payment.mjs 1   # reproduces the flow above (needs .env)
+curl https://wondrpay-app.vercel.app/api/v1/checkout/sessions \
+  -H "Authorization: Bearer $WONDRPAY_SECRET_KEY" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order_1042" \
+  -d '{"amount":"12.40","reference":"order_1042","successUrl":"https://shop.example.com/thanks"}'
+# → { id, status: "open", url: <hosted checkout>, button: <for the Pay button>, … }
 ```
 
-## Payment requests live on Arkiv (Rabdi testnet, chain 7794095)
-A payment in progress is a `whitepay.request` entity that lives for its TTL: 5 min for a merchant QR, 30 min max for invoices. It is either **completed** (patched to `paid` and linked to a `whitepay.receipt`) or **depleted** (it expires and vanishes). The same deadline is enforced on-chain.
+- **Keys never move money.** API keys sign orders through WondrPay's order key, and payouts always go to the shop's own wallet. A leaked key can create checkouts, not redirect funds.
+- **Endpoints:**
+  - `POST /api/v1/checkout/sessions` and `GET /api/v1/checkout/sessions/:id`
+  - `POST /api/v1/refunds`
+  - `GET /api/v1/links/:id` and `POST /api/v1/links/:id/session`
+- **Webhooks:** `checkout.session.completed` and `refund.succeeded`, signed (EIP-191) with a delivery log and resend.
+- **Pay button** (no server needed with a payment link): `<wondrpay-button link="pl_…">`, from `/sdk/v1.4.0/checkout.js`, SRI-pinned.
+- **WooCommerce plugin:** [`integrations/woocommerce`](integrations/woocommerce), also downloadable at `/downloads/wondrpay-for-woocommerce.zip`. For Shopify, use payment links.
 
-Before paying, the payer's app trusts the entity only if all four checks pass:
-1. `$owner` is the WondrPay writer.
-2. The fields re-hash to the signed order digest.
-3. The merchant signature matches the `MerchantRegistry` signer on Whitechain.
-4. The request is still pending and before its deadline.
+Full reference: [`/developers`](https://wondrpay-app.vercel.app/developers) and the architecture notes in [`docs/BUSINESS_API.md`](docs/BUSINESS_API.md).
 
-**Live run** (`npx tsx --env-file=.env scripts/lifecycle-demo.ts 1 --expiry`):
-- Request entity: `0x9eb6f2fc66b0135ab418fbd8c9ca792c20fb51d6b27b2831c60ed4481c8e405e`
-- Settled on Whitechain: [`0x355d8505…370cb`](https://explorer.testnet.whitechain.io/tx/0x355d8505a99317c41a2ec3156a9b578a217fb8772c27a974a2de6c728e8370cb)
-- Receipt entity: `0x75346a3d7fe9d743d2597d0e2123ef93c9ba9d7273aac05bba2de71112ef637b`
-- Rejected as expected: tampered amount, forged signature, entity not owned by WondrPay, paying twice (Arkiv status and on-chain `OrderAlreadyPaid`), and an expired request (gone from Arkiv, `OrderExpired` on-chain).
-
-**Arkiv writer wallet:** `0x4D5910272479420d1383100b3986d5fc9d5D658F`
-
-**Query judges can run** (a merchant's receipts, newest first):
-```
-arkiv.schema = str('whitepay.receipt') AND $owner = addr(0x4D5910272479420d1383100b3986d5fc9d5D658F) AND merchant = addr(0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10) ORDER BY paidAt:u64 DESC
-```
-
-## The app (`apps/web`, mobile-first PWA)
-```bash
-npm install && npm run dev        # http://localhost:3000 (reads the root .env)
-```
-| Screen | What it does |
-|---|---|
-| `/` customer | Create a device wallet: a 6-digit PIN plus optional fingerprint/Face ID (WebAuthn passkey with PRF). The key is encrypted on the device; no seed phrase. Shows USDT balance and payment history **read from Arkiv** |
-| `/scan` | Camera QR scanner, or paste a payment link |
-| `/pay?req=<entityKey>` | Fetches the request from Arkiv and shows the 4 verification checks, merchant badge and expiry countdown. Fingerprint or PIN unlocks the key, the device re-hashes the order and signs EIP-3009, then the relayer settles. Expired or already-paid requests are refused |
-| `/merchant` | **Sign up a shop**: business name and a handle (`<handle>.wondrpay.eth`, with an availability check and reserved names). The phone signs the request, the shop is registered in `MerchantRegistry` on Whitechain, and its profile is published to Arkiv. Then: enter an amount and the **order is signed on the merchant's own device**, giving a QR valid for 5 min. The screen flips to "Received" live and lists receipts from Arkiv |
-| `/receive` | Personal QR (UPI "show my QR"), with an optional fixed amount, Share and Copy link |
-| `/send` | Pay a person by QR, handle or address. The signature binds recipient + memo (`payDirect`), with no gas |
-
-Tested end to end in the browser with two separate wallets:
-- A wallet signed up as **Masala Corner** (`masala-corner`): registered on-chain, profile on Arkiv, shown as "Unverified".
-- The shop signed a 0.20 USDT QR on its device, and a second customer (0 WBT) paid it with the PIN. The shop screen showed "Received".
-- The customer scanned the shop's Receive link and sent 0.10 USDT P2P. Arkiv history shows both, tagged `p2m` and `p2p`.
-
-Earlier test with the demo merchant:
-- The merchant created a 0.50 USDT QR.
-- The customer wallet (0 WBT) paid it with the PIN.
-- The merchant screen updated live.
-- Re-opening the QR shows "Already paid".
-
-`scripts/p2p-send.ts` sends a gasless person-to-person payment (`payDirect`) to any address.
-
-## Names on ENSv2 (Ethereum Sepolia)
-`wondrpay.eth` is registered on ENSv2 Sepolia with its own **UserRegistry** (`0x7dF61f730b8f90668aD10363e9E086131422264d`) and **PermissionedResolver** (`0xc10Ffe23aada8a5cb09DDbe09259e251971844ea`). Each name stores the holder's **Whitechain address under coinType 2147485522** (ENSIP-11 for chain 1874), plus `display`, `kind` and `verified` text records.
-- **Shops** get `<handle>.wondrpay.eth` automatically at sign-up. Live examples: `chai-shop.wondrpay.eth`, `masala-corner.wondrpay.eth`.
-- **People** claim `<name>.wondrpay.eth` from the home screen: a wallet signature plus World ID: one World ID verifies up to 5 of your wallets (a verified wallet can approve the next one, no second scan).
-- **Paying** a name resolves it live through ENS (`/api/resolve`, `getEnsAddress` with coinType 1874).
-- Scripts: `scripts/ens-setup.ts` (one-time setup), `scripts/ens-issue.ts`, `scripts/ens-check.ts <name>`.
-
-## World ID (IDKit 4, verified on our backend)
-- **Verified merchant badge:** the shop owner proves unique humanity (action `ens-claim`, signal = shop wallet). The backend verifies with the Developer Portal, records the nullifier on Arkiv (`whitepay.worldclaim`, up to 5 shops per human), then sets `verified` in `MerchantRegistry`, Arkiv and the ENS text record.
-- **Personal names:** one per wallet, up to 5 wallets per human. Extra wallets are approved by an already-verified wallet (`linkAccountMessage`), so the same nullifier counts them.
-- **Only at account creation:** World ID runs once, when a personal wallet claims its name or a shop signs up. Payments never ask for World ID; they need only the device PIN / fingerprint (asked once per session, 15 idle minutes).
-- **Denied, cancelled or expired:** the action does not happen.
+---
 
 ## Repo layout
+
 ```
-contracts/          Foundry: PaymentRouter, MerchantRegistry, tests, deploy script
-packages/shared/    chain config, EIP-712 types, UPI-derived limits, Arkiv schemas
-scripts/            wallet generation, first-payment demo
-deployments/        deployed addresses and tx hashes
-docs/               build guide, architecture, risks, sponsor notes, Arkiv reference
+apps/web/              Next.js app: consumer PWA, shop terminal, Business portal, hosted checkout, API routes, docs site
+apps/demo-store/       Next.js demo shop (Amaron) paying through WondrPay with an API key
+packages/server/       payments, relayer, Arkiv, ENS, World ID, refunds, rewards, Business (sites, keys, links, team)
+packages/shared/       chain config, EIP-712 types, limits, Arkiv schemas
+packages/checkout/     Checkout SDK (browser) + Node helpers for shop servers
+packages/ui/           shared UI kit for the marketing site
+contracts/             Foundry: PaymentRouter, MerchantRegistry, Autopay (+ tests)
+integrations/          WooCommerce plugin
+scripts/               testnet end-to-end tests, ENS setup, deploy helpers
+docs/                  architecture, sponsor notes, rewards, Business API, pitch decks
 ```
 
-## Setup
+## Run it locally
+
 ```bash
 npm install
-cd contracts && forge test        # 17 tests incl. fuzz
-cp .env.example .env              # or: ./scripts/gen-wallets.sh (writes fresh keys, prints addresses only)
+cp .env.example .env            # or ./scripts/gen-wallets.sh: fresh keys, prints addresses only
+npm run dev                     # app on http://localhost:3000
+npm run dev -w @whitepay/demo-store   # demo store on http://localhost:3100
+npm run contracts:test          # Foundry tests, incl. fuzzing
+npm run typecheck
 ```
 
-## Current limitations
-- One payment per onchain transaction (hundreds of TPS on one L2). UPI-scale volume would need batching or net settlement.
-- The relayer is centralized and holds only WBT. Its anti-drain limits (rate limit, daily cap, gas-price cap, simulate-before-send, allowlisted router) run in memory, so on Vercel serverless they reset per instance; production would use Redis.
-- World ID runs in the **staging** environment (simulator). Server keys for the testnet relayer, registry admin, ENS admin and Arkiv writer live in Vercel environment variables.
-- ENS names, Arkiv receipts, World ID verification and the customer app are not built yet.
+## Tests (real testnet transactions)
 
-## AI usage
-Built with Claude Code (Anthropic) assisting with research, contract code, tests and docs. All on-chain actions were run and checked by the team.
+| Script | What it proves |
+|---|---|
+| `scripts/business-flow-test.ts` | sign-up → website + API key → session → gasless payment → paid → rotate / revoke (26 checks) |
+| `scripts/business-phase2-test.ts` | payment links, receipts tagged by site and link, integration check, webhook ping + resend (15) |
+| `scripts/business-phase3-test.ts` | team roles (developer vs owner), removal kills their keys, local-currency rates (15) |
+| `scripts/business-refunds-test.ts` | refund allowance, two racing refunds (only one pays), idempotency, router refund shares the total (17) |
+| `scripts/concurrency-test.ts` | parallel payments from one wallet: distinct nonces, ~3.3 s each, no failures |
+| `scripts/lifecycle-demo.ts` | the 4 request checks, tamper / forgery / double-pay / expiry all refused |
 
-## License
-MIT
+```bash
+npx tsx --env-file=.env scripts/business-flow-test.ts
+```
+
+## Deploying
+
+Push deploys are off (`git.deploymentEnabled: false`). A release is one deliberate command from a clean checkout:
+
+```bash
+scripts/deploy.sh web store
+```
+
+To run your own copy on another Vercel account, use `scripts/setup-vercel-copy.sh` (it copies `.env` without printing secrets).
+
+## Security
+
+- **Payer keys stay on the device.** They're encrypted with the PIN or a passkey (WebAuthn PRF), and every payment asks for one of them.
+- **The server never decides a payment alone.** It checks every signature against on-chain state.
+- **API secrets are stored as SHA-256 hashes.** Approvals are single-use wallet signatures.
+- **Webhooks are SSRF-guarded and signed.**
+- Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+
+## Notes
+
+- **Testnet only:** Whitechain Sepolia with test USDT. The relayer holds only WBT for gas.
+- **AI usage:** built with Claude Code (Anthropic) assisting with research, code, tests and docs. Every on-chain action was run and checked by the team.
+- **Sponsor feedback:** [WHITECHAIN_FEEDBACK.md](WHITECHAIN_FEEDBACK.md), [WORLD_FEEDBACK.md](WORLD_FEEDBACK.md).
+
+MIT licensed.
