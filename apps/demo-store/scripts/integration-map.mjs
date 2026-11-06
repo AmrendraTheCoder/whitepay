@@ -1,6 +1,6 @@
 // prebuild: find every "WONDRPAY INTEGRATION ⓝ" marker so the site links to the exact GitHub line.
 import { readFileSync, writeFileSync } from "node:fs"
-const files = ["app/layout.tsx", "app/page.tsx", "app/api/create-order/route.ts", "app/api/webhook/route.ts", "app/api/verify/route.ts"]
+const files = ["app/layout.tsx", "app/(shop)/p/[sku]/product.tsx", "app/api/create-order/route.ts", "app/api/webhook/route.ts", "app/api/verify/route.ts"]
 const out = {}
 for (const f of files) readFileSync(f, "utf8").split("\n").forEach((l, i) => {
   const m = l.match(/WONDRPAY INTEGRATION ([①②③④⑤⑥⑦])/)

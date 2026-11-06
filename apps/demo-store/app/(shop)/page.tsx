@@ -1,327 +1,164 @@
 "use client"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Badge, Button, ButtonLink, Dialog, Drawer, Icon, QuantityStepper, Skeleton, Spinner, useToast } from "@whitepay/ui"
-import { WHITEPAY_URL, SDK_SRC } from "@/lib/sdk"
-import { PRODUCTS, PRICE, MAX_QTY, type Product } from "@/lib/catalog"
-import { HeroArt, ProductArt, ClubArt } from "@/lib/art"
-import { DevPanel, gh, type Log } from "./dev-panel"
+import Link from "next/link"
+import { Icon, Skeleton } from "@whitepay/ui"
+import { BY_SKU, CATEGORIES, PRODUCTS, off, type Category } from "@/lib/catalog"
+import { Packshot } from "@/lib/packshot"
+import { Marker, useStore } from "../store-context"
+import { ProductCard } from "./shell"
 
-declare module "react" {
-  namespace JSX {
-    interface IntrinsicElements {
-      "wondrpay-button": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { "order-endpoint"?: string; payload?: string; label?: string; mode?: "subscribe"; "data-items"?: string }
-    }
-  }
-}
-
-type Line = { sku: string; qty: number }
-type Paid = { orderId: string; txHash?: string; explorer?: string; amount: string; entityKey: string }
-type Sub = { mandateKey: string; subscriber?: string; amount: string; cycles: number }
-
-const units = (usdt: string) => BigInt(Math.round(Number(usdt) * 1e6))
-const fmt = (b: bigint) => `${b / 1_000_000n}.${(b % 1_000_000n).toString().padStart(6, "0").slice(0, 2)}`
-const BY_SKU = Object.fromEntries(PRODUCTS.map((p) => [p.sku, p])) as Record<string, Product>
-const CART_KEY = "chaico.cart.v1"
-
-const REVIEWS = [
-  { name: "Priya", city: "Pune", text: "Tastes like the tapri outside my old office. I paid with my fingerprint and it was done before the kettle boiled." },
-  { name: "Daniel", city: "Lisbon", text: "Ordered from Portugal with no card fees and no currency conversion. The receipt link is a nice touch." },
-  { name: "Meher", city: "Bandra", text: "The Chai Club box arrives like clockwork and I can cancel from my phone any time." },
+const BRAND_TILES: { brand: string; style: string; sub?: string }[] = [
+  { brand: "Rangrez", style: "serif-plum" },
+  { brand: "Saanjh", style: "spaced" },
+  { brand: "Ketaki", style: "derma", sub: "Designed by dermatologists" },
+  { brand: "Orbit", style: "badge" },
+  { brand: "Stride", style: "bold" },
+  { brand: "Dewdrop", style: "script" },
 ]
 
-/** Integration marker shown in Developer view's "highlight" mode. */
-function Marker({ show, n, title }: { show: boolean; n: string; title: string }) {
-  if (!show) return null
-  return <a className="marker" href={gh(n)} target="_blank" rel="noopener noreferrer" title={title} aria-label={`Integration point ${n}: ${title} (view source)`}>{n === "②" ? "2" : n}</a>
-}
+const CAT_ART: Record<Category, string> = { women: "rangrez-anarkali", men: "banyan-shirt", beauty: "neel-serum", home: "diya-candle", accessories: "orbit-watch" }
 
-function Rating({ value, count }: { value: number; count: number }) {
+function FestiveBanner() {
+  const her = [BY_SKU["rangrez-kurta"], BY_SKU["ketaki-spf"], BY_SKU["sutra-dress"]]
+  const him = [BY_SKU["banyan-shirt"], BY_SKU["stride-sneaker"], BY_SKU["orbit-watch"]]
   return (
-    <p className="rating" aria-label={`Rated ${value} out of 5 by ${count.toLocaleString()} customers`}>
-      <span className="stars" aria-hidden>{Array.from({ length: 5 }, (_, i) => <Icon key={i} name="star" size={14} />)}</span>
-      <span aria-hidden>{value} <span className="wp-muted">({count.toLocaleString()})</span></span>
-    </p>
+    <section className="ks-hero" aria-labelledby="sale-title">
+      <svg className="ks-hero-bg" viewBox="0 0 1200 400" preserveAspectRatio="xMidYMid slice" aria-hidden>
+        <defs>
+          <radialGradient id="hg" cx=".5" cy=".35" r=".7"><stop offset="0" stopColor="#ff9ec4" /><stop offset=".5" stopColor="#b44ad8" /><stop offset="1" stopColor="#4b1a8a" /></radialGradient>
+          <pattern id="rangoli" width="80" height="80" patternUnits="userSpaceOnUse">
+            <circle cx="40" cy="40" r="22" fill="none" stroke="#ffd36b" strokeWidth="2" opacity=".55" />
+            {Array.from({ length: 8 }, (_, i) => <ellipse key={i} cx="40" cy="22" rx="5" ry="12" fill="#ff5fa2" opacity=".55" transform={`rotate(${i * 45} 40 40)`} />)}
+            <circle cx="40" cy="40" r="6" fill="#ffd36b" opacity=".8" />
+          </pattern>
+        </defs>
+        <rect width="1200" height="400" fill="url(#hg)" />
+        <rect width="300" height="400" fill="url(#rangoli)" opacity=".9" />
+        <rect x="900" width="300" height="400" fill="url(#rangoli)" opacity=".9" />
+        {[[480, 60], [560, 120], [640, 40], [720, 110], [600, 200], [520, 30], [690, 190]].map(([x, y], i) => (
+          <g key={i} className="ks-spark" style={{ animationDelay: `${i * 0.35}s` }}>
+            {Array.from({ length: 12 }, (_, k) => <path key={k} d={`M${x} ${y}l0 -${18 + (i % 3) * 6}`} stroke={i % 2 ? "#ffd36b" : "#fff"} strokeWidth="2" strokeLinecap="round" transform={`rotate(${k * 30} ${x} ${y})`} />)}
+          </g>
+        ))}
+        {[330, 410, 790, 870].map((x, i) => (
+          <g key={x} className="ks-lantern" style={{ animationDelay: `${i * 0.4}s` }}>
+            <path d={`M${x} 0v40`} stroke="#ffd36b" strokeWidth="2" />
+            <path d={`M${x - 16} 44h32l-6 40h-20z`} fill="#ffb020" />
+            <circle cx={x} cy={64} r="7" fill="#fff4c2" />
+          </g>
+        ))}
+        <path d="M0 400c200-60 400-60 600-30s400 30 600-10v40H0z" fill="#2b0f57" opacity=".6" />
+      </svg>
+
+      <Link href="/shop?cat=women" className="ks-hero-side ks-hero-her" aria-label="Shop festive picks for her">
+        <div className="ks-hero-stack">{her.map((p, i) => <span key={p.sku} style={{ ["--i" as string]: i }}><Packshot p={p} /></span>)}</div>
+        <span className="ks-hero-chip">Her <Icon name="arrowRight" size={14} /></span>
+      </Link>
+
+      <div className="ks-hero-copy">
+        <span className="ks-hero-kicker">kesar</span>
+        <h1 id="sale-title"><span>Festive</span> Sale</h1>
+        <p className="ks-hero-big">Big Bright Prices</p>
+        <p className="ks-hero-off">50–80% OFF</p>
+        <Link href="/shop?sort=discount" className="ks-hero-cta">Shop the sale</Link>
+      </div>
+
+      <Link href="/shop?cat=men" className="ks-hero-side ks-hero-him" aria-label="Shop festive picks for him">
+        <div className="ks-hero-stack">{him.map((p, i) => <span key={p.sku} style={{ ["--i" as string]: i }}><Packshot p={p} /></span>)}</div>
+        <span className="ks-hero-chip">Him <Icon name="arrowRight" size={14} /></span>
+      </Link>
+    </section>
   )
 }
 
-export default function Store() {
-  const toast = useToast()
-  const [cart, setCart] = useState<Line[]>([])
-  const [bagOpen, setBagOpen] = useState(false)
-  const [paid, setPaid] = useState<{ p: Paid; items: Line[] } | null>(null)
-  const [verified, setVerified] = useState<"checking" | "ok" | "bad">("checking")
-  const [sub, setSub] = useState<Sub | null>(null)
-  const [devOpen, setDevOpen] = useState(false)
-  const [inspect, setInspect] = useState(false)
-  const [logs, setLogs] = useState<Log[]>([])
-  const [sdkReady, setSdkReady] = useState(false)
-  const pending = useRef<Line[]>([])
-  const seen = useRef(new Set<string>())
-  const push = useCallback((l: Omit<Log, "at">) => setLogs((x) => [{ ...l, at: Date.now() }, ...x].slice(0, 60)), [])
-
-  // cart persistence (this browser only); unknown SKUs from an old catalog are dropped
-  useEffect(() => { try { const c = JSON.parse(localStorage.getItem(CART_KEY) ?? "[]"); if (Array.isArray(c)) setCart(c.filter((l) => BY_SKU[l?.sku] && Number.isInteger(l.qty) && l.qty > 0)) } catch {} }, [])
-  useEffect(() => { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)) } catch {} }, [cart])
-
-  const count = cart.reduce((n, l) => n + l.qty, 0)
-  const total = useMemo(() => cart.reduce((s, l) => s + units(PRICE[l.sku]) * BigInt(l.qty), 0n), [cart])
-  const qtyOf = (sku: string) => cart.find((l) => l.sku === sku)?.qty ?? 0
-  const setQty = (sku: string, q: number) => setCart((c) => {
-    if (q <= 0) return c.filter((l) => l.sku !== sku)
-    const next = Math.min(MAX_QTY, q)
-    return c.some((l) => l.sku === sku) ? c.map((l) => (l.sku === sku ? { ...l, qty: next } : l)) : [...c, { sku, qty: next }]
-  })
-  const add = (sku: string) => {
-    setQty(sku, qtyOf(sku) + 1)
-    toast.show({ message: `${BY_SKU[sku].name} added to your bag`, tone: "success", action: { label: "View bag", onClick: () => setBagOpen(true) } })
-  }
-
-  // WondrPay checkout events (integration point 2)
-  useEffect(() => {
-    customElements.whenDefined("wondrpay-button").then(() => {
-      setSdkReady(true)
-      push({ src: "sdk", msg: `SDK v${(window as { WondrPay?: { version: string } }).WondrPay?.version ?? "?"} loaded from ${new URL(SDK_SRC).host}, integrity verified`, tone: "ok" })
-    })
-    const on = (name: string, f: (detail: any, e: Event) => void) => { const h = (e: Event) => f((e as CustomEvent).detail, e); document.addEventListener(name, h); return () => document.removeEventListener(name, h) }
-    const offs = [
-      on("wondrpay:created", (d, e) => {
-        if (d.entityKey) {
-          try { pending.current = JSON.parse((e.target as HTMLElement).dataset.items ?? "[]") } catch { pending.current = [] }
-          push({ src: "sdk", msg: `Order created · request ${d.entityKey.slice(0, 10)}… · QR valid until ${new Date(d.deadline * 1000).toLocaleTimeString()}` })
-        } else push({ src: "sdk", msg: `Subscription offer ${d.planKey?.slice(0, 10)}… signed by the store` })
-      }),
-      on("wondrpay:paid", (d: Paid) => { push({ src: "sdk", msg: `Paid ${Number(d.amount) / 1e6} USDT · tx ${d.txHash?.slice(0, 10)}…`, tone: "ok" }); setBagOpen(false); setPaid({ p: d, items: pending.current }) }),
-      on("wondrpay:subscribed", (d: Sub) => { push({ src: "sdk", msg: `Subscribed · mandate ${d.mandateKey.slice(0, 10)}… · first ${Number(d.amount) / 1e6} USDT paid`, tone: "ok" }); setSub(d); toast.show({ message: "Welcome to Chai Club", tone: "success" }) }),
-      on("wondrpay:expired", () => push({ src: "sdk", msg: "Payment window expired · request removed from Arkiv", tone: "bad" })),
-      on("wondrpay:error", (d) => push({ src: "sdk", msg: `Error · ${d.message}`, tone: "bad" })),
-    ]
-    return () => offs.forEach((f) => f())
-  }, [push, toast])
-
-  // After payment: our server re-checks the chain and reports what its webhook handler did.
-  useEffect(() => {
-    if (!paid?.p.txHash) return
-    const { p, items } = paid
-    setVerified("checking")
-    if (items.length) setCart((c) => c.filter((l) => !items.some((i) => i.sku === l.sku)))
-    fetch(`/api/verify?tx=${p.txHash}&orderId=${p.orderId}`).then((r) => r.json()).then((v) => {
-      setVerified(v.ok ? "ok" : "bad")
-      push({ src: "chain", msg: v.ok ? `PaymentSettled confirmed in block ${v.block}` : `On-chain check: ${v.reason}`, tone: v.ok ? "ok" : "bad" })
-    }).catch(() => setVerified("bad"))
-    return poll(`orderId=${p.orderId}`, 12, 1500)
-  }, [paid]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!sub) return
-    return poll(`mandateKey=${sub.mandateKey}`, 110, 5000, () => fetch(`${WHITEPAY_URL}/api/autopay/tick`, { mode: "no-cors", credentials: "omit" }).catch(() => {}))
-  }, [sub]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function poll(query: string, times: number, every: number, each?: () => void) {
-    let n = 0
-    const t = setInterval(async () => {
-      each?.()
-      const d = await fetch(`/api/order-status?${query}`).then((r) => r.json()).catch(() => null)
-      for (const e of d?.events ?? []) {
-        const k = `${e.at}${e.msg}`
-        if (seen.current.has(k)) continue
-        seen.current.add(k)
-        push({ src: "server", msg: e.msg, tone: e.msg.includes("✓") ? "ok" : undefined })
-      }
-      if (++n >= times) clearInterval(t)
-    }, every)
-    return () => clearInterval(t)
-  }
-
+export default function Home() {
+  const { sdkReady, sub } = useStore()
+  const deals = [...PRODUCTS].sort((a, b) => off(b) - off(a)).slice(0, 10)
+  const beauty = PRODUCTS.filter((p) => p.cat === "beauty").slice(0, 10)
   return (
-    <div className={inspect ? "inspecting" : undefined}>
-      <p className="announce">Pay in USDT with <b>WondrPay</b> · no gas · settles in about a second <Badge>Demo store</Badge></p>
+    <>
+      <div className="ks-wrap">
+        <Link href="/shop" className="ks-ticket" aria-label="Zero gas fees on every order when you pay with WondrPay">
+          <span className="ks-ticket-main">ZERO GAS FEES</span>
+          <span className="ks-ticket-side">On every order<br />via <b>WondrPay</b></span>
+        </Link>
+      </div>
 
-      <header className="nav">
-        <div className="wp-container nav-inner">
-          <a className="brand" href="#top" aria-label="Chai & Co. home">
-            <svg width="32" height="32" viewBox="0 0 40 40" aria-hidden><rect width="40" height="40" rx="10" fill="currentColor" /><path d="M11 15h16v8a7 7 0 0 1-7 7h-2a7 7 0 0 1-7-7z" fill="#e9a23b" /><path d="M27 17h2a3 3 0 0 1 0 6h-2" fill="none" stroke="#e9a23b" strokeWidth="2.4" /></svg>
-            <span>Chai &amp; Co.</span>
-          </a>
-          <nav className="nav-links" aria-label="Main"><a href="#shop">Shop</a><a href="#club">Chai Club</a><a href="#reviews">Reviews</a><a href="/dashboard">Orders</a></nav>
-          <Button variant="secondary" size="sm" iconLeft="bag" onClick={() => setBagOpen(true)} aria-label={`Bag, ${count} ${count === 1 ? "item" : "items"}`}>
-            Bag{count > 0 && <span className="count" aria-hidden>{count}</span>}
-          </Button>
+      <div className="ks-wrap"><FestiveBanner /></div>
+
+      <section className="ks-wrap ks-brands" aria-labelledby="brands-title">
+        <div className="ks-brands-grid">
+          <span className="ks-ribbon"><span id="brands-title">Powered by</span></span>
+          {BRAND_TILES.map((b) => (
+            <Link key={b.brand} href={`/shop?brand=${encodeURIComponent(b.brand)}`} className="ks-brand-tile" data-style={b.style}>
+              <span>{b.brand}</span>{b.sub && <small>{b.sub}</small>}
+            </Link>
+          ))}
+          <span className="ks-ribbon ks-ribbon-end"><span>Up to 80% off</span></span>
         </div>
-      </header>
+      </section>
 
-      <main id="top">
-        <section className="hero" aria-labelledby="hero-title">
-          <div className="wp-container hero-inner">
-            <div className="hero-copy">
-              <span className="wp-eyebrow">Small-batch chai from Mumbai</span>
-              <h1 id="hero-title" className="wp-title-1">Chai, the way Mumbai makes it.</h1>
-              <p className="wp-lead">Hand-blended Assam, cardamom and ginger, shipped worldwide. Checkout is one scan and one fingerprint: no card, no fees, no forms.</p>
-              <div className="wp-cluster">
-                <ButtonLink href="#shop" size="lg">Shop the blends</ButtonLink>
-                <ButtonLink href="#club" variant="secondary" size="lg">Join Chai Club</ButtonLink>
-              </div>
-              <dl className="facts">
-                <div><dt>Rating</dt><dd>4.9 / 5</dd></div>
-                <div><dt>Checkout</dt><dd>~1 second</dd></div>
-                <div><dt>Card fees</dt><dd>None</dd></div>
-              </dl>
-            </div>
-            <div className="hero-art"><HeroArt /></div>
+      <section className="ks-wrap ks-section" aria-labelledby="cat-title">
+        <h2 id="cat-title" className="ks-h2">Shop by category</h2>
+        <ul className="ks-cats">
+          {CATEGORIES.map((c) => {
+            const p = BY_SKU[CAT_ART[c.id]]
+            return (
+              <li key={c.id}>
+                <Link href={`/shop?cat=${c.id}`}>
+                  <span className="ks-cat-art"><Packshot p={p} /></span>
+                  <b>{c.label}</b><small>{c.blurb}</small>
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
+
+      <section className="ks-wrap ks-section" aria-labelledby="deals-title">
+        <div className="ks-section-head"><h2 id="deals-title" className="ks-h2">Deals of the day</h2><Link href="/shop?sort=discount">View all</Link></div>
+        <ul className="ks-row">{deals.map((p) => <ProductCard key={p.sku} p={p} />)}</ul>
+      </section>
+
+      <section className="ks-wrap ks-section" aria-labelledby="box-title">
+        <div className="ks-box">
+          <div className="ks-box-art" aria-hidden>
+            {["neel-serum", "ketaki-spf", "dew-lipbalm"].map((s, i) => <span key={s} style={{ ["--i" as string]: i }}><Packshot p={BY_SKU[s]} /></span>)}
           </div>
-        </section>
-
-        <section id="shop" className="wp-section" aria-labelledby="shop-title">
-          <div className="wp-container">
-            <header className="wp-section-header" data-split>
-              <div className="wp-stack" data-gap="3"><span className="wp-eyebrow">The shop</span><h2 id="shop-title" className="wp-title-2">Blends and good things</h2></div>
-              <p className="wp-muted">Every order ships within 48 hours. Pay in USDT from anywhere.</p>
-            </header>
-            <ul className="products" aria-busy={!sdkReady}>
-              {PRODUCTS.map((p) => {
-                const qty = qtyOf(p.sku)
-                return (
-                  <li key={p.sku} className="product" aria-labelledby={`p-${p.sku}`}>
-                    <div className="product-art" data-art={p.art}>{p.badge && <Badge tone="highlight">{p.badge}</Badge>}<ProductArt kind={p.art} /></div>
-                    <div className="product-body">
-                      <Rating value={p.rating} count={p.reviews} />
-                      <h3 id={`p-${p.sku}`} className="product-name">{p.name}</h3>
-                      <p className="wp-muted product-desc">{p.tagline}</p>
-                      <div className="product-buy">
-                        <p className="product-price">{p.price} <span>USDT</span></p>
-                        {qty ? <QuantityStepper value={qty} onChange={(n) => setQty(p.sku, n)} max={MAX_QTY} label={p.name} /> : <Button size="sm" onClick={() => add(p.sku)}>Add to bag</Button>}
-                      </div>
-                      <div className="checkout-slot">
-                        <Marker show={inspect} n="②" title="<wondrpay-button>, one per product" />
-                        {sdkReady ? null : <Skeleton height={44} radius="pill" />}
-                        {/* ── WONDRPAY INTEGRATION ② ── the checkout button (the same element powers the bag) */}
-                        <wondrpay-button hidden={!sdkReady} order-endpoint="/api/create-order" payload={JSON.stringify({ items: [{ sku: p.sku, qty: 1 }] })} data-items={JSON.stringify([{ sku: p.sku, qty: 1 }])} label={`Buy now · ${p.price} USDT`} />
-                      </div>
-                    </div>
-                  </li>
-                )
-              })}
+          <div className="ks-box-copy">
+            <span className="ks-eyebrow">Kesar Glow Box · subscription</span>
+            <h2 id="box-title">Three beauty minis, every cycle.</h2>
+            <p>Pay for the first box now. When the next one is due, WondrPay asks you to approve it with one tap, or turn on Autopay once. Cancel any time from WondrPay.</p>
+            <ul className="ks-ticks">
+              <li><Icon name="check" size={16} /> 0.10 USDT per box (demo: every 2 minutes, 3 boxes)</li>
+              <li><Icon name="check" size={16} /> One-tap renewals, or Autopay</li>
+              <li><Icon name="check" size={16} /> Limits enforced on-chain</li>
             </ul>
+            {sub
+              ? <p className="ks-box-done" role="status"><Icon name="check" size={18} /> You&apos;re subscribed. Box 1 is paid; renewals show up in Developer view.</p>
+              : (
+                <div className="checkout-slot ks-box-cta">
+                  <Marker n="②" title='the same button with mode="subscribe"' />
+                  {sdkReady ? null : <Skeleton height={48} radius="pill" />}
+                  <wondrpay-button hidden={!sdkReady} mode="subscribe" order-endpoint="/api/create-subscription" label="Subscribe · 0.10 USDT per box" />
+                </div>
+              )}
           </div>
-        </section>
-
-        <section id="club" className="wp-section" data-tone="muted" aria-labelledby="club-title">
-          <div className="wp-container club">
-            <div className="club-art"><ClubArt /></div>
-            <div className="wp-stack club-copy">
-              <span className="wp-eyebrow">Chai Club</span>
-              <h2 id="club-title" className="wp-title-2">A fresh blend every cycle. You stay in control.</h2>
-              <p className="wp-muted">Pay for the first box now. When the next one is due, WondrPay asks you to approve it with one tap, or switch on Autopay to approve once. No gas, and you can cancel any time in WondrPay.</p>
-              <ul className="wp-checklist">
-                <li><Icon name="check" size={18} /><span><b>0.10 USDT per box</b> (demo: every 2 minutes, 3 boxes)</span></li>
-                <li><Icon name="check" size={18} /><span>One-tap renewals, or Autopay</span></li>
-                <li><Icon name="check" size={18} /><span>Cancel any time</span></li>
-              </ul>
-              {sub
-                ? <p className="club-done" role="status"><Icon name="check" size={18} /> You're subscribed. Box 1 is paid; the next payment requests appear in Developer view.</p>
-                : (
-                  <div className="checkout-slot club-cta">
-                    <Marker show={inspect} n="②" title='the same button with mode="subscribe"' />
-                    {sdkReady ? null : <Skeleton height={52} radius="pill" />}
-                    <wondrpay-button hidden={!sdkReady} mode="subscribe" order-endpoint="/api/create-subscription" label="Subscribe · 0.10 USDT per box" />
-                  </div>
-                )}
-            </div>
-          </div>
-        </section>
-
-        <section id="reviews" className="wp-section" aria-labelledby="reviews-title">
-          <div className="wp-container">
-            <header className="wp-section-header"><span className="wp-eyebrow">Reviews</span><h2 id="reviews-title" className="wp-title-2">What our regulars say</h2></header>
-            <ul className="reviews">
-              {REVIEWS.map((r) => (
-                <li key={r.name}>
-                  <figure>
-                    <span className="stars" role="img" aria-label="5 out of 5 stars">{Array.from({ length: 5 }, (_, i) => <Icon key={i} name="star" size={14} />)}</span>
-                    <blockquote>{r.text}</blockquote>
-                    <figcaption><span className="avatar" aria-hidden>{r.name[0]}</span>{r.name}, {r.city}</figcaption>
-                  </figure>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      </main>
-
-      <footer className="footer">
-        <div className="wp-container footer-inner">
-          <p className="wp-muted">Chai &amp; Co. is a demo store that shows the WondrPay Checkout SDK. It uses test USDT on Whitechain Sepolia, so no real money or tea changes hands.</p>
-          <nav className="wp-cluster" aria-label="Footer">
-            <ButtonLink href="/plain.html" variant="ghost" size="sm">Plain HTML checkout</ButtonLink>
-            <ButtonLink href="https://wondrpay.vercel.app/developers" variant="ghost" size="sm">Checkout SDK</ButtonLink>
-            <ButtonLink href="https://wondrpay.vercel.app" variant="ghost" size="sm">WondrPay</ButtonLink>
-          </nav>
         </div>
-      </footer>
+      </section>
 
-      <Drawer open={bagOpen} onClose={() => setBagOpen(false)} title={count ? `Your bag (${count})` : "Your bag"}
-        footer={cart.length > 0 && (
-          <div className="wp-stack summary">
-            <dl>
-              <div><dt>Subtotal</dt><dd>{fmt(total)} USDT</dd></div>
-              <div><dt>Shipping</dt><dd className="free">Free</dd></div>
-              <div><dt>Network fee</dt><dd className="free">None, paid by WondrPay</dd></div>
-              <div className="summary-total"><dt>Total</dt><dd>{fmt(total)} USDT</dd></div>
-            </dl>
-            <div className="checkout-slot">
-              <Marker show={inspect} n="②" title="cart checkout: same button, items payload" />
-              <wondrpay-button order-endpoint="/api/create-order" payload={JSON.stringify({ items: cart })} data-items={JSON.stringify(cart)} label={`Pay ${fmt(total)} USDT with WondrPay`} />
-            </div>
-            <p className="secure"><Icon name="lock" size={14} /> The price is signed by our server. You approve in WondrPay.</p>
-          </div>
-        )}>
-        {cart.length === 0 ? (
-          <div className="empty">
-            <div className="empty-art" data-art="kit"><ProductArt kind="kit" /></div>
-            <h3 className="wp-title-3">Your bag is empty</h3>
-            <p className="wp-muted">Start with our bestseller, the Masala Chai Kit.</p>
-            <Button onClick={() => add("chai-kit")}>Add Masala Chai Kit · 2.50 USDT</Button>
-          </div>
-        ) : (
-          <ul className="bag-lines">
-            {cart.map((l) => {
-              const p = BY_SKU[l.sku]
-              return (
-                <li key={l.sku}>
-                  <div className="thumb" data-art={p.art}><ProductArt kind={p.art} /></div>
-                  <div className="wp-stack" data-gap="2">
-                    <b>{p.name}</b><span className="wp-muted">{p.price} USDT each</span>
-                    <QuantityStepper value={l.qty} onChange={(n) => setQty(l.sku, n)} max={MAX_QTY} label={p.name} size="sm" />
-                  </div>
-                  <b className="line-total">{fmt(units(p.price) * BigInt(l.qty))}</b>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </Drawer>
+      <section className="ks-wrap ks-section" aria-labelledby="beauty-title">
+        <div className="ks-section-head"><h2 id="beauty-title" className="ks-h2">Trending in beauty</h2><Link href="/shop?cat=beauty">View all</Link></div>
+        <ul className="ks-grid">{beauty.map((p) => <ProductCard key={p.sku} p={p} />)}</ul>
+      </section>
 
-      <Dialog open={!!paid} onClose={() => setPaid(null)} title="Order confirmed" description={paid ? `Order ${paid.p.orderId.slice(2, 10).toUpperCase()} · ${fmt(BigInt(paid.p.amount))} USDT` : undefined}
-        footer={<div className="wp-cluster dialog-actions">
-          {paid?.p.explorer && <ButtonLink href={paid.p.explorer} variant="secondary">View receipt</ButtonLink>}
-          <Button onClick={() => setPaid(null)}>Continue shopping</Button>
-        </div>}>
-        <div className="wp-stack">
-          <p>Thank you! We've received your payment.</p>
-          {paid && paid.items.length > 0 && (
-            <ul className="order-lines">{paid.items.map((l) => <li key={l.sku}><span>{BY_SKU[l.sku]?.name} × {l.qty}</span><b>{fmt(units(PRICE[l.sku]) * BigInt(l.qty))}</b></li>)}</ul>
-          )}
-          <p className="verify" data-state={verified} role="status">
-            {verified === "checking" ? <><Spinner label="Confirming" /> Confirming your payment on Whitechain…</>
-              : verified === "ok" ? <><Icon name="check" size={18} /> Payment confirmed on-chain. We're packing your order.</>
-              : "We couldn't confirm it yet. We'll keep checking."}
-          </p>
-        </div>
-      </Dialog>
-
-      <Button className="dev-toggle" variant="primary" size="sm" iconLeft="code" onClick={() => setDevOpen(true)} hidden={devOpen}>
-        Developer view{logs.length > 1 && <span className="count" aria-label={`${logs.length} events`}>{logs.length}</span>}
-      </Button>
-      <DevPanel open={devOpen} onClose={() => setDevOpen(false)} logs={logs} inspect={inspect} setInspect={setInspect} />
-    </div>
+      <section className="ks-wrap ks-section">
+        <ul className="ks-trust">
+          <li><Icon name="scan" size={22} /><div><b>Scan &amp; pay</b><span>Checkout is one QR scan in WondrPay</span></div></li>
+          <li><Icon name="fingerprint" size={22} /><div><b>Fingerprint to confirm</b><span>No card numbers, no OTP</span></div></li>
+          <li><Icon name="bolt" size={22} /><div><b>Settles in ~1 second</b><span>USDT on Whitechain, zero gas</span></div></li>
+          <li><Icon name="receipt" size={22} /><div><b>Receipts that last</b><span>Every order has an on-chain receipt</span></div></li>
+        </ul>
+      </section>
+    </>
   )
 }
