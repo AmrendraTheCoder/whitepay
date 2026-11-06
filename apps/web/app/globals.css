@@ -397,6 +397,9 @@ button { font: inherit; color: inherit; }
   background: color-mix(in oklab, var(--surface) 58%, transparent);
   -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px);
   box-shadow: 0 12px 34px rgba(0, 0, 0, .32), inset 0 1px 0 rgba(255, 255, 255, .07);
+  /* own compositing layer: iOS (Chrome/Safari) otherwise leaves a fixed + backdrop-filter bar behind
+     mid-page while the browser toolbar collapses during a scroll */
+  transform: translate3d(0, 0, 0); -webkit-backface-visibility: hidden; backface-visibility: hidden; will-change: transform;
 }
 .bottomnav .in { position: relative; height: 100%; display: grid; grid-template-columns: repeat(var(--n), 1fr); max-width: none; padding: 6px; }
 .nav-pill { position: absolute; top: 6px; bottom: 6px; left: 6px; width: calc((100% - 12px) / var(--n)); border-radius: 20px;

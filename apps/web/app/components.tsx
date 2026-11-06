@@ -2,7 +2,7 @@
 import { WalletWait } from "./processing"
 import { useEffect, useState } from "react"
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
-import { sessionFor } from "@/lib/session"
+import { restoreSession } from "@/lib/session"
 import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout, isExternal, externalSigner, verifyExternalPin, verifyExternalPasskey, setExternalPin } from "@/lib/wallet"
 
 export function TopBar({ right, back = "/app" }: { right?: React.ReactNode; back?: string | null }) {
@@ -74,9 +74,11 @@ export function UnlockSheet({
   const w = getWallet()
   const external = isExternal(w)
   // already unlocked this session? then don't ask for the PIN / fingerprint again
-  const [session] = useState(() => (w ? sessionFor(w.address) : null))
+  // unlocked earlier (this tab or another one, e.g. after coming back from MetaMask)? then no PIN again.
+  // undefined = still checking (an async decrypt for device wallets, a few ms)
+  const [session, setSession] = useState<{ address: string; pk?: `0x${string}` } | null | undefined>(undefined)
   type Mode = "passkey" | "pin" | "setpin" | "confirmpin" | "wallet"
-  const [mode, setMode] = useState<Mode>(external && session ? "wallet" : external && !w?.hasPin ? "setpin" : w?.hasPasskey ? "passkey" : "pin")
+  const [mode, setMode] = useState<Mode>("pin")
   const [firstPin, setFirstPin] = useState("")
   const [err, setErr] = useState("")
   const [busy, setBusy] = useState(false)
@@ -112,10 +114,18 @@ export function UnlockSheet({
   }
 
   useEffect(() => {
-    // (an effect may only return a cleanup function, so never `return onUnlocked(...)` here)
-    if (session?.pk && !external) { void onUnlocked(privateKeyToAccount(session.pk)); return }
-    if (session && external) { void tryWallet(); return }
-    if (mode === "passkey") void tryPasskey()
+    let live = true
+    void restoreSession(w?.address ?? "").then((raw) => {
+      if (!live) return
+      const s = raw && (external || raw.pk) ? raw : null // a device wallet is unlocked only if we have its key
+      const m: Mode = external && s ? "wallet" : external && !w?.hasPin ? "setpin" : w?.hasPasskey ? "passkey" : "pin"
+      setSession(s); setMode(m)
+      // (an effect may only return a cleanup function, so never `return onUnlocked(...)` here)
+      if (s?.pk && !external) { void onUnlocked(privateKeyToAccount(s.pk)); return }
+      if (s && external) { void tryWallet(); return }
+      if (m === "passkey") void tryPasskey()
+    })
+    return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -143,7 +153,7 @@ export function UnlockSheet({
   }
 
   const locked = pinLockout() > 0
-  if (session && !external) return null
+  if (session === undefined || (session && !external)) return null
   return (
     <div className="sheet-backdrop" onClick={onCancel}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>

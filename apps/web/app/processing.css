@@ -10,8 +10,9 @@
 .proc-logo { width: 84px; height: 84px; border-radius: 26px; background: #fff; display: grid; place-items: center; box-shadow: 0 10px 30px rgba(36, 72, 255, .35);
   animation: proc-breathe 1.6s ease-in-out infinite; }
 .proc-logo svg { width: 64px; height: 64px; }
-.proc-logo path { fill: none; stroke: #2448ff; stroke-width: 58; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: proc-draw 1.6s cubic-bezier(.6, 0, .2, 1) infinite; }
-@keyframes proc-draw { 0% { stroke-dashoffset: 1; } 55%, 80% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1; } }
+.proc-logo path { fill: none; stroke: #2448ff; stroke-width: 58; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 850; stroke-dashoffset: 850; animation: proc-draw 1.6s cubic-bezier(.6, 0, .2, 1) infinite; }
+/* real path length (~846), not pathLength=1: iOS WebKit ignores pathLength for dashes and drew a dot */
+@keyframes proc-draw { 0% { stroke-dashoffset: 850; } 55%, 80% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -850; } }
 @keyframes proc-breathe { 50% { transform: scale(.94); } }
 .proc.done .proc-arc { animation: none; } .proc.done .proc-arc .arc { stroke-dasharray: 340 0; transition: stroke-dasharray .4s; }
 .proc.done .proc-logo { background: var(--ok); animation: proc-pop .45s cubic-bezier(.3, 1.6, .5, 1) both; }

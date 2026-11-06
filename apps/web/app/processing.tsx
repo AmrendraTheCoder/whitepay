@@ -18,7 +18,7 @@ export function Processing({ title, steps, step, done = false, amount }: { title
           {done ? (
             <svg viewBox="0 0 52 52" className="proc-check"><path d="M14 27l8 8 16-17" /></svg>
           ) : (
-            <svg viewBox="0 0 512 512"><path d="M110 168l50 176 56-128 40 92 40-92 56 128 50-176" pathLength={1} /></svg>
+            <svg viewBox="0 0 512 512"><path d="M110 168l50 176 56-128 40 92 40-92 56 128 50-176" /></svg>
           )}
         </div>
       </div>
