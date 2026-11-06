@@ -1,3 +1,15 @@
 {
-  "crons": [{ "path": "/api/autopay/tick", "schedule": "0 3 * * *" }, { "path": "/api/refunds/tick", "schedule": "30 3 * * *" }]
+  "crons": [
+    {
+      "path": "/api/autopay/tick",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/refunds/tick",
+      "schedule": "30 3 * * *"
+    }
+  ],
+  "git": {
+    "deploymentEnabled": false
+  }
 }
