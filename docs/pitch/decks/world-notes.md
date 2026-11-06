@@ -1,55 +1,80 @@
 # WondrPay: speaker notes for the World deck
 
-Speaker notes from `WondrPay-World.pptx`, one block per slide. Lines in brackets are actions; "(Backup)" slides can be skipped to stay inside 3 minutes.
+Speaker notes from `WondrPay-World.pptx`, one block per slide. Spoken text comes from `docs/pitch/world.md`; lines in brackets are actions; "(Backup)" slides are not in the 3-minute script.
 
 ## 1. Title
 
-> WondrPay, UPI for digital dollars. Today I'll show where World ID sits in every payment we make fair. (Phone on WondrPay; World App ready.)
+> [Title slide. Setup: laptop on Amaron checkout; phone 1 on WondrPay with a cashback card waiting; phone 2 with World App open] Start the script on the next slide.
 
-## 2. Three numbers
+## 2. Hook
 
-> Three numbers. 20 billion: UPI payments in India every month, by scanning a QR. 129 billion: dollars sent home to India every year. Zero: the number of those you can pay with the dollars sitting in a WhiteBIT account. WondrPay fixes the zero. It's UPI for digital dollars.
+> "Every rewards program in crypto has the same favourite customer: a bot. Airdrops, referral bonuses, cashback: farmed by fake accounts.
+> 
+> So we built a payments app where money only moves for humans.
+> 
+> WondrPay is UPI for digital dollars: pay any shop by QR, in USDT, with no gas. And World ID is in every moment where a bot could steal."
 
 ## 3. Three taps
 
-> (Laptop: Amaron checkout, tap Pay with WondrPay. Phone: scan the QR, confirm.) Scan, fingerprint, done. Paid in USDT on Whitechain, with zero WBT in my wallet. We pay the gas, so shoppers never see it. The store has its order, and I got a scratch card: cashback paid in WBT.
+> [Laptop: Amaron checkout. Phone 1: scan, PIN.]
+> "I buy from Amaron: scan, PIN, paid. The shop has a verified-human badge, so I know a real person runs it.
 
 ## 4. Everything live
 
-> Also live on testnet: sending money to people with names like priya.wondrpay.eth, subscriptions that renew on their own, refund requests stored on Arkiv with World ID stopping fake claims, and a business portal that gave our demo store Amaron an API key, payment links, webhooks, team roles and prices in local currency in an afternoon.
+> [Phone 1: open Rewards, tap Claim with World ID. Phone 2: approve in World App.]
+> "I won cashback. To claim it, World App does a fresh check every time. One person gets one set of limits, however many wallets they create. [The WBT arrives.] Paid.
+> 
+> Want a refund? Same rule: World ID first. The shop sees 'verified human, 1 request in 30 days', counted across every wallet and every shop. Payments over $100 ask again too."
 
 ## 5. How it fits together
 
-> (Backup, skip if short on time.) The phone holds the key and signs one exact order. Our relayer pays the gas and settles it on Whitechain. Arkiv holds the public records: requests, receipts, directories, refunds. World ID keeps it one human per name, shop and reward. ENS gives everyone a readable name.
+> (Backup: not in the 3-minute script.) The phone holds the key and signs one exact order. Our relayer pays the gas and settles it on Whitechain. Arkiv holds the public records: requests, receipts, directories, refunds. World ID keeps it one human per name, shop and reward. ENS gives everyone a readable name.
 
 ## 6. Market
 
-> Money crossing borders is where payments are still broken: 685 billion dollars a year goes home to developing countries, and sending it costs about 6%. Cards cost shops 2 to 3%. A WondrPay shop pays 0.5%.
+> "Now the business. $685 billion a year is sent home to developing countries, at about 6% in fees.
 
 ## 7. Where we start
 
-> We start where W Group is already strong: the Gulf to India, since the Gulf sends 38% of India's remittances; Ukraine and Europe, freelancers paid in USDT cashing out through WhiteBIT; and countries that save in dollars: Turkey, Nigeria, Argentina. Three-year goal: 1 million verified people, 50,000 shops, 1.5 billion dollars in shop payments and 3 billion sent home.
+> We start where people already use digital dollars:
+> 1. The Gulf to India. The Gulf sends 38% of India's remittances, and Dubai already has Orbs.
+> 2. Argentina, Turkey and Nigeria, where people save in dollars.
+> 3. Freelancers in India and Ukraine, paid in USDT by clients abroad.
+> 
+> Three-year goal: 1 million verified people and 50,000 shops."
 
 ## 8. Track slide 1
 
-> Money apps have a uniqueness problem: one person can make a thousand wallets. We use World ID at five trust moments: claiming a name, verifying a shop, approving a payment over 100 USDT, requesting a refund, and claiming cashback. Each needs a unique human, not an identity, so Proof of Human is the minimum sufficient credential.
+> "For World, that's a million people with a reason to verify that pays them back. Cashback only goes to verified humans, so getting Orb-verified is worth money from day one.
+> 
+> At our goal, that's around 28 million World ID checks a year:
+> • cashback claims;
+> • refund requests;
+> • big payments;
+> • names and shops.
+> 
+> Every one opens World App. And 50,000 shops show a World ID badge at the counter.
+> 
+> You've brought World ID to Tinder, Zoom and Docusign. WondrPay brings it to the checkout."
 
 ## 9. Track slide 2
 
-> Every proof is checked on our backend, never trusted from the browser. Our server signs the request context, World App returns a proof bound to this wallet and this exact action, we verify it, then the protected action runs. Cancel, decline or a replayed proof, and nothing happens: no name, no badge, no payout. We store only the nullifier's hash on Arkiv.
+> (Backup: not in the 3-minute script.) Every proof is checked on our backend, never trusted from the browser. Our server signs the request context, World App returns a proof bound to this wallet and this exact action, we verify it, then the protected action runs. Cancel, decline or a replayed proof, and nothing happens: no name, no badge, no payout. We store only the nullifier's hash on Arkiv.
 
 ## 10. Track slide 3
 
-> That's what stops farming. One human can link up to five wallets, and limits count per human. A bot with fifty wallets still gets three welcome wins and five dollars a month in total. We tested it live: the second wallet was refused with 'Welcome bonus already used by this person on another wallet'. Our one ask for World: structured errors instead of a bare 'Failed'.
+> (Backup: not in the 3-minute script.) That's what stops farming. One human can link up to five wallets, and limits count per human. A bot with fifty wallets still gets three welcome wins and five dollars a month in total. We tested it live: the second wallet was refused with 'Welcome bonus already used by this person on another wallet'. Our one ask for World: structured errors instead of a bare 'Failed'.
 
 ## 11. Money
 
-> Every 100 dollars spent at a shop: the shop pays 50 cents, against 2 to 3% for cards. 4 cents is Whitechain's gas, 23 cents goes back to the shopper as cashback, 23 cents is ours. On top: a share of currency exchange, business plans, and 3 cents per transfer after ten free a month. About 7 million dollars a year of revenue by year three.
+> "Of every $100 spent at a shop, the shop pays 50 cents: 4 cents of gas, 23 cents back to the shopper as cashback, 23 cents for us. With currency exchange and business plans, that's about $7 million a year by year three.
+> 
+> That cashback is only affordable because of World ID: 5 claims a day and $5 a month, per human. Without it, bots would take the cashback, and shops would lose money to fake refunds."
 
 ## 12. Proof
 
-> (Backup.) All of this is on testnet today: 110 transactions and 216 USDT transfers on our PaymentRouter, all gas paid by us; 80 receipts, 17 shops, 12 websites with API keys and 16 subscriptions on Arkiv. These are two days of building: proof the flows work, not traction.
+> (Backup: not in the 3-minute script.) All of this is on testnet today: 110 transactions and 216 USDT transfers on our PaymentRouter, all gas paid by us; 80 receipts, 17 shops, 12 websites with API keys and 16 subscriptions on Arkiv. These are two days of building: proof the flows work, not traction.
 
 ## 13. Close
 
-> One person, one name, one reward. World ID is what makes digital-dollar payments fair without anyone sharing who they are. It's live on testnet; try it at wondrpay.vercel.app. Thank you.
+> "Money that only moves for humans. Live on testnet, and you just watched a real claim. We'd love a World App mini app listing and more Orbs in our corridors. Thank you."
