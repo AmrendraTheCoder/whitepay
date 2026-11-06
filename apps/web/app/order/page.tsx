@@ -21,7 +21,9 @@ export default function OrderPage() {
 
 function Order() {
   const tx = (useSearchParams().get("tx") ?? "").toLowerCase()
-  const [wallet] = useState(() => (typeof window === "undefined" ? null : getWallet()))
+  // read the wallet after mount: the server can't see localStorage, and a first render that differs breaks hydration
+  const [wallet, setWallet] = useState<ReturnType<typeof getWallet> | undefined>(undefined)
+  useEffect(() => setWallet(getWallet()), [])
   const [rc, setRc] = useState<Receipt | null | undefined>(undefined)
   const [cases, setCases] = useState<RefundCase[] | null>(null)
 
@@ -39,6 +41,7 @@ function Order() {
     }).catch(() => setRc(null))
   }, [wallet, tx, loadCases])
 
+  if (wallet === undefined) return <main className="shell"><TopBar back="/transactions" /><LogoLoader label="Loading your order…" /></main>
   if (!wallet) return <main className="shell"><TopBar back="/transactions" /><div className="card">Open this on the device with the wallet that paid.</div></main>
   if (rc === undefined) return <main className="shell"><TopBar back="/transactions" /><LogoLoader label="Loading your order…" /></main>
   if (rc === null) return <main className="shell"><TopBar back="/transactions" /><div className="card stack"><h2>Order not found</h2><div className="sub">This payment isn't a shop order from this wallet.</div></div></main>
