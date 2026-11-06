@@ -104,7 +104,7 @@ export default function RewardsPage() {
                     <p>Cashback from {toClaim.length} card{toClaim.length > 1 ? "s" : ""}, ready to claim. One World ID check proves a real
                       person is claiming, so bots and wallet farms can't stack rewards.</p>
                     <WorldVerify
-                      purpose="pay"
+                      purpose="reward"
                       paymentRef={keccak256(toHex(signal))}
                       signal={signal}
                       label="Claim with World ID"
