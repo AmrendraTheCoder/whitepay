@@ -15,11 +15,12 @@ export async function GET(req: Request) {
     : purpose === "shop" ? WORLD_ACTIONS.shop
     : purpose === "pay" && isHex(ref) && ref.length >= 18 ? WORLD_ACTIONS.stepUp(ref)
     : purpose === "refund" ? WORLD_ACTIONS.refund
+    : purpose === "reward" ? WORLD_ACTIONS.stepUp() // unlimited action; each proof is bound to one claim via its signal
     : null
   if (!action) return json({ error: "unknown purpose" }, { status: 400 })
   if (!worldConfigured()) return json({ error: "World ID is not configured on this server" }, { status: 503 })
   try {
-    return json(rpContext(action, purpose === "refund" ? "Request a refund on WondrPay (proves you are one real person)" : undefined))
+    return json(rpContext(action, purpose === "refund" ? "Request a refund on WondrPay (proves you are one real person)" : purpose === "reward" ? "Claim your WondrPay rewards" : undefined))
   } catch (e) {
     return json({ error: errorMessage(e) }, { status: 500 })
   }

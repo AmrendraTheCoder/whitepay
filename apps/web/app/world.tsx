@@ -28,7 +28,7 @@ export function WorldVerify({
   className = "btn btn-primary",
 }: {
   /** name = personal WondrPay name, shop = verified merchant, pay = step-up for one large payment */
-  purpose: "name" | "shop" | "pay" | "refund"
+  purpose: "name" | "shop" | "pay" | "refund" | "reward"
   paymentRef?: string
   signal: string
   label: string
