@@ -125,3 +125,8 @@ body { margin: 0; overflow-x: clip; }
 @media (max-width: 560px) { .products { grid-template-columns: 1fr; } .hero { padding-block: var(--space-10); } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .steam { animation: none; } }
 .bag-lines .wp-stack { align-items: flex-start; }
+
+/* connectivity */
+.net-banner { position: sticky; top: 0; z-index: 60; padding: 10px 16px; background: #2b2d3a; color: #fff; font-size: 14px; text-align: center; }
+.net-banner b { color: #ffd36b; }
+.verify-note { display: block; font-weight: 500; color: var(--c-text-muted); margin-left: 6px; }

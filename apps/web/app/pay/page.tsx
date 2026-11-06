@@ -42,8 +42,15 @@ function Pay() {
     // an instant QR may be scanned before its Arkiv write lands (a few seconds): keep checking for up to 45 s
     let stop = false, tries = 0
     const load = async () => {
-      const d: ReqResp = await fetch(`/api/requests/${key}`).then((r) => r.json()).catch((e) => ({ state: "error", reason: String(e) }))
+      // a dropped connection is not "this request is broken": say what happened and retry once we're back online
+      const d: ReqResp = await fetch(`/api/requests/${key}`).then((r) => r.json()).catch(() => ({
+        state: "error",
+        reason: navigator.onLine
+          ? "Couldn't reach WondrPay. Your connection may be weak. We'll keep trying; nothing has been charged."
+          : "You're offline. Connect to the internet to see and pay this request. Nothing has been charged.",
+      }))
       if (stop) return
+      if (d.state === "error" && tries++ < 40) { setData(d); setTimeout(load, navigator.onLine ? 3000 : 1500); return }
       if (d.state === "publishing" && tries++ < 30) { setData(d); setTimeout(load, 1500); return }
       setData(d.state === "publishing" ? { state: "depleted", reason: "This payment request expired or doesn't exist. Ask the shop to show the QR again." } : d)
     }
