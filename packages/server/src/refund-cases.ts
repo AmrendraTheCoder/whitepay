@@ -24,6 +24,7 @@ import {
 import { arkiv } from "./clients"
 import { refundInfo, relayRefund } from "./refunds"
 import { verifyProof, WORLD_ACTIONS } from "./world"
+import { verifiedHuman, rememberHuman } from "./human"
 import type { PayerAuth } from "./relayer"
 
 // Arkiv refuses the literal zero address as an owner, so ownership goes to the standard burn address:
@@ -159,9 +160,26 @@ export async function listRefundCases(f: { merchant?: Address; payer?: Address; 
 }
 export const getRefundCase = async (caseId: Hex) => (await listRefundCases({ caseId }))[0] ?? null
 
+/** The person behind `payer` if they already passed World ID: their name / shop / earlier check (human.ts), or the
+ *  World ID proof verified on an earlier refund request from this wallet (recorded from now on, see rememberHuman). */
+export async function knownHuman(payer: Address): Promise<{ key: string; via: string } | null> {
+  payer = getAddress(payer)
+  const k = await verifiedHuman(payer)
+  if (k) return k
+  const prior = (await readEvents(and(eq("payer", addr(payer)), eq("kind", "opened"))))
+  for (const e of prior) {
+    const human = v(e.human) as string | undefined
+    if (human && (await verifyEvent(e))) {
+      await rememberHuman(payer, WORLD_ACTIONS.refund, human).catch(() => {})
+      return { key: human, via: "refund" }
+    }
+  }
+  return null
+}
+
 // ------------------------------------------------------------------- open (payer + World ID)
 export async function openRefundRequest(p: {
-  paymentId: Hex; payer: Address; reason: string; message: string; evidence?: string; issuedAt: number; signature: Hex; result: any
+  paymentId: Hex; payer: Address; reason: string; message: string; evidence?: string; issuedAt: number; signature: Hex; result?: any
 }) {
   const payer = getAddress(p.payer)
   const reason = String(p.reason)
@@ -184,9 +202,17 @@ export async function openRefundRequest(p: {
   const live = (await listRefundCases({ paymentId: p.paymentId })).find((c) => c.payer === payer && c.status !== "resolved" && c.status !== "lapsed")
   if (live) throw new Error("You already have an open refund request for this order")
 
-  // proof of human, bound to THIS case (a proof can't be replayed for another order)
-  const { nullifier } = await verifyProof(p.result, WORLD_ACTIONS.refund, caseId)
-  return recordOpen({ ...p, payer, reason, message, evidence }, caseId, info, nullifier)
+  // proof of human. A wallet that already passed World ID (its WondrPay name, a verified shop or rewards) is
+  // that person already: no new scan (World refuses a second one-time proof). Its per-person key still counts
+  // every request that person files, from any of their wallets. Otherwise: a fresh proof bound to THIS case.
+  const known = await knownHuman(payer)
+  let human: string
+  if (known) human = known.key
+  else if (p.result) {
+    human = (await verifyProof(p.result, WORLD_ACTIONS.refund, caseId)).nullifier
+    await rememberHuman(payer, WORLD_ACTIONS.refund, human).catch((e) => console.error("[refunds] rememberHuman", (e as Error).message.split("\n")[0]))
+  } else throw new Error("Verify with World ID first")
+  return recordOpen({ ...p, payer, reason, message, evidence }, caseId, info, human)
 }
 
 /** After the World ID proof: per-human limit, then write the immutable "opened" event.

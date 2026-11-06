@@ -149,7 +149,7 @@ export const WorldClaim = defineSchema("whitepay.worldclaim", {
   action: str().indexed(), // "ens-claim"
   nullifier: str().indexed(), // decimal string from the proof
   address: addr().indexed(), // wallet the proof was bound to (signal)
-  purpose: str().indexed(), // "merchant-verify" | "name-claim"
+  purpose: str().indexed(), // "merchant-verify" | "name-claim" | "human-check" (a one-time check this wallet passed, so repeats pass)
   verifiedAt: u64().indexed(),
 })
 

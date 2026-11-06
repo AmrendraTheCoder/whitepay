@@ -286,6 +286,15 @@ export function UnlockSheet({
             <WorldVerify
               purpose="pay"
               paymentRef={paymentRef}
+              address={w.address}
+              onRepeat={async () => {
+                // World refused a repeat one-time check: this wallet's person already passed World ID, so it passes
+                const r = await fetch("/api/world/verify", { method: "POST", headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ purpose: "step-up", address: w.address, paymentRef, known: true }) })
+                const d = await r.json()
+                if (!r.ok) throw new Error(d.error)
+                return d
+              }}
               signal={stepUpSignal(getAddress(w.address), paymentRef)}
               label="Confirm with World ID"
               className="btn btn-primary btn-big"

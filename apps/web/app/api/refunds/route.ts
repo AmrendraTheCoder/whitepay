@@ -34,9 +34,9 @@ export async function POST(req: Request) {
   try { b = await req.json() } catch { return json({ error: "bad json" }, { status: 400 }) }
   try {
     if (b.action === "open") {
-      if (!id(b.paymentId) || !isAddress(b.payer) || !isHex(b.signature) || !b.result) return json({ error: "malformed request" }, { status: 400 })
+      if (!id(b.paymentId) || !isAddress(b.payer) || !isHex(b.signature)) return json({ error: "malformed request" }, { status: 400 })
       const c = await openRefundRequest({ paymentId: b.paymentId, payer: b.payer, reason: String(b.reason), message: String(b.message ?? ""),
-        evidence: b.evidence ? String(b.evidence) : undefined, issuedAt: Number(b.issuedAt), signature: b.signature, result: b.result })
+        evidence: b.evidence ? String(b.evidence) : undefined, issuedAt: Number(b.issuedAt), signature: b.signature, result: b.result || undefined })
       return json({ case: c })
     }
     if (b.action === "respond") {

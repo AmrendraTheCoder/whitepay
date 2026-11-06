@@ -2,9 +2,11 @@
 // "Verify with World ID" button: gets a backend-signed RP context, opens the IDKit widget,
 // sends the proof to OUR backend for verification. Cancel / reject / backend denial => onDenied.
 import { useRef, useState } from "react"
-import { IDKitRequestWidget, proofOfHuman, type IDKitResult } from "@worldcoin/idkit"
+import { CredentialRequest, IDKitRequestWidget, IDKitSessionWidget, proofOfHuman, type IDKitResult } from "@worldcoin/idkit"
 
-type Ctx = { action: string; action_description: string; app_id: `app_${string}`; environment: "staging" | "production"; rp_context: any }
+type Base = { action_description: string; app_id: `app_${string}`; environment: "staging" | "production"; rp_context: any }
+// "session": this person already set up a World ID session, so the check is a fresh proof of it (never "already used")
+type Ctx = (Base & { mode?: undefined; action: string }) | (Base & { mode: "session"; sessionId: `session_${string}` })
 
 const ERRORS: Record<string, string> = {
   // World only lets one scan per person per action. Extra wallets/shops don't need a scan: they're
@@ -29,7 +31,7 @@ const sheetVisible = (ms: number) =>
     tick()
   })
 
-const REPEAT ="World App says your World ID already used this check. This check has to allow one scan per claim (\"unlimited\" for the whitepay-pay action in the World Developer Portal); ask the WondrPay team to enable it."
+const REPEAT = "Your World ID already did this one-time check from another wallet. Claim your WondrPay name on this wallet with World ID (or add this wallet from your verified one), then try again. No new scan is needed after that."
 
 export function WorldVerify({
   purpose,
@@ -39,6 +41,8 @@ export function WorldVerify({
   verify,
   onVerified,
   onDenied,
+  address,
+  onRepeat,
   className = "btn btn-primary",
 }: {
   /** name = personal WondrPay name, shop = verified merchant, pay = step-up for one large payment */
@@ -50,6 +54,10 @@ export function WorldVerify({
   verify: (result: IDKitResult) => Promise<any>
   onVerified: (data: any) => void
   onDenied: (reason: string) => void
+  /** the wallet being checked: lets the backend pick a World ID session this person already has */
+  address?: string
+  /** World refused a repeat one-time proof: ask the backend to pass an already-verified person instead */
+  onRepeat?: () => Promise<any>
   className?: string
 }) {
   const [ctx, setCtx] = useState<Ctx | null>(null)
@@ -66,7 +74,7 @@ export function WorldVerify({
     setBusy(true)
     try {
       // never spin forever: a dropped connection or a stale page gets a clear message within 15 s
-      const r = await fetch(`/api/world/context?purpose=${purpose}${paymentRef ? `&ref=${paymentRef}` : ""}`, { signal: AbortSignal.timeout(15_000), cache: "no-store" })
+      const r = await fetch(`/api/world/context?purpose=${purpose}${paymentRef ? `&ref=${paymentRef}` : ""}${address ? `&address=${address}` : ""}`, { signal: AbortSignal.timeout(15_000), cache: "no-store" })
         .catch((e) => { throw new Error((e as Error).name === "TimeoutError" ? "World ID took too long to start. Check your connection and try again." : "Couldn't reach WondrPay. Check your connection, reload the page and try again.") })
       const d = await r.json().catch(() => ({ error: "World ID couldn't start. Reload the page and try again." }))
       if (!r.ok) throw new Error(d.error)
@@ -84,18 +92,48 @@ export function WorldVerify({
     }
   }
 
+  const handlers = {
+    open,
+    onOpenChange: (o: boolean) => {
+      setOpen(o)
+      if (!o && !backendData.current && !reported.current) onDenied(backendError.current ?? "World ID verification was cancelled")
+    },
+    // throws => widget shows failure; backend is the only judge of validity
+    handleVerify: async (result: IDKitResult) => {
+      try {
+        backendData.current = await verify(result)
+      } catch (e) {
+        backendError.current = (e as Error).message
+        throw e
+      }
+    },
+    onSuccess: () => onVerified(backendData.current),
+    onError: (code: unknown) => {
+      reported.current = true
+      console.warn("[world] IDKit error", code)
+      const c = String(code)
+      // names/shops: one scan per person. pay/refund/reward: an already-verified person passes without a new scan
+      const repeat = purpose !== "name" && purpose !== "shop" && (c === "max_verifications_reached" || c === "nullifier_replayed")
+      if (repeat && onRepeat && !backendError.current) {
+        setOpen(false)
+        onRepeat().then(onVerified, (e) => onDenied((e as Error).message || REPEAT))
+        return
+      }
+      onDenied(backendError.current ?? (repeat ? REPEAT : ERRORS[c]) ?? `World ID error: ${code}`)
+    },
+  }
+
   return (
     <>
       <button className={className} onClick={start} disabled={busy}>
         {busy ? <><span className="spinner" /> Opening World ID…</> : <><span aria-hidden>◎</span> {label}</>}
       </button>
-      {ctx && (
-        <IDKitRequestWidget
-          open={open}
-          onOpenChange={(o) => {
-            setOpen(o)
-            if (!o && !backendData.current && !reported.current) onDenied(backendError.current ?? "World ID verification was cancelled")
-          }}
+      {ctx && (ctx.mode === "session" ? (
+        <IDKitSessionWidget {...(handlers as any)}
+          app_id={ctx.app_id} existing_session_id={ctx.sessionId} action_description={ctx.action_description}
+          rp_context={ctx.rp_context} environment={ctx.environment} constraints={CredentialRequest("proof_of_human", { signal })} />
+      ) : (
+        <IDKitRequestWidget {...handlers}
           app_id={ctx.app_id}
           action={ctx.action}
           action_description={ctx.action_description}
@@ -103,26 +141,8 @@ export function WorldVerify({
           environment={ctx.environment}
           allow_legacy_proofs={false}
           preset={proofOfHuman({ signal })}
-          handleVerify={async (result) => {
-            // throws => widget shows failure; backend is the only judge of validity
-            try {
-              backendData.current = await verify(result)
-            } catch (e) {
-              backendError.current = (e as Error).message
-              throw e
-            }
-          }}
-          onSuccess={() => onVerified(backendData.current)}
-          onError={(code) => {
-            reported.current = true
-            console.warn("[world] IDKit error", code)
-            const c = String(code)
-            // the one-scan message is about names/shops; pay/refund/reward share an action that must allow repeat proofs
-            const repeat = purpose !== "name" && purpose !== "shop" && (c === "max_verifications_reached" || c === "nullifier_replayed")
-            onDenied(backendError.current ?? (repeat ? REPEAT : ERRORS[c]) ?? `World ID error: ${code}`)
-          }}
         />
-      )}
+      ))}
     </>
   )
 }

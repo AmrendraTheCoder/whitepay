@@ -122,6 +122,26 @@ function RequestForm({ rc, payer, onDone }: { rc: Receipt; payer: `0x${string}`;
   // editing the request after signing invalidates the signature
   useEffect(() => { setSigned(null) }, [reason, message, evidence])
 
+  // has this wallet's person already passed World ID? then the request goes without a new scan
+  const [human, setHuman] = useState(false)
+  const [sending, setSending] = useState(false)
+  useEffect(() => {
+    let live = true
+    fetch(`/api/world/status?address=${payer}`, { cache: "no-store" }).then((r) => r.json()).then((d) => { if (live) setHuman(!!d.human) }).catch(() => {})
+    return () => { live = false }
+  }, [payer])
+  const post = async (result?: unknown) => {
+    const r = await fetch("/api/refunds", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "open", paymentId: rc.paymentId, payer, reason, message: message.trim(), evidence: ev || undefined, issuedAt: signed!.issuedAt, signature: signed!.signature, result }) })
+    const d = await r.json()
+    if (!r.ok) { if (/expired/i.test(String(d.error))) setSigned(null); throw new Error(d.error) }
+    return d
+  }
+  const send = async () => {
+    setSending(true); setMsg("")
+    try { await post(); onDone() } catch (e) { setMsg(`Not sent: ${(e as Error).message}`) } finally { setSending(false) }
+  }
+
   const sign = async (acct: PrivateKeyAccount) => {
     setUnlock(false); setMsg("")
     const issuedAt = Math.floor(Date.now() / 1000)
@@ -142,23 +162,23 @@ function RequestForm({ rc, payer, onDone }: { rc: Receipt; payer: `0x${string}`;
       <div className="rf-steps">
         {!signed ? (
           <button className="btn btn-primary" disabled={!valid} onClick={() => setUnlock(true)}>1. Sign with fingerprint / PIN</button>
+        ) : human ? (
+          // already World ID verified (name, shop or rewards): that's this person, no new scan
+          <button className="btn btn-primary" disabled={sending} onClick={() => void send()}>{sending ? <><span className="spinner" /> Sending…</> : "2. Send request"}</button>
         ) : (
           <WorldVerify
             purpose="refund"
             signal={signed.caseId}
             label="2. Verify you're human & send"
-            verify={async (result) => {
-              const r = await fetch("/api/refunds", { method: "POST", headers: { "content-type": "application/json" },
-                body: JSON.stringify({ action: "open", paymentId: rc.paymentId, payer, reason, message: message.trim(), evidence: ev || undefined, issuedAt: signed.issuedAt, signature: signed.signature, result }) })
-              const d = await r.json()
-              if (!r.ok) { if (/expired/i.test(String(d.error))) setSigned(null); throw new Error(d.error) }
-              return d
-            }}
+            address={payer}
+            verify={(result) => post(result)}
             onVerified={() => onDone()}
             onDenied={(reason) => setMsg(`Not sent: ${reason}`)}
           />
         )}
-        <div className="sub center">{Icon.shield()} World ID proves one real person is asking, so refund claims can't come from bots or a pile of fresh wallets. Your identity isn't shared with the shop.</div>
+        <div className="sub center">{Icon.shield()} {human
+          ? <>Your World ID is already verified, so no new scan is needed. It still counts as one real person asking; your identity isn't shared with the shop.</>
+          : <>World ID proves one real person is asking, so refund claims can&apos;t come from bots or a pile of fresh wallets. Your identity isn&apos;t shared with the shop.</>}</div>
         {msg && <div className="err">{msg}</div>}
       </div>
       {unlock && <UnlockSheet title="Sign refund request" subtitle={`${usdt(rc.amount)} USDT order · ${REASON_LABEL[reason] ?? ""}`} onUnlocked={sign} onCancel={() => setUnlock(false)} />}

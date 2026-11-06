@@ -166,8 +166,10 @@ export async function verifyMerchantByLink(
   if (!(await verifyMessage({ address: merchant, message: msg, signature: p.signature }))) throw new Error("Signature does not match the shop wallet")
   if (!(await verifyMessage({ address: from, message: msg, signature: p.fromSignature }))) throw new Error("The verified wallet didn't approve this")
   const a = arkiv()
-  const src = await a.pub.select({ $key: true, nullifier: true, action: true }).from(WorldClaim).ownedBy(a.owner).where(eq("address", addr(from))).limit(10).fetch()
-  const c = (src.entities as any[]).find((e) => e.action?.value === WORLD_ACTIONS.shop) ?? src.entities[0] as any
+  const src = await a.pub.select({ $key: true, nullifier: true, action: true, purpose: true }).from(WorldClaim).ownedBy(a.owner).where(eq("address", addr(from))).limit(10).fetch()
+  // only a name or shop verification counts here ("human-check" records are per-wallet repeat-check passes)
+  const ids = (src.entities as any[]).filter((e) => e.purpose?.value === "name-claim" || e.purpose?.value === "merchant-verify")
+  const c = ids.find((e) => e.action?.value === WORLD_ACTIONS.shop) ?? ids[0]
   if (!c?.nullifier?.value) throw new Error("That wallet isn't World ID verified yet. Verify it first.")
   // nullifiers are per World action: keep the human key stable across the two actions
   const key = c.action.value === WORLD_ACTIONS.shop ? c.nullifier.value : `${c.action.value}:${c.nullifier.value}`
@@ -356,8 +358,29 @@ const secret = () => process.env.WEBHOOK_SECRET || process.env.RP_SIGNING_KEY ||
 const sign = (msg: string) => createHmac("sha256", secret()).update(msg).digest("hex")
 
 
-export async function verifyStepUp(payer: Address, paymentRef: Hex, result: IDKitResultLike) {
-  await verifyProof(result, WORLD_ACTIONS.stepUp(paymentRef), stepUpSignal(payer, paymentRef))
+/** Step-up for one payment: a one-time proof on the step-up action, or (for a person who set up a World ID
+ *  session, see human.ts) a fresh SESSION proof of one of `sessions`. Either is a real World App check bound to
+ *  this payer + payment; a session proof never hits World's "already used this check". */
+const usedStepUpSessions = new Set<string>()
+export async function verifyStepUp(payer: Address, paymentRef: Hex, result: IDKitResultLike & SessionResultLike, sessions: string[] = [],
+  remember?: (nullifier: string) => Promise<unknown>) {
+  const signal = stepUpSignal(payer, paymentRef)
+  if (result && !result.action && result.session_id) {
+    if (!sessions.includes(result.session_id)) throw new Error("That World ID session isn't linked to this wallet")
+    const { sessionNullifier } = await verifySessionProof(result, result.session_id, signal)
+    if (usedStepUpSessions.has(sessionNullifier)) throw new Error("This World ID check was already used. Verify again.")
+    usedStepUpSessions.add(sessionNullifier)
+  } else {
+    const { nullifier } = await verifyProof(result, WORLD_ACTIONS.stepUp(paymentRef), signal)
+    // next time World refuses a repeat proof on this action, this wallet still passes (human.ts)
+    await remember?.(nullifier).catch((e) => console.error("[world] remember", (e as Error).message.split("\n")[0]))
+  }
+  return issueStepUpToken(payer, paymentRef)
+}
+
+/** The short-lived token the pay/send routes accept. Only call after a verified check (or for a wallet whose
+ *  person already passed World ID when World refuses a repeat one-time proof; see the verify route). */
+export function issueStepUpToken(payer: Address, paymentRef: Hex) {
   const exp = Math.floor(Date.now() / 1000) + 300
   const body = `${stepUpSignal(payer, paymentRef)}:${exp}`
   return { token: `${exp}.${sign(body)}`, expiresAt: exp }
