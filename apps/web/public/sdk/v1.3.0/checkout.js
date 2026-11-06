@@ -251,8 +251,8 @@
     }
   }
   customElements.define("wondrpay-button", WondrPayButton)
-  // pre-rename tag and global keep working for sites that integrated as WondrPay
+  // pre-rename tag and global keep working for sites that integrated as WhitePay
   if (!customElements.get("whitepay-button")) customElements.define("whitepay-button", class extends WondrPayButton {})
   window.WondrPay = Object.freeze({ version: VERSION, origin: ORIGIN })
-  if (!window.WondrPay) window.WondrPay = window.WondrPay
+  if (!window.WhitePay) window.WhitePay = window.WondrPay
 })()
