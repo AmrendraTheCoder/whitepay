@@ -239,6 +239,10 @@ export const paymentLinkMessage = (p: { action: "create" | "disable"; merchant: 
 export const webhookActionMessage = (p: { action: "resend" | "ping"; merchant: Address; site: string; target: string; issuedAt: number }) =>
   `WondrPay for Business: ${p.action} webhook\nshop: ${p.merchant}\nsite: ${p.site}\ntarget: ${p.target}\nissued: ${p.issuedAt}`
 
+/** Shop owner's approval to add or remove a teammate (WondrPay for Business). Owner only. */
+export const teamMessage = (p: { action: "add" | "remove"; merchant: Address; member: Address; role: "developer"; label?: string; issuedAt: number }) =>
+  `WondrPay for Business: ${p.action} teammate\nshop: ${p.merchant}\nteammate: ${p.member}\nrole: ${p.role}\nnote: ${p.label ?? ""}\nissued: ${p.issuedAt}`
+
 export const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$/
 
 /** World ID step-up signal: binds the human check to ONE payment (digest for QR orders, memo for P2P). */

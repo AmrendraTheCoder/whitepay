@@ -39,3 +39,5 @@
 .co-done h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
 .co-x { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; color: var(--bad); background: color-mix(in oklab, var(--bad) 14%, transparent); }
 .co-foot { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: auto; }
+.co-total-r { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.co-local { font-size: 13.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }

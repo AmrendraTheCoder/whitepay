@@ -135,10 +135,23 @@ rotated key, a switched-off link) is re-read with `getEntity` by key before use.
 Test: `npx tsx --env-file=.env scripts/business-phase2-test.ts` (link → session → payment → link stats → health → ping →
 log → resend → all green → link off). 15 checks.
 
-## 11. Next (phase 3)
+## 11. Phase 3
 
-Shared cache for keys and idempotency · WooCommerce / Shopify plugins · local currency display · team roles ·
-refund allowance (refunds without the owner's wallet each time) · live keys on mainnet.
+Shipped:
 
-Shared cache for keys and idempotency · webhook delivery log + resend in the portal · `WondrPay.button` v2 with the
-publishable key · payment links with a fixed price · MetaMask/WalletConnect on the hosted checkout · live keys on mainnet.
+| Piece | Where |
+|---|---|
+| Teammates (`whitepay.member`): owner adds a wallet as **developer**; developers may rotate keys, create/disable links, ping/resend webhooks; owner only: websites + team. Every action is signed by the acting wallet (`actor`) and its role is checked live (`roleOf`, re-read by key, 3 s cache) | `team.ts`, `/api/business/team`, portal Team + developer view |
+| Local currency next to USDT ("≈ ₹1,165") on the hosted checkout and payment links, from the browser locale; rates from CoinGecko, cached 10 min, stale up to 6 h, display only | `fx.ts`, `/api/fx`, `lib/fx.ts`, `local-amount.tsx` |
+
+Test: `scripts/business-phase3-test.ts` (14 checks).
+
+Not built, and why:
+
+| Item | Blocker |
+|---|---|
+| Live keys on mainnet | No mainnet deployment of the router/registry and no real-USDT relayer budget yet |
+| Refund allowance (refunds without the owner's wallet each time) | The router only accepts refunds signed by the payout wallet per refund; needs a new router function (allowance-capped `refundFrom`) and a redeploy |
+| WooCommerce plugin | Can be written against the v1 API, but needs a WordPress + PHP test environment (Docker) to ship tested |
+| Shopify | Shopify only lists payment providers through its Payments Partner program; until then shops can use payment links |
+| Shared cache for keys/idempotency | Needs a Redis/Upstash (or Vercel KV) instance on the account |

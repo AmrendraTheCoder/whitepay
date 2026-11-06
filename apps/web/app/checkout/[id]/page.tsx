@@ -10,6 +10,7 @@ import { connectInjectedWallet, hasInjectedWallet, injectedSigner } from "@/lib/
 import { settle, type SettleError } from "@/lib/settle"
 import { Countdown, Icon, Identicon, LogoLoader, SuccessCheck } from "../../ui"
 import { usdt } from "@/lib/format"
+import { LocalAmount } from "../../local-amount"
 import "./checkout.css"
 
 type Req = {
@@ -101,7 +102,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
           <dt>Network</dt><dd>Whitechain Sepolia · USDT</dd>
           <dt>Expires in</dt><dd aria-live="off"><Countdown to={Number(r.deadline)} /></dd>
         </dl>
-        <div className="co-total"><span>Total</span><b>{usdt(r.amount)} <small>USDT</small></b></div>
+        <div className="co-total"><span>Total</span><span className="co-total-r"><b>{usdt(r.amount)} <small>USDT</small></b><LocalAmount micro={r.amount} className="co-local" /></span></div>
       </section>
 
       <section className="co-card co-pay" aria-labelledby="co-pay-h">

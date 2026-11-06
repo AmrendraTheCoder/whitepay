@@ -39,9 +39,9 @@ export function SiteHealth({ merchant, siteId, hasWebhook }: { merchant: string;
       setBusy(deliveryKey ?? "ping"); setNote(""); setErr("")
       try {
         const issuedAt = Math.floor(Date.now() / 1000)
-        const signature = await acct.signMessage({ message: webhookActionMessage({ action, merchant: acct.address, site: siteId, target: action === "ping" ? target : deliveryKey!, issuedAt }) })
+        const signature = await acct.signMessage({ message: webhookActionMessage({ action, merchant: merchant as `0x${string}`, site: siteId, target: action === "ping" ? target : deliveryKey!, issuedAt }) })
         const r = await fetch("/api/business/webhooks", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action, merchant: acct.address, siteId, deliveryKey, issuedAt, signature }) })
+          body: JSON.stringify({ action, merchant, actor: acct.address, siteId, deliveryKey, issuedAt, signature }) })
         const d = await r.json()
         if (!r.ok) throw new Error(d.error?.message ?? "Couldn't send it")
         setNote(d.status === "delivered" ? `Delivered: your server answered HTTP ${d.httpStatus}.` : `Not delivered: ${d.httpStatus ? `your server answered HTTP ${d.httpStatus}` : "no answer from your server"}${d.error ? ` (${d.error})` : ""}.`)

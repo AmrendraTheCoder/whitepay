@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     const b = (await req.json().catch(() => null)) as Record<string, any> | null
     if (!b || !isAddress(b.merchant) || !isHex(b.signature) || typeof b.linkId !== "string" || !Number.isInteger(b.issuedAt))
       throw new SiteError("bad_request", "pass action, merchant, linkId, issuedAt and signature")
-    const base = { merchant: getAddress(b.merchant), linkId: b.linkId, issuedAt: b.issuedAt, signature: b.signature as Hex }
+    const base = { merchant: getAddress(b.merchant), ...(isAddress(b.actor) ? { actor: getAddress(b.actor) } : {}), linkId: b.linkId, issuedAt: b.issuedAt, signature: b.signature as Hex }
     if (b.action === "create") return json(await createLink({ ...base, siteId: String(b.siteId ?? ""), title: String(b.title ?? ""), amount: String(b.amount ?? "") }, origin(req)), { status: 201 })
     if (b.action === "disable") return json(await disableLink(base, origin(req)))
     throw new SiteError("bad_request", "action must be create or disable")

@@ -41,9 +41,9 @@ export function PaymentLinks({ merchant, sites }: { merchant: string; sites: Sit
       setBusy("create")
       try {
         const issuedAt = Math.floor(Date.now() / 1000)
-        const signature = await acct.signMessage({ message: paymentLinkMessage({ action: "create", merchant: acct.address, site: form.site, linkId, title, amount, issuedAt }) })
+        const signature = await acct.signMessage({ message: paymentLinkMessage({ action: "create", merchant: merchant as `0x${string}`, site: form.site, linkId, title, amount, issuedAt }) })
         const r = await fetch("/api/business/links", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: "create", merchant: acct.address, siteId: form.site, linkId, title, amount, issuedAt, signature }) })
+          body: JSON.stringify({ action: "create", merchant, actor: acct.address, siteId: form.site, linkId, title, amount, issuedAt, signature }) })
         const d = await r.json()
         if (!r.ok) throw new Error(d.error?.message ?? "Couldn't create the link")
         setForm((f) => ({ ...f, title: "", amount: "" })); setQr(d.linkId)
@@ -57,9 +57,9 @@ export function PaymentLinks({ merchant, sites }: { merchant: string; sites: Sit
     try {
       const issuedAt = Math.max(Math.floor(Date.now() / 1000), l.updatedAt + 1)
       const amount = (Number(l.amount) / 1e6).toString()
-      const signature = await acct.signMessage({ message: paymentLinkMessage({ action: "disable", merchant: acct.address, site: l.site, linkId: l.linkId, title: l.title, amount, issuedAt }) })
+      const signature = await acct.signMessage({ message: paymentLinkMessage({ action: "disable", merchant: merchant as `0x${string}`, site: l.site, linkId: l.linkId, title: l.title, amount, issuedAt }) })
       const r = await fetch("/api/business/links", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "disable", merchant: acct.address, linkId: l.linkId, issuedAt, signature }) })
+        body: JSON.stringify({ action: "disable", merchant, actor: acct.address, linkId: l.linkId, issuedAt, signature }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error?.message ?? "Couldn't switch it off")
       await load()

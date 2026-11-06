@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const b = (await req.json().catch(() => null)) as Record<string, any> | null
     if (!b || !isAddress(b.merchant) || !isHex(b.signature) || typeof b.siteId !== "string" || !Number.isInteger(b.issuedAt))
       throw new SiteError("bad_request", "pass action, merchant, siteId, issuedAt and signature")
-    const base = { merchant: getAddress(b.merchant), siteId: b.siteId, issuedAt: b.issuedAt, signature: b.signature as Hex }
+    const base = { merchant: getAddress(b.merchant), ...(isAddress(b.actor) ? { actor: getAddress(b.actor) } : {}), siteId: b.siteId, issuedAt: b.issuedAt, signature: b.signature as Hex }
     if (b.action === "ping") return json(await pingWebhook(base))
     if (b.action === "resend") {
       if (!isHex(b.deliveryKey) || b.deliveryKey.length !== 66) throw new SiteError("bad_request", "pass deliveryKey")

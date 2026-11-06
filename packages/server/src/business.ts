@@ -18,6 +18,7 @@ import { cached, invalidate } from "./cache"
 import { deliverWebhookDetailed } from "./webhooks"
 import { SiteError, siteRowFor, serialShop, parseUsdt, createCheckoutSession, type SiteRow, type SessionView } from "./sites"
 import { getMerchantByAddress } from "./merchants"
+import { checkActor } from "./team"
 
 const now = () => Math.floor(Date.now() / 1000)
 const v = (x: any) => (x && typeof x === "object" && "value" in x ? x.value : x)
@@ -60,9 +61,10 @@ async function ownActiveSite(merchant: Address, siteId: string) {
   return site
 }
 
-async function checkWalletAction(merchant: Address, message: string, signature: Hex, issuedAt: number) {
+/** Owner or developer teammate (`actor`) approved this action for the shop. */
+async function checkWalletAction(merchant: Address, message: string, signature: Hex, issuedAt: number, actor?: Address) {
   if (!Number.isFinite(issuedAt) || Math.abs(now() - issuedAt) > 600) throw new SiteError("bad_request", "This approval expired. Try again.")
-  if (!(await verifyMessage({ address: getAddress(merchant), message, signature }))) throw new SiteError("unauthorized", "The approval wasn't signed by this shop's wallet")
+  await checkActor(getAddress(merchant), actor, message, signature, ["owner", "developer"])
 }
 // resend / ping approvals are single use within their 10-minute window (per instance; worst case one extra test event)
 const usedActions = new Map<string, number>()
@@ -75,11 +77,11 @@ function once(signature: Hex) {
 }
 
 /** Send a signed `test.ping` event to the website's webhook URL (portal: "Send test webhook"). */
-export async function pingWebhook(p: { merchant: Address; siteId: string; issuedAt: number; signature: Hex }) {
+export async function pingWebhook(p: { merchant: Address; siteId: string; issuedAt: number; signature: Hex; actor?: Address }) {
   return serialShop(getAddress(p.merchant), async () => {
     const site = await ownActiveSite(p.merchant, p.siteId)
     if (!site.webhook) throw new SiteError("bad_request", "This website has no webhook URL")
-    await checkWalletAction(p.merchant, webhookActionMessage({ action: "ping", merchant: site.merchant, site: site.siteId, target: site.webhook, issuedAt: p.issuedAt }), p.signature, p.issuedAt)
+    await checkWalletAction(p.merchant, webhookActionMessage({ action: "ping", merchant: site.merchant, site: site.siteId, target: site.webhook, issuedAt: p.issuedAt }), p.signature, p.issuedAt, p.actor)
     once(p.signature)
     const eventId = `ping_${randomBytes(8).toString("hex")}`
     const body = JSON.stringify({ event: "test.ping", site: site.siteId, merchant: site.merchant, sentAt: now() })
@@ -89,11 +91,11 @@ export async function pingWebhook(p: { merchant: Address; siteId: string; issued
 }
 
 /** Re-send a logged delivery: the same bytes and event id, to the website's CURRENT webhook URL. */
-export async function resendWebhook(p: { merchant: Address; siteId: string; deliveryKey: Hex; issuedAt: number; signature: Hex }) {
+export async function resendWebhook(p: { merchant: Address; siteId: string; deliveryKey: Hex; issuedAt: number; signature: Hex; actor?: Address }) {
   return serialShop(getAddress(p.merchant), async () => {
     const site = await ownActiveSite(p.merchant, p.siteId)
     if (!site.webhook) throw new SiteError("bad_request", "This website has no webhook URL")
-    await checkWalletAction(p.merchant, webhookActionMessage({ action: "resend", merchant: site.merchant, site: site.siteId, target: p.deliveryKey, issuedAt: p.issuedAt }), p.signature, p.issuedAt)
+    await checkWalletAction(p.merchant, webhookActionMessage({ action: "resend", merchant: site.merchant, site: site.siteId, target: p.deliveryKey, issuedAt: p.issuedAt }), p.signature, p.issuedAt, p.actor)
     once(p.signature)
     const a = arkiv()
     const e: any = await a.pub.getEntity(p.deliveryKey, WebhookDelivery).catch(() => null)
@@ -190,7 +192,7 @@ async function activeLinkCount(merchant: Address) {
   return (r.entities as any[]).length
 }
 
-export async function createLink(p: { merchant: Address; siteId: string; linkId: string; title: string; amount: string; issuedAt: number; signature: Hex }, origin: string) {
+export async function createLink(p: { merchant: Address; siteId: string; linkId: string; title: string; amount: string; issuedAt: number; signature: Hex; actor?: Address }, origin: string) {
   const merchant = getAddress(p.merchant)
   return serialShop(merchant, async () => {
     if (!LINK_RE.test(p.linkId)) throw new SiteError("bad_request", "bad link id")
@@ -198,28 +200,28 @@ export async function createLink(p: { merchant: Address; siteId: string; linkId:
     if (!title || title.length > 60 || bytes(title) > 120) throw new SiteError("bad_request", "Give the link a title (up to 60 characters)")
     const micro = parseUsdt(p.amount)
     const site = await ownActiveSite(merchant, p.siteId)
-    await checkWalletAction(merchant, paymentLinkMessage({ action: "create", merchant, site: site.siteId, linkId: p.linkId, title, amount: p.amount, issuedAt: p.issuedAt }), p.signature, p.issuedAt)
+    await checkWalletAction(merchant, paymentLinkMessage({ action: "create", merchant, site: site.siteId, linkId: p.linkId, title, amount: p.amount, issuedAt: p.issuedAt }), p.signature, p.issuedAt, p.actor)
     if (await linkRow(p.linkId, origin, 0)) throw new SiteError("conflict", "That link id is already used. Try again.")
     if ((await activeLinkCount(merchant)) >= 20) throw new SiteError("limit", "Up to 20 active payment links per shop")
     const t = now()
     await arkiv().writer.createEntity(PayLink, {
-      linkId: p.linkId, merchant: addr(merchant), site: site.siteId, title, amount: micro, status: "active", createdAt: u64(BigInt(t)), updatedAt: u64(BigInt(t)), approval: hexToBytes(p.signature),
+      linkId: p.linkId, merchant: addr(merchant), site: site.siteId, title, amount: micro, status: "active", createdAt: u64(BigInt(t)), updatedAt: u64(BigInt(t)), approval: hexToBytes(p.signature), approvedBy: addr(getAddress(p.actor ?? merchant)),
     } as any, { expiration: ExpirationTime.max() }, { gas: 1_500_000n })
     invalidate(`link:${p.linkId}`)
     return { linkId: p.linkId, site: site.siteId, merchant, title, amount: micro.toString(), status: "active" as const, createdAt: t, updatedAt: t, url: `${origin}/l/${p.linkId}`, siteActive: true, paid: 0, volume: "0" }
   })
 }
 
-export async function disableLink(p: { merchant: Address; linkId: string; issuedAt: number; signature: Hex }, origin: string) {
+export async function disableLink(p: { merchant: Address; linkId: string; issuedAt: number; signature: Hex; actor?: Address }, origin: string) {
   const merchant = getAddress(p.merchant)
   return serialShop(merchant, async () => {
     const row = await linkRow(p.linkId, origin, 0)
     if (!row || row.merchant !== merchant) throw new SiteError("not_found", "No such payment link for this shop")
     if (row.status === "disabled") return { linkId: row.linkId, status: "disabled" as const }
     const amount = (Number(row.amount) / 1e6).toString()
-    await checkWalletAction(merchant, paymentLinkMessage({ action: "disable", merchant, site: row.site, linkId: row.linkId, title: row.title, amount, issuedAt: p.issuedAt }), p.signature, p.issuedAt)
+    await checkWalletAction(merchant, paymentLinkMessage({ action: "disable", merchant, site: row.site, linkId: row.linkId, title: row.title, amount, issuedAt: p.issuedAt }), p.signature, p.issuedAt, p.actor)
     if (p.issuedAt <= row.updatedAt) throw new SiteError("conflict", "This approval was already used. Approve again.")
-    await arkiv().writer.patchEntity(PayLink, row.key, { set: { status: "disabled", updatedAt: u64(BigInt(Math.max(now(), p.issuedAt))), approval: hexToBytes(p.signature) } } as any, { gas: 1_000_000n } as any)
+    await arkiv().writer.patchEntity(PayLink, row.key, { set: { status: "disabled", updatedAt: u64(BigInt(Math.max(now(), p.issuedAt))), approval: hexToBytes(p.signature), approvedBy: addr(getAddress(p.actor ?? merchant)) } } as any, { gas: 1_000_000n } as any)
     invalidate(`link:${row.linkId}`)
     return { linkId: row.linkId, status: "disabled" as const }
   })

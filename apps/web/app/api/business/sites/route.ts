@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     const b = (await req.json().catch(() => null)) as Record<string, any> | null
     if (!b || !isAddress(b.merchant) || !isHex(b.signature) || typeof b.siteId !== "string" || !Number.isInteger(b.issuedAt))
       throw new SiteError("bad_request", "pass action, merchant, siteId, issuedAt and signature")
-    const base = { merchant: getAddress(b.merchant as Address), siteId: b.siteId, issuedAt: b.issuedAt, signature: b.signature as Hex }
+    const base = { merchant: getAddress(b.merchant as Address), ...(isAddress(b.actor) ? { actor: getAddress(b.actor) } : {}), siteId: b.siteId, issuedAt: b.issuedAt, signature: b.signature as Hex }
     if (b.action === "create") return json(await createSite({ ...base, name: b.name, domains: b.domains, webhook: b.webhook }), { status: 201 })
     if (b.action === "rotate") return json(await rotateSiteKey(base))
     if (b.action === "revoke") return json(await revokeSite(base))

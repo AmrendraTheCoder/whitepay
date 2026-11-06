@@ -4,6 +4,7 @@
 import { use, useEffect, useState } from "react"
 import { Icon, Identicon, LogoLoader } from "../../ui"
 import { usdt } from "@/lib/format"
+import { LocalAmount } from "../../local-amount"
 import "../../checkout/[id]/checkout.css"
 
 type Link = { linkId: string; title: string; amount: string; active: boolean; merchant: string; merchantName?: string; displayName?: string; verified: boolean }
@@ -55,7 +56,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ linkId: stri
                 {link.verified ? <span className="co-badge ok">{Icon.check(13)} Verified shop</span> : <span className="co-badge">Shop not World ID verified</span>}
                 <span className="co-badge">Whitechain</span><span className="co-badge">0 gas</span>
               </div>
-              <div className="co-total" style={{ width: "100%" }}><span>Price</span><b>{usdt(link.amount)} <small>USDT</small></b></div>
+              <div className="co-total" style={{ width: "100%" }}><span>Price</span><span className="co-total-r"><b>{usdt(link.amount)} <small>USDT</small></b><LocalAmount micro={link.amount} className="co-local" /></span></div>
               {link.active ? (
                 <button className="btn btn-primary" onClick={pay} disabled={busy} aria-describedby={err ? "pl-err" : undefined}>
                   {busy ? <><span className="spinner" /> Starting checkout…</> : `Pay ${usdt(link.amount)} USDT`}

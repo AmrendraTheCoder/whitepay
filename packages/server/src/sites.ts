@@ -24,6 +24,7 @@ import { registryGet, preparePaymentRequest, publishPaymentRequest, fetchRequest
 import { orderDigest } from "./orders"
 import { getMerchantByAddress } from "./merchants"
 import { assertSafeWebhookUrl } from "./webhooks"
+import { checkActor } from "./team"
 
 export const MAX_SITES_PER_SHOP = 5
 const SITE_ID_RE = /^[0-9a-f]{32}$/
@@ -118,12 +119,13 @@ function newSecret(siteId: string) {
   return { secret, secretHash: sha256(secret), secretHint: secret.slice(-4) }
 }
 
-async function checkApproval(p: { action: "create" | "rotate" | "revoke"; merchant: Address; siteId: string; name: string; domains: string[]; webhook?: string; issuedAt: number; signature: Hex }, notBefore = 0) {
+async function checkApproval(p: { action: "create" | "rotate" | "revoke"; merchant: Address; siteId: string; name: string; domains: string[]; webhook?: string; issuedAt: number; signature: Hex; actor?: Address }, notBefore = 0) {
   if (!Number.isFinite(p.issuedAt) || Math.abs(now() - p.issuedAt) > 600) throw new SiteError("bad_request", "This approval expired. Try again.")
   // single use: approvals are public on Arkiv, so one for a site must be newer than the site's last change
   if (p.issuedAt <= notBefore) throw new SiteError("conflict", "This approval was already used. Approve again.")
   const message = siteApprovalMessage({ ...p, orderSigner: orderSignerAddress() })
-  if (!(await verifyMessage({ address: p.merchant, message, signature: p.signature }))) throw new SiteError("unauthorized", "The approval wasn't signed by this shop's wallet")
+  // websites change the on-chain order signer: owner only. A developer teammate may rotate keys.
+  await checkActor(p.merchant, p.actor, message, p.signature, p.action === "rotate" ? ["owner", "developer"] : ["owner"])
 }
 
 /** Point the shop's on-chain order signer at WondrPay's order key (on) or back at the shop wallet (off). */
@@ -142,10 +144,10 @@ async function setOrderSigner(merchant: Address, on: boolean) {
 /** Create a website: returns its keys. The secret key is returned ONLY here (and on rotate). */
 export { serial as serialShop }
 
-export async function createSite(p: { merchant: Address; siteId: string; name: string; domains: unknown; webhook?: string; issuedAt: number; signature: Hex }) {
+export async function createSite(p: { merchant: Address; siteId: string; name: string; domains: unknown; webhook?: string; issuedAt: number; signature: Hex; actor?: Address }) {
   return serial(getAddress(p.merchant), () => createSiteNow(p))
 }
-async function createSiteNow(p: { merchant: Address; siteId: string; name: string; domains: unknown; webhook?: string; issuedAt: number; signature: Hex }) {
+async function createSiteNow(p: { merchant: Address; siteId: string; name: string; domains: unknown; webhook?: string; issuedAt: number; signature: Hex; actor?: Address }) {
   const merchant = getAddress(p.merchant)
   const name = trimBytes(String(p.name ?? "").trim().slice(0, 60), 120)
   if (!name) throw new SiteError("bad_request", "Give the website a name")
@@ -156,7 +158,7 @@ async function createSiteNow(p: { merchant: Address; siteId: string; name: strin
     if (bytes(webhook) > 128) throw new SiteError("bad_request", "The webhook URL must be at most 128 characters")
     await assertSafeWebhookUrl(webhook).catch((e) => { throw new SiteError("bad_request", (e as Error).message) })
   }
-  await checkApproval({ action: "create", merchant, siteId: p.siteId, name, domains, webhook, issuedAt: p.issuedAt, signature: p.signature })
+  await checkApproval({ action: "create", merchant, siteId: p.siteId, name, domains, webhook, issuedAt: p.issuedAt, signature: p.signature, actor: p.actor })
 
   const [m, profile, existing, taken] = await Promise.all([registryGet(merchant), getMerchantByAddress(merchant), listSites(merchant), siteRow(p.siteId, 0)])
   if (!m.active || !profile) throw new SiteError("forbidden", "Set up your shop first (Shop → Create shop), then add a website")
@@ -170,6 +172,7 @@ async function createSiteNow(p: { merchant: Address; siteId: string; name: strin
   const { entityKey } = await arkiv().writer.createEntity(MerchantSite, {
     siteId: p.siteId, merchant: addr(merchant), name, domains: domains.join(","), ...(webhook ? { webhook } : {}), mode: "test",
     publishableKey, secretHash, secretHint, status: "active", createdAt: u64(BigInt(t)), updatedAt: u64(BigInt(t)), approval: hexToBytes(p.signature),
+    approvedBy: addr(getAddress(p.actor ?? merchant)), keyBy: addr(getAddress(p.actor ?? merchant)),
   }, { expiration: ExpirationTime.max() }, { gas: 1_500_000n })
   invalidate(`site:${p.siteId}`)
   let signerTx: Hex | null
@@ -185,28 +188,29 @@ async function createSiteNow(p: { merchant: Address; siteId: string; name: strin
 }
 
 /** New secret key (the old one stops working at once). Returns the new key once. */
-export async function rotateSiteKey(p: { merchant: Address; siteId: string; issuedAt: number; signature: Hex }) {
+export async function rotateSiteKey(p: { merchant: Address; siteId: string; issuedAt: number; signature: Hex; actor?: Address }) {
   return serial(getAddress(p.merchant), async () => {
     const row = await ownSite(p.merchant, p.siteId)
     if (row.status !== "active") throw new SiteError("conflict", "This website is switched off")
-    await checkApproval({ action: "rotate", merchant: row.merchant, siteId: row.siteId, name: row.name, domains: row.domains, webhook: row.webhook, issuedAt: p.issuedAt, signature: p.signature }, row.updatedAt)
+    await checkApproval({ action: "rotate", merchant: row.merchant, siteId: row.siteId, name: row.name, domains: row.domains, webhook: row.webhook, issuedAt: p.issuedAt, signature: p.signature, actor: p.actor }, row.updatedAt)
     const { secret, secretHash, secretHint } = newSecret(row.siteId)
     // updatedAt >= issuedAt, so this approval can never be replayed
     const t = Math.max(now(), p.issuedAt)
-    await arkiv().writer.patchEntity(MerchantSite, row.key, { set: { secretHash, secretHint, updatedAt: u64(BigInt(t)), approval: hexToBytes(p.signature) } } as any, { gas: 1_000_000n } as any)
+    const by = addr(getAddress(p.actor ?? row.merchant))
+    await arkiv().writer.patchEntity(MerchantSite, row.key, { set: { secretHash, secretHint, updatedAt: u64(BigInt(t)), approval: hexToBytes(p.signature), approvedBy: by, keyBy: by } } as any, { gas: 1_000_000n } as any)
     invalidate(`site:${row.siteId}`)
     return { site: { ...pub(row), secretHint, updatedAt: t }, secretKey: secret }
   })
 }
 
 /** Switch a website off: its keys stop working. The last one hands order signing back to the shop wallet. */
-export async function revokeSite(p: { merchant: Address; siteId: string; issuedAt: number; signature: Hex }) {
+export async function revokeSite(p: { merchant: Address; siteId: string; issuedAt: number; signature: Hex; actor?: Address }) {
   return serial(getAddress(p.merchant), async () => {
     const row = await ownSite(p.merchant, p.siteId)
     if (row.status === "revoked") return { site: pub(row), signerTx: null }
-    await checkApproval({ action: "revoke", merchant: row.merchant, siteId: row.siteId, name: row.name, domains: row.domains, webhook: row.webhook, issuedAt: p.issuedAt, signature: p.signature }, row.updatedAt)
+    await checkApproval({ action: "revoke", merchant: row.merchant, siteId: row.siteId, name: row.name, domains: row.domains, webhook: row.webhook, issuedAt: p.issuedAt, signature: p.signature, actor: p.actor }, row.updatedAt)
     const t = Math.max(now(), p.issuedAt)
-    await arkiv().writer.patchEntity(MerchantSite, row.key, { set: { status: "revoked", updatedAt: u64(BigInt(t)), approval: hexToBytes(p.signature) } } as any, { gas: 1_000_000n } as any)
+    await arkiv().writer.patchEntity(MerchantSite, row.key, { set: { status: "revoked", updatedAt: u64(BigInt(t)), approval: hexToBytes(p.signature), approvedBy: addr(getAddress(p.actor ?? row.merchant)) } } as any, { gas: 1_000_000n } as any)
     invalidate(`site:${row.siteId}`)
     const stillActive = async () => (await listSites(row.merchant)).some((s) => s.status === "active" && s.siteId !== row.siteId)
     let signerTx: Hex | null = null
@@ -217,6 +221,20 @@ export async function revokeSite(p: { merchant: Address; siteId: string; issuedA
     }
     return { site: { ...pub(row), status: "revoked" as const, updatedAt: t }, signerTx }
   })
+}
+
+/** A teammate left: switch off every secret key they made for this shop (the owner makes a new one when needed).
+ *  Returns the websites whose key was switched off. Called by team.ts inside the shop's write lock. */
+export async function revokeKeysMadeBy(merchant: Address, member: Address): Promise<string[]> {
+  const a = arkiv()
+  const r = await a.pub.select({ $key: true, siteId: true, status: true, keyBy: true }).from(MerchantSite).ownedBy(a.owner).where(eq("merchant", addr(getAddress(merchant)))).limit(20).fetch()
+  const theirs = (r.entities as any[]).filter((e) => v(e.status) === "active" && v(e.keyBy) && getAddress(v(e.keyBy)) === getAddress(member))
+  for (const e of theirs) {
+    // a random hash nobody holds a key for: the teammate's key stops working at once
+    await a.writer.patchEntity(MerchantSite, e.$key, { set: { secretHash: randomBytes(32).toString("hex"), secretHint: "off", updatedAt: u64(BigInt(now())), keyBy: addr(getAddress(merchant)) } } as any, { gas: 1_000_000n } as any)
+    invalidate(`site:${v(e.siteId)}`)
+  }
+  return theirs.map((e) => v(e.siteId))
 }
 
 /** Internal: the full site row (with its webhook), for business.ts. Never return it from an API. */

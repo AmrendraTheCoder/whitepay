@@ -11,6 +11,7 @@ import { Icon, Identicon } from "../ui"
 import { CodeBlock, CopyField, Field, StepState, Steps } from "./kit"
 import { SiteHealth } from "./health"
 import { PaymentLinks } from "./links"
+import { Team } from "./team"
 import "./portal.css"
 
 type Merchant = { address: string; label: string; ensName: string; displayName: string; category?: string; verified: boolean; active: boolean }
@@ -34,6 +35,10 @@ export default function Portal() {
   const [secret, setSecret] = useState<{ siteId: string; key: string } | null>(null)
   const [form, setForm] = useState({ name: "", domains: "", webhook: "" })
   const [confirm, setConfirm] = useState<string>("") // siteId awaiting "really switch off?"
+  // the shop being managed: the wallet's own shop, or one where it's a developer teammate
+  const [shop, setShop] = useState<string | null>(null)
+  const [memberships, setMemberships] = useState<{ merchant: string; shopName?: string; ensName?: string }[]>([])
+  const [ownShop, setOwnShop] = useState(false)
 
   useEffect(() => setWallet(getWallet()), [])
 
@@ -52,7 +57,24 @@ export default function Portal() {
       setMerchant((x) => (x === undefined ? null : x)); setSites((x) => x ?? [])
     }
   }, [])
-  useEffect(() => { if (wallet) void load(wallet.address) }, [wallet, load])
+  useEffect(() => {
+    if (!wallet) return
+    let live = true
+    void (async () => {
+      const [own, team] = await Promise.all([
+        fetch(`/api/merchants?address=${wallet.address}`).then((r) => r.json()).catch(() => ({})),
+        fetch(`/api/business/team?member=${wallet.address}`).then((r) => r.json()).catch(() => ({ shops: [] })),
+      ])
+      if (!live) return
+      setMemberships(team.shops ?? [])
+      setOwnShop(!!own.merchant)
+      // default to the wallet's own shop; only open someone else's when we KNOW this wallet has none
+      setShop(own.merchant !== null || !team.shops?.length ? wallet.address : team.shops[0].merchant)
+    })()
+    return () => { live = false }
+  }, [wallet])
+  useEffect(() => { if (shop) void load(shop) }, [shop, load])
+  const role: "owner" | "developer" = !wallet || !shop || shop.toLowerCase() === wallet.address.toLowerCase() ? "owner" : "developer"
 
   const active = useMemo(() => (sites ?? []).filter((s) => s.status === "active"), [sites])
   const step: StepState[] = [
@@ -73,22 +95,22 @@ export default function Portal() {
 
   const signAndSend = async (acct: PrivateKeyAccount) => {
     const p = pending
-    if (!p || !wallet) return
+    if (!p || !wallet || !shop) return
     setPending(null); setErr(""); setBusy(p.kind === "create" ? "create" : p.site.siteId)
     try {
       // approvals are single use: one for an existing site must be newer than its last change (even if this clock lags)
       const issuedAt = Math.max(Math.floor(Date.now() / 1000), p.kind === "create" ? 0 : p.site.updatedAt + 1)
       const s = p.kind === "create" ? p : { siteId: p.site.siteId, name: p.site.name, domains: p.site.domains, webhook: p.site.webhook }
-      const message = siteApprovalMessage({ action: p.kind, merchant: acct.address, siteId: s.siteId, name: s.name, domains: s.domains, webhook: s.webhook, orderSigner: orderSigner as `0x${string}`, issuedAt })
+      const message = siteApprovalMessage({ action: p.kind, merchant: shop as `0x${string}`, siteId: s.siteId, name: s.name, domains: s.domains, webhook: s.webhook, orderSigner: orderSigner as `0x${string}`, issuedAt })
       const signature = await acct.signMessage({ message })
       const r = await fetch("/api/business/sites", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: p.kind, merchant: acct.address, siteId: s.siteId, name: s.name, domains: s.domains, webhook: s.webhook, issuedAt, signature }) })
+        body: JSON.stringify({ action: p.kind, merchant: shop, actor: acct.address, siteId: s.siteId, name: s.name, domains: s.domains, webhook: s.webhook, issuedAt, signature }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error?.message ?? "That didn't work. Try again.")
       if (d.secretKey) setSecret({ siteId: s.siteId, key: d.secretKey })
       if (p.kind === "create") setForm({ name: "", domains: "", webhook: "" })
       setConfirm("")
-      await load(wallet.address)
+      await load(shop)
     } catch (e) {
       setErr((e as Error).message)
     } finally { setBusy("") }
@@ -118,7 +140,25 @@ export default function Portal() {
         ]} />
       </section>
 
-      {loadErr && <div className="pt-alert" role="alert">{loadErr} <button className="pt-link" onClick={() => wallet && load(wallet.address)}>Retry</button></div>}
+      {loadErr && <div className="pt-alert" role="alert">{loadErr} <button className="pt-link" onClick={() => shop && load(shop)}>Retry</button></div>}
+
+      {(role === "developer" || memberships.length > 0) && wallet && (
+        <div className="pt-role" role="status">
+          {role === "developer" && merchant
+            ? <><b>You're a developer at {merchant.displayName}</b>
+                <span>You can make new secret keys, payment links and test webhooks. Only the owner can add or switch off websites, and payouts always go to the owner's wallet.</span></>
+            : <b>You also help run {memberships.length} other shop{memberships.length > 1 ? "s" : ""}</b>}
+          {(memberships.length > 1 || (memberships.length > 0 && ownShop) || role === "owner") && (
+            <label className="pt-field">
+              <span>Shop</span>
+              <select value={shop ?? ""} onChange={(e) => { setSites(null); setMerchant(undefined); setShop(e.target.value) }}>
+                <option value={wallet.address}>{ownShop ? "Your shop" : "Your wallet (no shop yet)"}</option>
+                {memberships.map((m) => <option key={m.merchant} value={m.merchant}>{m.shopName ?? m.ensName ?? m.merchant} (developer)</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
 
       <div className="pt-grid">
         {/* 1. wallet */}
@@ -129,7 +169,7 @@ export default function Portal() {
               <Identicon seed={wallet.address} size={44} />
               <div className="pt-grow">
                 <b>{wallet.label}</b>
-                <CopyField label="Payout address" value={wallet.address} mono />
+                <CopyField label={role === "owner" ? "Payout address" : "Your wallet (teammate)"} value={wallet.address} mono />
               </div>
             </div>
           ) : (
@@ -206,7 +246,7 @@ export default function Portal() {
                         <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => setPending({ kind: "rotate", site: s })}>
                           {busy === s.siteId ? <span className="spinner" /> : null} New secret key
                         </button>
-                        {confirm === s.siteId ? (
+                        {role !== "owner" ? null : confirm === s.siteId ? (
                           <>
                             <button className="btn btn-danger btn-sm" disabled={!!busy} onClick={() => setPending({ kind: "revoke", site: s })}>Yes, switch off</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => setConfirm("")}>Keep it</button>
@@ -214,14 +254,14 @@ export default function Portal() {
                         ) : <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => setConfirm(s.siteId)}>Switch off</button>}
                       </div>
                     )}
-                    {s.status === "active" && wallet && <SiteHealth merchant={wallet.address} siteId={s.siteId} hasWebhook={!!s.webhook} />}
+                    {s.status === "active" && shop && <SiteHealth merchant={shop} siteId={s.siteId} hasWebhook={!!s.webhook} />}
                     {confirm === s.siteId && <p className="pt-fine">Its keys stop working at once, and checkouts that are still open can't be paid any more.</p>}
                   </li>
                 ))}
               </ul>
             )}
 
-            <form className="pt-form" onSubmit={startCreate} noValidate>
+            {role === "owner" ? <form className="pt-form" onSubmit={startCreate} noValidate>
               <h3>{sites?.length ? "Add another website" : "Add your website"}</h3>
               <Field id="site-name" label="Website name" hint="Only you see this" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="Kesar store" maxLength={60} />
               <Field id="site-domains" label="Domains" hint="Where your checkout runs. Customers are only sent back to these. Separate with commas." value={form.domains} onChange={(v) => setForm({ ...form, domains: v })} placeholder="shop.example.com, localhost" />
@@ -231,7 +271,7 @@ export default function Portal() {
                 {busy === "create" ? <><span className="spinner" /> Creating keys…</> : "Create API keys"}
               </button>
               <p className="pt-fine">You'll approve this with your wallet. From then on WondrPay signs orders for your websites; money still only ever goes to your payout wallet.</p>
-            </form>
+            </form> : <p className="pt-fine">Only the shop owner can add websites.</p>}
           </>
         )}
       </section>
@@ -245,8 +285,16 @@ export default function Portal() {
       {/* 5. payment links */}
       <section className="pt-card" aria-labelledby="h-links">
         <h2 id="h-links"><span className="pt-n" aria-hidden>5</span> Payment links</h2>
-        {merchant && wallet ? <PaymentLinks merchant={wallet.address} sites={sites ?? []} /> : <p className="pt-sub">Set up your shop and a website first.</p>}
+        {merchant && shop ? <PaymentLinks merchant={shop} sites={sites ?? []} /> : <p className="pt-sub">Set up your shop and a website first.</p>}
       </section>
+
+      {/* 6. team (owner) */}
+      {merchant && shop && role === "owner" && (
+        <section className="pt-card" aria-labelledby="h-team">
+          <h2 id="h-team"><span className="pt-n" aria-hidden>6</span> Team</h2>
+          <Team merchant={shop} />
+        </section>
+      )}
 
       <footer className="pt-foot">
         <a href="/developers">API docs</a><span aria-hidden>·</span><a href="/merchant">Shop dashboard</a><span aria-hidden>·</span><span>Test mode runs on Whitechain Sepolia with test USDT.</span>

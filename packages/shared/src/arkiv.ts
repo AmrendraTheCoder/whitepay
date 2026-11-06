@@ -85,6 +85,7 @@ export const PayLink = defineSchema("whitepay.paylink", {
   createdAt: u64().indexed(),
   updatedAt: u64(),
   approval: bytes(),
+  approvedBy: addr().optional(), // wallet that signed the last change
 })
 
 /** A shop's website on WondrPay for Business: its keys and allowed domains. The secret key is stored only as a
@@ -102,7 +103,9 @@ export const MerchantSite = defineSchema("whitepay.site", {
   status: str().indexed(), // "active" | "revoked"
   createdAt: u64().indexed(),
   updatedAt: u64(),
-  approval: bytes(), // owner's EIP-191 signature over siteApprovalMessage (65 bytes)
+  approval: bytes(), // EIP-191 signature over siteApprovalMessage by `approvedBy` (owner or developer), 65 bytes
+  approvedBy: addr().optional(), // wallet that signed the last change (owner or developer teammate)
+  keyBy: addr().optional(), // wallet that made the current secret key (removing a teammate switches theirs off)
 })
 
 export const Dispute = defineSchema("whitepay.dispute", {
@@ -279,4 +282,17 @@ export const RefundEvent = defineSchema("whitepay.refundevt", {
   human: str().indexed().optional(), // opened: World ID nullifier for the refund action (per human, not per wallet)
   signedAt: u64(), // the timestamp inside the signed message
   sig: bytes(), // EIP-191 signature of the actor over the canonical message
+})
+
+/** A teammate on a shop (WondrPay for Business). "developer" may rotate keys, manage payment links and send or
+ *  re-send webhooks for the shop's websites; only the owner adds/switches off websites or changes the team. */
+export const ShopMember = defineSchema("whitepay.member", {
+  merchant: addr().indexed(),
+  member: addr().indexed(),
+  role: str().indexed(), // "developer"
+  status: str().indexed(), // "active" | "removed"
+  label: str().optional(), // the owner's note, e.g. "Priya (web agency)"
+  createdAt: u64().indexed(),
+  updatedAt: u64(),
+  approval: bytes(),
 })

@@ -20,7 +20,7 @@ export default function Developers() {
       <nav className="doc-toc" aria-label="On this page">
         <a href="#api">API keys (recommended)</a><a href="#auth">Authentication</a><a href="#sessions">Checkout sessions</a>
         <a href="#hosted">Hosted checkout</a><a href="#button-api">Pay button + API keys</a><a href="#session-webhooks">Webhooks</a>
-        <a href="#links">Payment links</a><a href="#node">Node helpers</a><a href="#errors">Errors & limits</a><a href="#sdk">Sign orders yourself</a><a href="#security">Security</a>
+        <a href="#links">Payment links</a><a href="#node">Node helpers</a><a href="#team">Team</a><a href="#errors">Errors & limits</a><a href="#sdk">Sign orders yourself</a><a href="#security">Security</a>
       </nav>
 
       <section id="api">
@@ -96,6 +96,7 @@ return Response.redirect(session.url, 303)`}</Code>
         <h2><span className="doc-step">D</span>Hosted checkout</h2>
         <p><code>/checkout/:id</code> shows your shop name (ENS), the World ID badge, the amount, your description and order reference, and a live countdown. On a computer it shows a QR for the WondrPay app; on a phone, a Pay button. It watches for the payment and then sends the customer to your <code>successUrl</code> after 5 seconds (they can stay). Expired or invalid sessions explain what happened and link back to <code>cancelUrl</code>.</p>
         <p>Customers pay with the WondrPay app (QR or <code>/pay</code>), or with <b>MetaMask or any browser wallet</b> right on the page: the wallet switches to Whitechain Sepolia, recomputes the order digest and signs one EIP-3009 authorization. It's a signature, not a transaction, so they pay no gas.</p>
+        <p>Amounts are always in USDT. Next to them the page shows an estimate in the customer's own currency (for example <i>≈ ₹1,165</i>, from their browser's locale, at a rate refreshed every 10 minutes). It's for display only; nothing is converted.</p>
         <p>The page never signs anything or touches money itself. Wallets re-check the order against the on-chain registry before signing.</p>
       </section>
 
@@ -157,8 +158,22 @@ const s = await getWondrPayCheckoutSession({ secretKey: process.env.WONDRPAY_SEC
 if (s.status === "paid") fulfil(cart.id, s.payment!.txHash)`}</Code>
       </section>
 
+      <section id="team">
+        <h2><span className="doc-step">I</span>Team access</h2>
+        <p>In the portal's <i>Team</i> section the shop owner can add a teammate's wallet as a <b>developer</b>, for example a web agency. The developer opens <a href="/portal">/portal</a> with their own wallet and manages the shop's websites, with no shared passwords and no access to the owner's wallet.</p>
+        <div className="table-wrap"><table className="table"><thead><tr><th>Action</th><th>Owner</th><th>Developer</th></tr></thead><tbody>
+          <tr><td>Add or switch off a website</td><td>✓</td><td>-</td></tr>
+          <tr><td>New secret key</td><td>✓</td><td>✓</td></tr>
+          <tr><td>Create or switch off payment links</td><td>✓</td><td>✓</td></tr>
+          <tr><td>Send test webhook, resend webhooks</td><td>✓</td><td>✓</td></tr>
+          <tr><td>Add or remove teammates</td><td>✓</td><td>-</td></tr>
+          <tr><td>Receive payouts, approve refunds</td><td>owner's wallet only</td><td>-</td></tr>
+        </tbody></table></div>
+        <p>Each action is signed by the wallet that took it, and the server checks that wallet's role at the moment of the request. Removing a teammate takes effect within a few seconds.</p>
+      </section>
+
       <section id="errors">
-        <h2><span className="doc-step">I</span>Errors and limits</h2>
+        <h2><span className="doc-step">J</span>Errors and limits</h2>
         <p>Errors are <code>{"{ \"error\": { \"type\", \"message\" } }"}</code>; messages are written to show to a developer as is.</p>
         <div className="table-wrap"><table className="table"><thead><tr><th>Status</th><th>type</th><th>When</th></tr></thead><tbody>
           <tr><td>400</td><td><code>bad_request</code></td><td>Bad amount, reference, URL or expiresIn</td></tr>
