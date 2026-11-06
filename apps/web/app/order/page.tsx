@@ -7,11 +7,12 @@ import type { PrivateKeyAccount } from "viem/accounts"
 import type { Hex } from "viem"
 import { REFUND_REASONS, refundRequestMessage, refundReplyMessage, refundCaseId } from "@whitepay/shared"
 import { TopBar, UnlockSheet } from "../components"
-import { LogoLoader, Icon } from "../ui"
+import { LogoLoader, Icon, Identicon } from "../ui"
 import { WorldVerify } from "../world"
 import { RefundTimeline, REASON_LABEL, type RefundCase } from "../refund-timeline"
 import { getWallet } from "@/lib/wallet"
 import { usdt, short } from "@/lib/format"
+import { EXPLORER_URL } from "@whitepay/shared"
 
 type Receipt = { merchant: string; merchantName?: string; payer: string; amount: string; refunded: string; status: string; paidAt: number; txHash: string; explorer: string; paymentId: string; item?: string | null; orderId?: string | null }
 
@@ -26,6 +27,7 @@ function Order() {
   useEffect(() => setWallet(getWallet()), [])
   const [rc, setRc] = useState<Receipt | null | undefined>(undefined)
   const [cases, setCases] = useState<RefundCase[] | null>(null)
+  const [shopName, setShopName] = useState<string | null>(null) // e.g. "WondrPay Demo Store" (its ENS name is shown below it)
 
   const loadCases = useCallback(async (paymentId: string, payer: string) => {
     const d = await fetch(`/api/refunds?paymentId=${paymentId}`).then((r) => r.json()).catch(() => ({ cases: [] }))
@@ -37,7 +39,10 @@ function Order() {
     fetch(`/api/receipts?payer=${wallet.address}&limit=100`).then((r) => r.json()).then((d) => {
       const r = (d.rows ?? []).find((x: Receipt) => x.txHash?.toLowerCase() === tx) ?? null
       setRc(r)
-      if (r) void loadCases(r.paymentId, wallet.address)
+      if (r) {
+        void loadCases(r.paymentId, wallet.address)
+        fetch(`/api/resolve?q=${r.merchant}`).then((x) => x.json()).then((d) => setShopName(d?.displayName ?? null)).catch(() => {})
+      }
     }).catch(() => setRc(null))
   }, [wallet, tx, loadCases])
 
@@ -51,25 +56,39 @@ function Order() {
   const refundable = BigInt(rc.amount) - BigInt(rc.refunded ?? "0")
   const shop = rc.merchantName ?? short(rc.merchant)
 
+  const refunded = BigInt(rc.refunded ?? "0")
+  const state = refunded <= 0n ? { label: "Paid", cls: "paid" } : refunded >= BigInt(rc.amount) ? { label: "Refunded", cls: "refunded" } : { label: "Partly refunded", cls: "partial" }
   return (
     <main className="shell">
       <TopBar back="/transactions" />
-      <section className="card stack">
-        <div className="sub">Order from</div>
-        <h1 className="m-0">{shop}</h1>
-        <div className="od">
-          <div className="od-row"><span>Item</span><b>{rc.item ?? "Order"}</b></div>
-          <div className="od-row"><span>Paid</span><b>{usdt(rc.amount)} USDT</b></div>
-          {BigInt(rc.refunded ?? "0") > 0n && <div className="od-row"><span>Refunded</span><b className="pos">{usdt(rc.refunded)} USDT</b></div>}
-          <div className="od-row"><span>When</span><b>{new Date(rc.paidAt * 1000).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</b></div>
-          {rc.orderId && <div className="od-row"><span>Order id</span><b className="mono">{short(rc.orderId)}</b></div>}
+      <section className="card od-hero">
+        <Identicon seed={rc.merchant} name={shopName ?? rc.merchantName} size={64} />
+        <div className="od-shop">{shopName ?? shop}</div>
+        {shopName && rc.merchantName && <div className="od-ens">{rc.merchantName}</div>}
+        <div className="od-amt neg">−{usdt(rc.amount)}<span>USDT</span></div>
+        <div className="od-pills">
+          <span className={`od-pill ${state.cls}`}>{state.label}</span>
+          {live?.status === "open" && <span className="od-pill req">Refund requested</span>}
         </div>
-        <a className="chip" href={rc.explorer} target="_blank" rel="noreferrer">View payment on Whitechain ↗</a>
+        <a className="od-chain" href={rc.explorer} target="_blank" rel="noreferrer">
+          <span className="od-chain-dot" aria-hidden />Settled on Whitechain Sepolia · 0 gas<span aria-hidden>↗</span>
+        </a>
+      </section>
+
+      <section className="card od">
+        <div className="od-row"><span>Item</span><b>{rc.item ?? "Order"}</b></div>
+        <div className="od-row"><span>Paid</span><b>{usdt(rc.amount)} USDT</b></div>
+        {refunded > 0n && <div className="od-row"><span>Refunded to you</span><b className="pos">+{usdt(rc.refunded)} USDT</b></div>}
+        <div className="od-row"><span>When</span><b>{new Date(rc.paidAt * 1000).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</b></div>
+        <div className="od-row"><span>Paid to</span><b>{rc.merchantName ?? short(rc.merchant)}</b></div>
+        {rc.orderId && <div className="od-row"><span>Order id</span><b className="mono">{short(rc.orderId)}</b></div>}
+        <div className="od-row"><span>Network</span><b>Whitechain Sepolia · USDT</b></div>
+        <a className="od-row od-link" href={`${EXPLORER_URL}/tx/${rc.txHash}`} target="_blank" rel="noreferrer"><span>Transaction</span><b className="mono">{short(rc.txHash)} ↗</b></a>
       </section>
 
       {cases === null ? <LogoLoader /> : live ? (
         <section className="card stack">
-          <h2 className="m-0">Refund request</h2>
+          <h2 className="m-0 od-h">Refund request</h2>
           <RefundTimeline c={live} viewer="payer" />
           {live.status === "responded" && <Reply c={live} payer={wallet.address} onDone={() => loadCases(rc.paymentId, wallet.address)} />}
         </section>

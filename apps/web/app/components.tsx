@@ -15,7 +15,7 @@ export function TopBar({ right, back = "/app" }: { right?: React.ReactNode; back
           </a>
         )}
         <img src="/icon.svg" alt="" />
-        WondrPay
+        <span className="brand-name">WondrPay<small>on Whitechain</small></span>
       </div>
       {right}
     </div>

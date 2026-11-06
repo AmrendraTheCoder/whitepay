@@ -32,12 +32,32 @@
 .rf-count { text-align: right; font-size: 12px; color: var(--muted); margin-top: -6px; }
 .rf-steps { display: flex; flex-direction: column; gap: 8px; }
 
-/* order header */
-.od { display: flex; flex-direction: column; gap: 4px; }
-.od-row { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+/* order page: receipt-style hero + details */
+.od-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding-top: 26px; padding-bottom: 22px;
+  background: radial-gradient(120% 80% at 50% 0%, color-mix(in oklab, var(--brand) 16%, var(--surface)) 0%, var(--surface) 70%); }
+.od-shop { font-size: 21px; font-weight: 800; letter-spacing: -.02em; margin-top: 8px; }
+.od-ens { font-size: 13px; color: var(--muted); font-weight: 600; }
+.od-amt { font-size: 44px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; margin-top: 8px; line-height: 1; }
+.od-amt span { font-size: 16px; font-weight: 700; color: var(--muted); margin-left: 6px; letter-spacing: 0; }
+.od-amt.neg { color: var(--text); }
+.od-pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+.od-pill { font-size: 12px; font-weight: 800; padding: 5px 11px; border-radius: 99px; }
+.od-pill.paid { background: color-mix(in oklab, var(--ok) 18%, transparent); color: var(--ok); }
+.od-pill.partial { background: color-mix(in oklab, var(--lime) 22%, transparent); color: var(--text); }
+.od-pill.refunded { background: var(--surface-3); color: var(--muted); }
+.od-pill.req { background: color-mix(in oklab, var(--warn) 18%, transparent); color: var(--warn); }
+.od-chain { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 7px 13px; border-radius: 99px; text-decoration: none;
+  font-size: 12.5px; font-weight: 700; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); }
+.od-chain span:last-child { color: var(--muted); }
+.od-chain-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 3px color-mix(in oklab, var(--lime) 25%, transparent); }
+.od { display: flex; flex-direction: column; padding-top: 6px; padding-bottom: 6px; }
+.od-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14.5px; padding: 13px 0; border-bottom: 1px solid var(--line); }
 .od-row:last-child { border-bottom: 0; }
-.od-row span { color: var(--muted); }
-.od-row b { text-align: right; overflow-wrap: anywhere; }
+.od-row span { color: var(--muted); font-weight: 600; }
+.od-row b { text-align: right; overflow-wrap: anywhere; font-weight: 700; }
+.od-link { text-decoration: none; color: inherit; }
+.od-link b { color: var(--brand-soft); }
+.od-h { font-size: 18px; }
 
 /* shop review */
 .rv-pcts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }

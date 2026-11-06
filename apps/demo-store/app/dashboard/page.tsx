@@ -3,7 +3,7 @@
 // when, refunds, and customers' refund requests (review: approve 20/50/100% or custom, or decline).
 import "./dashboard.css"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Badge, Button, ButtonLink, Drawer, Spinner } from "@whitepay/ui"
+import { Badge, Button, Drawer, Spinner } from "@whitepay/ui"
 
 type Ev = { key: string; kind: string; at: number; reason?: string; message?: string; evidence?: string; decision?: string; percent?: number; refundAmount?: string; refundTx?: string }
 type Case = { caseId: string; paymentId: string; payer: string; amount: string; item?: string; status: "open" | "responded" | "resolved" | "lapsed"; decision?: string; round: number; openedAt: number; until: number; refunded: string; humanRequests30d: number; events: Ev[] }
@@ -40,12 +40,20 @@ export default function Dashboard() {
   const rows = (data?.orders ?? []).filter((o) => filter === "all" ? true : filter === "requests" ? !!o.refund : BigInt(o.refunded) > 0n)
 
   return (
-    <main className="db wp-container">
+    <main className="db">
+      <nav className="wpc-bar" aria-label="WondrPay Business">
+        <a className="wpc-brand" href="https://wondrpay.vercel.app" target="_blank" rel="noreferrer">
+          <svg viewBox="0 0 512 512" width="32" height="32" aria-hidden><rect width="512" height="512" rx="120" fill="#2448ff" /><path d="M110 168l50 176 56-128 40 92 40-92 56 128 50-176" fill="none" stroke="#fff" strokeWidth="40" strokeLinecap="round" strokeLinejoin="round" /><circle cx="410" cy="110" r="34" fill="#ddf05a" /></svg>
+          <span>WondrPay<small>Business</small></span>
+        </a>
+        <span className="wpc-chain"><i aria-hidden />Live on Whitechain Sepolia</span>
+      </nav>
+
       <header className="db-head">
         <div>
-          <a className="db-back" href="/">← Chai &amp; Co.</a>
-          <h1 className="wp-title-2">Orders</h1>
-          <p className="db-sub">Every order paid with WondrPay, read live from Arkiv and Whitechain{data ? <> · shop wallet <code>{short(data.shop)}</code></> : null}.</p>
+          <a className="db-back" href="/">← Back to Chai &amp; Co.</a>
+          <h1>Orders</h1>
+          <p className="db-sub">Every order paid with WondrPay: settled in USDT on Whitechain, receipts and refund requests on Arkiv{data ? <> · shop wallet <code>{short(data.shop)}</code></> : null}.</p>
         </div>
         <Button variant="secondary" size="sm" iconLeft="repeat" onClick={() => load()}>Refresh</Button>
       </header>
@@ -125,7 +133,7 @@ function OrderDetail({ o, adminEnabled, onChanged }: { o: Order; adminEnabled: b
         {BigInt(o.refunded) > 0n && <div><dt>Refunded</dt><dd>{usd(o.refunded)} USDT</dd></div>}
         {o.orderId && <div><dt>Order id</dt><dd><code>{short(o.orderId)}</code></dd></div>}
       </dl>
-      <ButtonLink href={o.explorer} external variant="ghost" size="sm" iconRight="arrowUpRight">Payment on Whitechain</ButtonLink>
+      <a className="dd-chain" href={o.explorer} target="_blank" rel="noreferrer"><i aria-hidden />Settled on Whitechain Sepolia · view transaction ↗</a>
 
       {c ? (
         <section className="dd-case">
