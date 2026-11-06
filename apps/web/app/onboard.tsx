@@ -129,7 +129,7 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
         <div className="stack mt-6">
           <div className="title center">{step === "pin" ? "Set your WondrPay PIN" : "Confirm your PIN"}</div>
           <div className="sub center">6 digits, like your UPI PIN. Used when fingerprint isn't available.</div>
-          <PinPad key={step} onComplete={step === "pin" ? onFirst : onConfirm} />
+          <PinPad key={step} onComplete={step === "pin" ? onFirst : onConfirm} error={err} label={step === "pin" ? "new PIN" : "PIN again"} />
           <div className="err">{err}</div>
         </div>
       )}
@@ -153,7 +153,7 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
         <div className="stack mt-6">
           <div className="title center">{step === "extpin" ? "Set your WondrPay PIN" : "Confirm your PIN"}</div>
           <div className="sub center">{resumeExternal && step === "extpin" ? "One step left before you can use WondrPay. " : ""}Connected {extAddr.slice(0, 6)}…{extAddr.slice(-4)}. WondrPay asks for this PIN before MetaMask signs any payment.</div>
-          <PinPad key={step} onComplete={step === "extpin" ? onExtFirst : onExtConfirm} />
+          <PinPad key={step} onComplete={step === "extpin" ? onExtFirst : onExtConfirm} error={err} label={step === "extpin" ? "new PIN" : "PIN again"} />
           <div className="err">{err}</div>
         </div>
       )}

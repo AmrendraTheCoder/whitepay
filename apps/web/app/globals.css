@@ -651,3 +651,36 @@ html[data-nav-dir="back"] .shell.with-nav { animation: tab-in-back .28s cubic-be
 @media (prefers-reduced-motion: reduce) { .wc-dot { animation: none; } }
 .seg.seg-2 { grid-template-columns: repeat(2, 1fr); }
 .seg.seg-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* PIN pad v2 */
+.pin { display: flex; flex-direction: column; gap: 8px; user-select: none; -webkit-user-select: none; }
+.pin-head { position: relative; display: flex; justify-content: center; align-items: center; min-height: 40px; }
+.pin .dots { display: flex; justify-content: center; gap: 14px; margin: 0; }
+.pin .dots span { width: 16px; height: 16px; border-radius: 50%; border: 2px solid color-mix(in oklab, var(--muted) 70%, transparent); display: grid; place-items: center;
+  font-size: 0; font-weight: 800; color: var(--text); transition: background .15s, border-color .15s, width .15s, height .15s, transform .15s; }
+.pin .dots span.on { background: var(--brand); border-color: var(--brand); transform: scale(1.06); animation: pin-pop .18s ease-out; }
+.pin .dots span.num { width: 24px; height: 30px; border-radius: 9px; background: var(--surface-2); border-color: var(--brand); font-size: 17px; transform: none; }
+.pin.bad .dots span { border-color: var(--bad); }
+.pin.busy .dots span.on { animation: pin-pulse 1s ease-in-out infinite; }
+.pin .dots.shake { animation: pin-shake .42s cubic-bezier(.36,.07,.19,.97); }
+.pin-eye { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 38px; height: 38px; border-radius: 50%; border: 0; display: grid; place-items: center;
+  background: transparent; color: var(--muted); cursor: pointer; }
+.pin-eye[aria-pressed="true"] { color: var(--text); background: var(--surface-2); }
+.pin-status { min-height: 20px; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.pin .pinpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pin .pinpad > span { display: block; }
+.pin .pinpad button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 62px; padding: 8px 0;
+  border: 0; border-radius: 20px; background: var(--surface-2); color: var(--text); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  transition: transform .08s ease, background .12s; }
+.pin .pinpad button .k-d { font-size: 26px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.pin .pinpad button .k-l { font-size: 9.5px; font-weight: 800; letter-spacing: .14em; color: var(--muted); }
+.pin .pinpad button.k-alt { background: transparent; color: var(--muted); }
+.pin .pinpad button:active:not(:disabled) { transform: scale(.93); background: var(--brand); color: #fff; }
+.pin .pinpad button:active:not(:disabled) .k-l { color: rgba(255,255,255,.8); }
+.pin .pinpad button.k-alt:active:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.pin .pinpad button:disabled { opacity: .45; cursor: default; }
+.pin .pinpad button:focus-visible, .pin-eye:focus-visible { outline: 2px solid var(--brand-soft); outline-offset: 2px; }
+@keyframes pin-pop { 0% { transform: scale(.6); } 100% { transform: scale(1.06); } }
+@keyframes pin-pulse { 50% { opacity: .45; } }
+@keyframes pin-shake { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-8px); } 40%, 60% { transform: translateX(8px); } }
+@media (prefers-reduced-motion: reduce) { .pin .dots.shake, .pin .dots span.on, .pin.busy .dots span.on { animation: none; } .pin .pinpad button { transition: none; } }
