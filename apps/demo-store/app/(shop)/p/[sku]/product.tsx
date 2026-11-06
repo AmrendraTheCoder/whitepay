@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 import Link from "next/link"
-import { Icon, Skeleton } from "@whitepay/ui"
+import { Icon } from "@whitepay/ui"
 import { BY_SKU, CATEGORIES, PRODUCTS, compactCount } from "@/lib/catalog"
 import { ProductImage } from "@/lib/packshot"
 import { Marker, useStore } from "../../../store-context"
@@ -11,7 +11,7 @@ const deliveryDate = (days: number) => new Date(Date.now() + days * 86_400_000).
 
 export function ProductView({ sku }: { sku: string }) {
   const p = BY_SKU[sku]
-  const { add, wish, toggleWish, sdkReady, openBag, cart } = useStore()
+  const { add, wish, toggleWish, openBag, cart } = useStore()
   const [size, setSize] = useState<string | null>(p.sizes.length === 1 ? p.sizes[0] : null)
   const [sizeErr, setSizeErr] = useState(false)
   const [pin, setPin] = useState("")
@@ -27,6 +27,12 @@ export function ProductView({ sku }: { sku: string }) {
     if (inBag) return openBag()
     if (!size) { setSizeErr(true); document.getElementById("sizes")?.scrollIntoView({ behavior: "smooth", block: "center" }); return }
     add(p.sku, size)
+  }
+  // Buy now = add to the bag and open the bag's checkout: everything in the bag is paid together, as ONE payment
+  const buyNow = () => {
+    if (!size) { setSizeErr(true); document.getElementById("sizes")?.scrollIntoView({ behavior: "smooth", block: "center" }); return }
+    if (!inBag) add(p.sku, size)
+    openBag()
   }
 
   return (
@@ -79,11 +85,12 @@ export function ProductView({ sku }: { sku: string }) {
           </div>
 
           <div className="ks-buynow checkout-slot">
-            <Marker n="②" title="<wondrpay-button>, buy this product now" />
-            {sdkReady ? null : <Skeleton height={48} radius="md" />}
-            {/* ── WONDRPAY INTEGRATION ② ── the checkout button: sku + qty only, the server signs the price (the same element powers the bag) */}
-            <wondrpay-button hidden={!sdkReady} order-endpoint="/api/create-order" payload={JSON.stringify({ items: [{ sku: p.sku, qty: 1 }] })} data-items={JSON.stringify([{ sku: p.sku, qty: 1, size: size ?? undefined }])} label={`Buy now · ${p.price} USDT with WondrPay`} />
-            <p className="ks-buynow-note"><Icon name="fingerprint" size={14} /> Scan, confirm with your fingerprint, paid in about a second. No gas.</p>
+            <Marker n="②" title="one <wondrpay-button> for the whole bag: Buy now adds this product and opens it" />
+            {/* ── WONDRPAY INTEGRATION ② ── the bag has the checkout button: every product in it is ONE order and ONE payment */}
+            <button type="button" className="ks-btn ks-btn-buynow" onClick={buyNow}>
+              {cart.length > (inBag ? 1 : 0) ? `Buy now with the rest of your bag · WondrPay` : `Buy now · ${p.price} USDT with WondrPay`}
+            </button>
+            <p className="ks-buynow-note"><Icon name="fingerprint" size={14} /> One payment for your whole bag: confirm once, paid in about a second. No gas.</p>
           </div>
 
           <div className="ks-seller">

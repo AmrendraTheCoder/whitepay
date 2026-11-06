@@ -47,7 +47,7 @@ export const initial = (name?: string, fallback = "?") => {
   return n ? n[0].toUpperCase() : fallback
 }
 export const prettyName = (name?: string, address?: string) =>
-  name ? name.replace(/\.whitepay\.eth$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ""
+  name ? name.replace(/\.(whitepay|wondrpay)\.eth$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ""
 
 // Tabs and the routes that belong to each (sub-pages keep their tab lit).
 export const TABS = [

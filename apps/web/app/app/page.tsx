@@ -72,14 +72,14 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
         <a className="chip-card" href="/you"><span className="ic">{Icon.id()}</span><div><div className="t1">WondrPay ID</div><div className="t2 link">{name ? "View" : "Claim"}</div></div></a>
       </div>
 
-      <div className="section-title">Pay again</div>
+      <div className="section-title">Send money</div>
       <div className="people">
         {rows === null && Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="person"><span className="pic skel circle" /><span className="skel" style={{ width: 56, height: 14 }} /></div>
         ))}
         {rows?.length === 0 && <div className="empty" style={{ gridColumn: "1 / -1" }}>People and shops you pay show up here.</div>}
         {people.map((p) => (
-          <a key={p.address} className="person" href={`/send?to=${p.address}${p.name ? `&name=${p.name}` : ""}`}>
+          <a key={p.address} className="person" href={`/chat?with=${p.address}${p.name ? `&name=${encodeURIComponent(p.name)}` : ""}`}>
             <span className="pic pic-ident"><Identicon seed={p.address} name={p.name} size={64} /></span>
             <span className="nm">{prettyName(p.name, p.address)}</span>
           </a>

@@ -101,7 +101,7 @@ function HomeScreen({ s, at = 0, rings = true }: { s: number; at?: number; rings
       <div className="m-tiles">
         {["Scan any QR", "Pay anyone", "Receive", "Shop QR"].map((t, i) => <div key={t} className="a rise" style={d(at + 0.5 + i * 0.08)}><span className="sq" />{t}</div>)}
       </div>
-      <div className="m-h">Pay again</div>
+      <div className="m-h">Send money</div>
       <div className="m-people">
         {["0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10", "0x66858D8623a401aE16eD320b6F927EA796d01254", "0x158D9f52Fe527C85E876ADA9e982B294827EBC14"].map((a, i) => (
           <div key={a} className="a rise" style={d(at + 0.8 + i * 0.1)}><Identicon seed={a} size={46} /><span>{["chai-shop", "masala", "demo-store"][i]}</span></div>
