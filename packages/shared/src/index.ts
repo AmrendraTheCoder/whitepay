@@ -145,6 +145,8 @@ export const REGISTRY_ABI = [
   { type: "function", name: "register", stateMutability: "nonpayable",
     inputs: [{ name: "merchant", type: "address" }, { name: "payout", type: "address" }, { name: "signer", type: "address" }, { name: "ensNode", type: "bytes32" }],
     outputs: [] },
+  { type: "function", name: "update", stateMutability: "nonpayable",
+    inputs: [{ name: "merchant", type: "address" }, { name: "payout", type: "address" }, { name: "signer", type: "address" }], outputs: [] },
   { type: "function", name: "setStatus", stateMutability: "nonpayable",
     inputs: [{ name: "merchant", type: "address" }, { name: "active", type: "bool" }, { name: "verified", type: "bool" }], outputs: [] },
   { type: "function", name: "get", stateMutability: "view",
@@ -222,6 +224,12 @@ export const receiveUrl = (origin: string, p: { to: Address; name?: string; amou
 /** Merchant registration message the merchant's device signs (proves control of the address). */
 export const merchantSignupMessage = (p: { label: string; displayName: string; address: Address; issuedAt: number }) =>
   `WondrPay merchant sign-up\nhandle: ${p.label}\nname: ${p.displayName}\naddress: ${p.address}\nissued: ${p.issuedAt}`
+
+/** WondrPay for Business: the shop owner's one-time approval for a website (create), a new secret key (rotate) or
+ *  switching a website off (revoke). Signed by the shop wallet; it names the WondrPay key that may sign this shop's
+ *  orders. Payouts stay fixed to the shop's payout wallet in MerchantRegistry, so the approval can't move money. */
+export const siteApprovalMessage = (p: { action: "create" | "rotate" | "revoke"; merchant: Address; siteId: string; name: string; domains: string[]; webhook?: string; orderSigner: Address; issuedAt: number }) =>
+  `WondrPay for Business: ${p.action} website\nshop: ${p.merchant}\nsite: ${p.siteId}\nname: ${p.name}\ndomains: ${p.domains.join(",")}\nwebhook: ${p.webhook ?? ""}\norder signer: ${p.orderSigner}\nissued: ${p.issuedAt}`
 
 export const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$/
 

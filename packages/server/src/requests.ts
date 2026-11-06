@@ -12,7 +12,8 @@ import {
   type Order,
 } from "@whitepay/shared"
 import { arkiv, wc } from "./clients"
-import { cached } from "./cache"
+import { cached, invalidate } from "./cache"
+import { privateKeyToAccount } from "viem/accounts"
 import { config } from "./config"
 import { orderDigest, signOrder } from "./orders"
 
@@ -41,6 +42,8 @@ export type CreatePaymentRequestParams = {
   signed?: { order: Order; merchantSig: Hex }
   /** https URL the WondrPay server POSTs to when this request is paid */
   webhook?: string
+  /** WondrPay for Business checkout session fields */
+  session?: { site: string; reference?: string; successUrl?: string; cancelUrl?: string }
 }
 
 /** Merchant backend: sign the order and publish it as a pending request that lives for `ttlSeconds`. */
@@ -66,7 +69,14 @@ export async function preparePaymentRequest(p: CreatePaymentRequestParams) {
     const m = await registryGet(order.merchant)
     if (!m.active) throw new Error("merchant is not registered/active")
     const signer = await recoverTypedDataAddress({ ...orderTypedData(config.router, order), signature: merchantSig })
-    if (signer.toLowerCase() !== m.signer.toLowerCase()) throw new Error("order not signed by the merchant's registered key")
+    const delegate = privateKeyToAccount(config.keys.orderSigner())
+    if (signer.toLowerCase() === m.signer.toLowerCase()) {
+      // signed by the registered signer: as is
+    } else if (signer.toLowerCase() === order.merchant.toLowerCase() && m.signer.toLowerCase() === delegate.address.toLowerCase()) {
+      // a shop that turned on WondrPay for Business: its orders are signed on-chain by WondrPay's order key. The shop's
+      // own signature (from the app or its server) still authorises the order; WondrPay countersigns it for the router.
+      merchantSig = await delegate.signTypedData(orderTypedData(config.router, order))
+    } else throw new Error("order not signed by the merchant's registered key")
     ttl = Number(order.deadline) - now()
     if (ttl < REQUEST_TTL.min || ttl > REQUEST_TTL.invoiceMax + 30) throw new Error("order deadline must be 1-30 minutes from now")
   } else {
@@ -88,6 +98,12 @@ export async function preparePaymentRequest(p: CreatePaymentRequestParams) {
       ...(p.payer ? { payer: addr(p.payer) } : {}),
       ...(p.note ? { note: p.note.slice(0, 120) } : {}),
       ...(p.webhook ? { webhook: p.webhook } : {}),
+      ...(p.session ? {
+        site: p.session.site,
+        ...(p.session.reference ? { reference: p.session.reference.slice(0, 64) } : {}),
+        ...(p.session.successUrl ? { successUrl: p.session.successUrl } : {}),
+        ...(p.session.cancelUrl ? { cancelUrl: p.session.cancelUrl } : {}),
+      } : {}),
   }
   return { values, ttl, digest, order }
 }
@@ -115,6 +131,10 @@ export type RequestView = {
   receiptRef?: Hex
   webhook?: string
   note?: string
+  site?: string
+  reference?: string
+  successUrl?: string
+  cancelUrl?: string
   expiresAtBlock: bigint
 }
 
@@ -162,6 +182,10 @@ async function fetchRequestByKey(entityKey: Hex): Promise<RequestView | null> {
       receiptRef: v(e.receiptRef) || undefined,
       webhook: v(e.webhook) || undefined,
       note: v(e.note) || undefined,
+      site: v(e.site) || undefined,
+      reference: v(e.reference) || undefined,
+      successUrl: v(e.successUrl) || undefined,
+      cancelUrl: v(e.cancelUrl) || undefined,
       expiresAtBlock: BigInt(e.$expiresAt),
     }
   } catch (err) {
@@ -185,13 +209,25 @@ export async function verifyRequest(view: RequestView | null): Promise<Verified 
     return { ok: false, reason: "tampered request: fields do not match the signed digest", view }
 
   // 3. authenticity: signature must come from the merchant's registered signer ON-CHAIN
-  const m = await registryGet(view.merchant)
+  let m = await registryGet(view.merchant)
   if (!m.active) return { ok: false, reason: "merchant not active in MerchantRegistry", view }
   let signer: Address
   try {
     signer = await recoverTypedDataAddress({ ...orderTypedData(config.router, order), signature: view.merchantSig })
   } catch {
     return { ok: false, reason: "malformed merchant signature", view }
+  }
+  if (signer.toLowerCase() !== m.signer.toLowerCase()) {
+    // the shop may have just switched its order signer (WondrPay for Business): re-read past the 30 s cache once
+    invalidate(`registry:${view.merchant.toLowerCase()}`)
+    m = await registryGet(view.merchant)
+  }
+  // signed by the shop wallet before it turned on WondrPay for Business: WondrPay's order key countersigns it now
+  let merchantSig = view.merchantSig
+  const delegate = privateKeyToAccount(config.keys.orderSigner())
+  if (signer.toLowerCase() === view.merchant.toLowerCase() && m.signer.toLowerCase() === delegate.address.toLowerCase()) {
+    merchantSig = await delegate.signTypedData(orderTypedData(config.router, order))
+    signer = delegate.address
   }
   if (signer.toLowerCase() !== m.signer.toLowerCase())
     return { ok: false, reason: `signature by ${signer}, registry signer is ${m.signer}`, view }
@@ -200,7 +236,7 @@ export async function verifyRequest(view: RequestView | null): Promise<Verified 
   if (view.status !== "pending") return { ok: false, reason: `request is ${view.status}`, view }
   if (BigInt(now()) > view.deadline) return { ok: false, reason: "request deadline passed", view }
 
-  return { ok: true, order, digest, merchantSig: view.merchantSig, view, verifiedMerchant: m.verified }
+  return { ok: true, order, digest, merchantSig, view, verifiedMerchant: m.verified }
 }
 
 /** After the payment settles on Whitechain: write the receipt and mark the request paid, atomically. */

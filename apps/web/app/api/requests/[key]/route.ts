@@ -1,7 +1,7 @@
 // Payer: what the app calls after scanning. Fetches the Arkiv entity and runs the 4 checks.
 // Merchant: polls the same endpoint for live status (pending -> paid | depleted).
 import { isHex, type Hex } from "viem"
-import { fetchRequest, verifyRequest, getReceipt, getMerchantByAddress, arkiv, paidOnChain, cached } from "@whitepay/server"
+import { fetchRequest, verifyRequest, getReceipt, getMerchantByAddress, arkiv, paidOnChain, cached, orderDigest } from "@whitepay/server"
 import { EXPLORER_URL } from "@whitepay/shared"
 import { json as rawJson, errorMessage, CORS, preflight } from "@/lib/json"
 
@@ -25,6 +25,10 @@ async function status(key: Hex): Promise<Record<string, any>> {
     // instant QRs are addressed by the order digest and appear on Arkiv a few seconds after the QR is shown:
     // "publishing" = keep polling. Callers stop on their own deadline (the QR's countdown).
     if (!view) return { state: "publishing", reason: "This request is being published, or it expired" }
+    // anyone can write a whitepay.request entity: only ours, with fields matching the signed digest, count
+    if (view.owner.toLowerCase() !== arkiv().owner.toLowerCase()
+        || orderDigest({ merchant: view.merchant, amount: view.amount, orderId: view.orderId, deadline: view.deadline }).toLowerCase() !== view.digest.toLowerCase())
+      return { state: "invalid", reason: "This isn't a WondrPay payment request." }
 
     // paid on-chain but the Arkiv receipt is still being written (it's done after the payer's response)
     if (view.status !== "paid") {
@@ -70,4 +74,16 @@ const publicView = (v: NonNullable<Awaited<ReturnType<typeof fetchRequest>>>) =>
   deadline: v.deadline,
   status: v.status,
   kind: v.kind,
+  note: v.note,
+  // checkout sessions (WondrPay for Business): where the hosted page sends the customer
+  site: v.site,
+  reference: v.reference,
+  successUrl: safeReturn(v.successUrl),
+  cancelUrl: safeReturn(v.cancelUrl),
 })
+
+/** Return URLs leave our origin: only https (or http://localhost while testing), never javascript: or data:. */
+function safeReturn(u?: string) {
+  if (!u) return undefined
+  try { const x = new URL(u); return x.protocol === "https:" || (x.protocol === "http:" && x.hostname === "localhost") ? x.toString() : undefined } catch { return undefined }
+}

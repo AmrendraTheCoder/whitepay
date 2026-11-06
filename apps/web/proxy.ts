@@ -36,10 +36,12 @@ const LIMITS: [string, string, number, number][] = [
   ["/api/rewards/scratch", "POST", 20, 60_000],
   ["/api/offers", "POST", 6, 60_000],
   ["/api/qr", "GET", 60, 60_000],
+  ["/api/v1/checkout/sessions", "POST", 60, 60_000],
+  ["/api/business/sites", "POST", 6, 60_000],
   ["/api/", "*", 240, 60_000],
 ]
 // writes that anyone's server may call (authenticated by the merchant's order signature)
-const CROSS_ORIGIN_WRITES = ["/api/requests", "/api/plans", "/api/autopay/tick"]
+const CROSS_ORIGIN_WRITES = ["/api/requests", "/api/plans", "/api/autopay/tick", "/api/v1/"]
 
 function apiGuard(req: NextRequest): NextResponse | null {
   const { pathname } = req.nextUrl

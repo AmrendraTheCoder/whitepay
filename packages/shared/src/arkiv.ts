@@ -45,6 +45,29 @@ export const PayRequest = defineSchema("whitepay.request", {
   receiptRef: key().optional(),
   note: str().optional(), // <=128 bytes, public
   webhook: str().optional(), // merchant server URL notified when paid (<=128 bytes)
+  // WondrPay for Business checkout sessions (API key orders)
+  site: str().indexed().optional(), // MerchantSite.siteId that created it
+  reference: str().indexed().optional(), // the shop's own order id (<=64 chars)
+  successUrl: str().optional(), // where the hosted checkout sends the customer after paying
+  cancelUrl: str().optional(),
+})
+
+/** A shop's website on WondrPay for Business: its keys and allowed domains. The secret key is stored only as a
+ *  SHA-256 hash (keys are 32 random bytes, so the hash can be public). `approval` is the owner's signature. */
+export const MerchantSite = defineSchema("whitepay.site", {
+  siteId: str().indexed(), // 16 random bytes, hex
+  merchant: addr().indexed(),
+  name: str(),
+  domains: str(), // comma separated hostnames
+  webhook: str().optional(),
+  mode: str().indexed(), // "test" (Whitechain Sepolia)
+  publishableKey: str().indexed(),
+  secretHash: str(), // sha256(secret key), hex
+  secretHint: str(), // last 4 characters, for the portal
+  status: str().indexed(), // "active" | "revoked"
+  createdAt: u64().indexed(),
+  updatedAt: u64(),
+  approval: bytes(), // owner's EIP-191 signature over siteApprovalMessage (65 bytes)
 })
 
 export const Dispute = defineSchema("whitepay.dispute", {

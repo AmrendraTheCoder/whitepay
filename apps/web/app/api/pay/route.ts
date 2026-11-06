@@ -54,7 +54,8 @@ export async function POST(req: Request) {
       // paying a listed shop earns a scratch card (no-op below 0.10 USDT or for unlisted payees)
       await awardScratchCard({ payer: auth.from as Address, merchant: v.order.merchant, merchantName: view!.merchantName, amount: v.order.amount, txHash: paid.txHash })
       if (view!.webhook) await deliverWebhook(view!.webhook, receiptKey ?? paid.txHash, {
-        event: "payment.settled", entityKey, orderId: v.order.orderId, merchant: v.order.merchant, payer: auth.from,
+        event: view!.site ? "checkout.session.completed" : "payment.settled", entityKey, orderId: v.order.orderId, merchant: v.order.merchant, payer: auth.from,
+        ...(view!.site ? { sessionId: v.digest, site: view!.site, reference: view!.reference } : {}),
         amount: v.order.amount.toString(), txHash: paid.txHash, explorer: paid.explorer, receiptKey, paidAt: Math.floor(Date.now() / 1000),
       })
     })

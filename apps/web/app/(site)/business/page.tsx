@@ -21,10 +21,10 @@ export default function Business() {
       <Section>
         <SectionHeader level={1} eyebrow="WondrPay for Business" title="Get paid in digital dollars, settled in a second."
           description="Money goes straight to your wallet. No payout queue, no chargebacks, no card network, and customers pay no gas."
-          actions={<><ButtonLink href="/add?type=business" variant="highlight" size="lg">Open a business account</ButtonLink><ButtonLink href="https://wondrpay-demo-store.vercel.app" variant="secondary" size="lg">Try the demo store</ButtonLink></>} />
+          actions={<><ButtonLink href="/add?type=business" variant="highlight" size="lg">Open a business account</ButtonLink><ButtonLink href="/portal" variant="secondary" size="lg">Get API keys</ButtonLink><ButtonLink href="https://wondrpay-demo-store.vercel.app" variant="ghost" size="lg">Try the demo store</ButtonLink></>} />
         <Grid cols={3}>
           <Card icon="qr" title="At the counter"><p>Type an amount and show the QR. Your screen confirms the moment the payment settles.</p><ButtonLink href="/merchant" variant="ghost" size="sm" iconRight="arrowRight">Open the terminal</ButtonLink></Card>
-          <Card icon="globe" title="On your website"><p>Add the WondrPay button to any site. Your server signs the price, so it can't be changed in the browser.</p><ButtonLink href="/developers" variant="ghost" size="sm" iconRight="arrowRight">Checkout docs</ButtonLink></Card>
+          <Card icon="globe" title="On your website"><p>Get API keys in the Business portal, create a checkout from your server and send customers to WondrPay's hosted checkout. The price is set on your server, so it can't be changed in the browser.</p><ButtonLink href="/portal" variant="ghost" size="sm" iconRight="arrowRight">Open the portal</ButtonLink></Card>
           <Card icon="repeat" title="On subscription"><p>Sell plans that renew with one tap, or with Autopay. Every renewal arrives with a signed webhook.</p><ButtonLink href="#subscriptions" variant="ghost" size="sm" iconRight="arrowRight">How it works</ButtonLink></Card>
         </Grid>
       </Section>

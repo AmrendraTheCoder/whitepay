@@ -126,3 +126,8 @@
   .site-footer-grid { grid-template-columns: 1fr 1fr; } .site-footer-brand { grid-column: 1 / -1; }
 }
 @media (max-width: 640px) { .site-hero-stage { padding: var(--space-8) var(--space-4); } .chain { height: 260px; } .phone { width: min(280px, 86%); } .status-list li { grid-template-columns: auto 1fr; } .status-list .ms { grid-column: 2; } }
+.doc-toc { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--c-border); border-radius: var(--radius-md, 14px); background: var(--c-surface-2); }
+.doc-toc a { font-size: var(--text-sm); color: var(--c-text-muted); text-decoration: none; padding: 4px 10px; border-radius: 99px; }
+.doc-toc a:hover, .doc-toc a:focus-visible { color: var(--c-text); background: var(--c-surface); }
+.doc h3 { font-size: var(--text-lg, 18px); margin: var(--space-4) 0 0; }
+.doc ol.doc-list { list-style: decimal; }

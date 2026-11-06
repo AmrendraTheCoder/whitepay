@@ -35,11 +35,16 @@ const FAQ = [
   { id: "data", title: "Where is my data stored?", content: "Your key stays on your device. Payment requests and receipts are public, tamper-evident records on Arkiv with no personal data in clear text." },
 ]
 
-const SNIPPET = `<script src="https://wondrpay.vercel.app/sdk/v1.3.1/checkout.js"
-        integrity="sha384-…" crossorigin="anonymous" defer></script>
+const SNIPPET = `// your server: create a checkout with your API key
+const session = await fetch("https://wondrpay.vercel.app/api/v1/checkout/sessions", {
+  method: "POST",
+  headers: { Authorization: \`Bearer \${process.env.WONDRPAY_SECRET_KEY}\`,
+             "Content-Type": "application/json" },
+  body: JSON.stringify({ amount: "12.40", reference: "order_1042",
+                         successUrl: "https://shop.example.com/thanks" }),
+}).then((r) => r.json())
 
-<wondrpay-button order-endpoint="/api/create-order"
-                 payload='{"sku":"chai-kit"}'></wondrpay-button>`
+res.redirect(303, session.url)   // hosted checkout · USDT · 0 gas`
 
 const fmt = (n: number | null) => (n == null ? null : n.toLocaleString("en-US"))
 
@@ -146,9 +151,10 @@ export default async function Landing() {
         <div className="split">
           <CodeBlock code={SNIPPET} label="Checkout integration example" />
           <div className="wp-stack">
-            <SectionHeader id="developers" eyebrow="For developers" title="One script tag. Any stack." description="A standard Web Component in the browser and a small TypeScript kit on your server. Signed orders, signed webhooks, verifiable on-chain." />
+            <SectionHeader id="developers" eyebrow="For developers" title="One API call. Any stack." description="API keys from the Business portal, one server call for a hosted checkout, or a Web Component for a modal on your page. Signed webhooks, verifiable on-chain." />
             <div className="wp-cluster">
-              <ButtonLink href="/developers" variant="primary" iconRight="arrowRight">Read the docs</ButtonLink>
+              <ButtonLink href="/portal" variant="primary" iconRight="arrowRight">Get API keys</ButtonLink>
+              <ButtonLink href="/developers" variant="secondary">Read the docs</ButtonLink>
               <ButtonLink href="https://github.com/AmrendraTheCoder/whitepay" variant="secondary">GitHub</ButtonLink>
             </div>
           </div>

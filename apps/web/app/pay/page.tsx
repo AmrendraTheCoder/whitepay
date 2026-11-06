@@ -155,6 +155,9 @@ function Pay() {
         {phase === "done" && wallet && req.merchant && (
           <RewardEarned owner={wallet.address} merchant={req.merchant} merchantName={req.merchantName} amount={BigInt(req.amount ?? 0)} since={startedAt} />
         )}
+        {phase === "done" && typeof req.successUrl === "string" && /^https:\/\/|^http:\/\/localhost[:/]/.test(req.successUrl) && (
+          <a className="btn btn-primary" href={backToShop(req.successUrl, key)}>Back to {req.merchantName ?? "the shop"}</a>
+        )}
         {phase === "failed" && result.code !== "unconfirmed" && !/already|expired/i.test(result.error ?? "") && (
           <button className="btn btn-primary" onClick={() => { setResult({}); setPhase("idle") }}>Try again</button>
         )}
@@ -219,6 +222,11 @@ function Pay() {
       )}
     </main>
   )
+}
+
+/** A checkout session's successUrl, with the session id so the shop can look the payment up. */
+function backToShop(base: string, id: string) {
+  try { const u = new URL(base); u.searchParams.set("wondrpay_session", id); u.searchParams.set("wondrpay_status", "paid"); return u.toString() } catch { return base }
 }
 
 /** Contract / relayer errors in words a person can act on (same wording as subscriptions). */
