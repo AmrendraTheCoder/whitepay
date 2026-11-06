@@ -14,7 +14,7 @@ const SORTS = [
   { id: "price_desc", label: "Price: High to Low" },
   { id: "rating", label: "Customer Rating" },
 ] as const
-const PRICE_BANDS = [{ id: "0-2", label: "Under 2 USDT", min: 0, max: 2 }, { id: "2-5", label: "2 to 5 USDT", min: 2, max: 5 }, { id: "5-10", label: "5 to 10 USDT", min: 5, max: 10 }, { id: "10-999", label: "10 USDT and above", min: 10, max: 999 }]
+const PRICE_BANDS = [{ id: "0-0.25", label: "Under 0.25 USDT", min: 0, max: 0.25 }, { id: "0.25-0.5", label: "0.25 to 0.50 USDT", min: 0.25, max: 0.5 }, { id: "0.5-1", label: "0.50 to 1 USDT", min: 0.5, max: 1 }, { id: "1-99", label: "1 USDT and above", min: 1, max: 99 }]
 const DISCOUNTS = [10, 20, 30, 40, 50]
 const GENDERS = [{ id: "men", label: "Men" }, { id: "women", label: "Women" }, { id: "unisex", label: "Unisex" }]
 

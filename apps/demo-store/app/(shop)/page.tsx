@@ -2,7 +2,7 @@
 import Link from "next/link"
 import { Icon, Skeleton } from "@whitepay/ui"
 import { BY_SKU, CATEGORIES, PRODUCTS, off, type Category } from "@/lib/catalog"
-import { Packshot } from "@/lib/packshot"
+import { ProductImage } from "@/lib/packshot"
 import { Marker, useStore } from "../store-context"
 import { ProductCard } from "./shell"
 
@@ -50,7 +50,7 @@ function FestiveBanner() {
       </svg>
 
       <Link href="/shop?cat=women" className="ks-hero-side ks-hero-her" aria-label="Shop festive picks for her">
-        <div className="ks-hero-stack">{her.map((p, i) => <span key={p.sku} style={{ ["--i" as string]: i }}><Packshot p={p} /></span>)}</div>
+        <div className="ks-hero-stack">{her.map((p, i) => <span key={p.sku} style={{ ["--i" as string]: i }}><ProductImage p={p} /></span>)}</div>
         <span className="ks-hero-chip">Her <Icon name="arrowRight" size={14} /></span>
       </Link>
 
@@ -63,7 +63,7 @@ function FestiveBanner() {
       </div>
 
       <Link href="/shop?cat=men" className="ks-hero-side ks-hero-him" aria-label="Shop festive picks for him">
-        <div className="ks-hero-stack">{him.map((p, i) => <span key={p.sku} style={{ ["--i" as string]: i }}><Packshot p={p} /></span>)}</div>
+        <div className="ks-hero-stack">{him.map((p, i) => <span key={p.sku} style={{ ["--i" as string]: i }}><ProductImage p={p} /></span>)}</div>
         <span className="ks-hero-chip">Him <Icon name="arrowRight" size={14} /></span>
       </Link>
     </section>
@@ -105,7 +105,7 @@ export default function Home() {
             return (
               <li key={c.id}>
                 <Link href={`/shop?cat=${c.id}`}>
-                  <span className="ks-cat-art"><Packshot p={p} /></span>
+                  <span className="ks-cat-art"><ProductImage p={p} /></span>
                   <b>{c.label}</b><small>{c.blurb}</small>
                 </Link>
               </li>
@@ -122,14 +122,14 @@ export default function Home() {
       <section className="ks-wrap ks-section" aria-labelledby="box-title">
         <div className="ks-box">
           <div className="ks-box-art" aria-hidden>
-            {["neel-serum", "ketaki-spf", "dew-lipbalm"].map((s, i) => <span key={s} style={{ ["--i" as string]: i }}><Packshot p={BY_SKU[s]} /></span>)}
+            {["neel-serum", "ketaki-spf", "dew-lipbalm"].map((s, i) => <span key={s} style={{ ["--i" as string]: i }}><ProductImage p={BY_SKU[s]} /></span>)}
           </div>
           <div className="ks-box-copy">
             <span className="ks-eyebrow">Kesar Glow Box · subscription</span>
             <h2 id="box-title">Three beauty minis, every cycle.</h2>
             <p>Pay for the first box now. When the next one is due, WondrPay asks you to approve it with one tap, or turn on Autopay once. Cancel any time from WondrPay.</p>
             <ul className="ks-ticks">
-              <li><Icon name="check" size={16} /> 0.10 USDT per box (demo: every 2 minutes, 3 boxes)</li>
+              <li><Icon name="check" size={16} /> 0.05 USDT per box (demo: every 2 minutes, 3 boxes)</li>
               <li><Icon name="check" size={16} /> One-tap renewals, or Autopay</li>
               <li><Icon name="check" size={16} /> Limits enforced on-chain</li>
             </ul>
@@ -139,7 +139,7 @@ export default function Home() {
                 <div className="checkout-slot ks-box-cta">
                   <Marker n="②" title='the same button with mode="subscribe"' />
                   {sdkReady ? null : <Skeleton height={48} radius="pill" />}
-                  <wondrpay-button hidden={!sdkReady} mode="subscribe" order-endpoint="/api/create-subscription" label="Subscribe · 0.10 USDT per box" />
+                  <wondrpay-button hidden={!sdkReady} mode="subscribe" order-endpoint="/api/create-subscription" label="Subscribe · 0.05 USDT per box" />
                 </div>
               )}
           </div>

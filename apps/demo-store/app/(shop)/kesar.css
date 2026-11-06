@@ -284,3 +284,49 @@
   .ks-box { padding: 22px; } .ks-box-art { height: 200px; }
 }
 @media (prefers-reduced-motion: reduce) { .ks-spark, .ks-lantern { animation: none; } .ks-card-art svg, .ks-gallery-img svg { transition: none; } }
+
+/* product photos (Unsplash) */
+.ks-photo { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
+.ks-card:hover .ks-card-art .ks-photo, .ks-gallery-img:hover .ks-photo { transform: scale(1.04); }
+.ks-cat-art .ks-photo { transform: scale(1.02); }
+@media (prefers-reduced-motion: reduce) { .ks-photo { transition: none; } }
+
+/* my orders */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ks-orders { padding-top: 24px; padding-bottom: 48px; max-width: 980px; }
+.ks-orders-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin-top: 16px; }
+.ks-orders-title { margin: 0 0 4px; font: 800 26px var(--f-brand); }
+.ks-orders-head .ks-muted { font-size: 14px; } .ks-orders-head .ks-muted b { color: var(--ink); }
+.ks-orders-find { display: flex; height: 44px; border: 1px solid var(--line-2); border-radius: 4px; overflow: hidden; width: min(100%, 420px); }
+.ks-orders-find input { flex: 1; min-width: 0; border: 0; padding-inline: 14px; font: 14px var(--f-sans); outline: none; }
+.ks-orders-find button { border: 0; background: var(--ink); color: #fff; padding-inline: 18px; font: 700 13px var(--f-sans); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.ks-orders-find button:disabled { opacity: .55; cursor: default; }
+.ks-wallets { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; font-size: 13px; color: var(--ink-3); }
+.ks-wallets .ks-chip { background: #fff; cursor: pointer; font: 600 13px ui-monospace, monospace; }
+.ks-wallets .ks-chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.ks-orders-err { margin: 16px 0 0; padding: 10px 14px; border-radius: 4px; background: #fdecef; color: var(--bad); font-size: 14px; }
+.ks-orders-loading { display: flex; align-items: center; gap: 10px; padding: 60px 0; justify-content: center; color: var(--ink-3); }
+.ks-empty-ico { width: 64px; height: 64px; border-radius: 50%; background: var(--bg-2); display: grid; place-items: center; color: var(--ink-3); }
+.ks-order-list { list-style: none; margin: 24px 0 0; padding: 0; display: grid; gap: 16px; }
+.ks-order { border: 1px solid var(--line); border-radius: 6px; background: #fff; overflow: hidden; }
+.ks-order-status { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: var(--bg-2); }
+.ks-order-status > div { display: grid; flex: 1; } .ks-order-status b { font-size: 15px; } .ks-order-status > div span { font-size: 13px; color: var(--ink-3); }
+.ks-order-ico { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--ok); flex: none; }
+.ks-order-status[data-tone="ok"] b { color: var(--ok); }
+.ks-order-status[data-tone="wait"] .ks-order-ico { background: #2a6fdb; } .ks-order-status[data-tone="wait"] b { color: #2a6fdb; }
+.ks-order-status[data-tone="warn"] .ks-order-ico { background: #e08a00; } .ks-order-status[data-tone="warn"] b { color: #b36b00; }
+.ks-order-status[data-tone="muted"] .ks-order-ico { background: var(--ink-3); }
+.ks-order-total { font: 700 16px var(--f-sans); text-align: right; display: grid; } .ks-order-total small { font-weight: 500; font-size: 12px; color: var(--ink-3); }
+.ks-order-items { list-style: none; margin: 0; padding: 6px 18px; }
+.ks-order-items li { display: flex; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.ks-order-items li:last-child { border-bottom: 0; }
+.ks-order-art { width: 64px; height: 78px; flex: none; border-radius: 4px; overflow: hidden; background: var(--bg-2); display: grid; place-items: center; color: var(--ink-3); }
+.ks-order-art svg { width: 100%; height: 100%; display: block; } .ks-order-art-blank svg { width: 20px; height: 20px; }
+.ks-order-items div { display: grid; gap: 2px; } .ks-order-items b { font-size: 15px; } .ks-order-items span { font-size: 14px; color: var(--ink-2); } .ks-order-items small { font-size: 12px; color: var(--ink-3); }
+.ks-order-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 18px; border-top: 1px solid var(--line); }
+.ks-order-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.ks-obtn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding-inline: 14px; border-radius: 4px; border: 1px solid var(--line-2); background: #fff; color: var(--ink); font: 700 12px var(--f-sans); letter-spacing: .04em; text-transform: uppercase; text-decoration: none; cursor: pointer; }
+.ks-obtn:hover { border-color: var(--ink); }
+.ks-obtn-main { background: var(--saffron); border-color: var(--saffron); color: #fff !important; } .ks-obtn-main:hover { background: var(--saffron-d); }
+.ks-orders-note { margin: 24px 0 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3); }
+@media (max-width: 760px) { .ks-orders-find { width: 100%; } .ks-order-foot { flex-direction: column; align-items: flex-start; } }

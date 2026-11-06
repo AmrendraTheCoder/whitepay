@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { CATEGORIES, PRODUCTS, off, compactCount, type Product } from "@/lib/catalog"
-import { Packshot } from "@/lib/packshot"
+import { ProductImage } from "@/lib/packshot"
 import { useStore } from "../store-context"
 
 export function Logo() {
@@ -61,7 +61,7 @@ function Search() {
           {hits.map((p, i) => (
             <li key={p.sku} id={`ks-s-${i}`} role="option" aria-selected={i === active}>
               <Link href={`/p/${p.sku}`} onClick={() => setOpen(false)}>
-                <span className="ks-suggest-art"><Packshot p={p} /></span>
+                <span className="ks-suggest-art"><ProductImage p={p} /></span>
                 <span><b>{p.brand}</b> {p.name}<small>in {p.sub}</small></span>
               </Link>
             </li>
@@ -90,7 +90,7 @@ export function Header() {
         </nav>
         <Search />
         <div className="ks-actions">
-          <Link href="/dashboard" className="ks-action"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg><span>Orders</span></Link>
+          <Link href="/orders" className="ks-action" aria-current={path === "/orders" ? "page" : undefined}><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg><span>Orders</span></Link>
           <Link href="/wishlist" className="ks-action" aria-label={`Wishlist, ${wish.length} saved`}>
             <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
             <span>Wishlist</span>{wish.length > 0 && <i className="ks-dot">{wish.length}</i>}
@@ -116,7 +116,7 @@ export function Price({ p, size = "md" }: { p: Product; size?: "md" | "lg" }) {
 }
 
 export function RatingPill({ p }: { p: Product }) {
-  return <span className="ks-rating" aria-label={`Rated ${p.rating} out of 5 by ${p.reviews.toLocaleString()} people`}><b>{p.rating}</b><span className="ks-star" aria-hidden>★</span><i aria-hidden>|</i>{compactCount(p.reviews)}</span>
+  return <span className="ks-rating" aria-label={`Rated ${p.rating} out of 5 by ${p.reviews.toLocaleString("en-US")} people`}><b>{p.rating}</b><span className="ks-star" aria-hidden>★</span><i aria-hidden>|</i>{compactCount(p.reviews)}</span>
 }
 
 export function ProductCard({ p }: { p: Product }) {
@@ -126,7 +126,7 @@ export function ProductCard({ p }: { p: Product }) {
     <li className="ks-card">
       <Link href={`/p/${p.sku}`} className="ks-card-link">
         <div className="ks-card-art">
-          <Packshot p={p} />
+          <ProductImage p={p} />
           {p.ad && <span className="ks-ad">AD</span>}
           {p.badge && <span className="ks-badge" data-kind={p.badge}>{p.badge === "New" ? "NEW PACK" : p.badge.toUpperCase()}</span>}
           <RatingPill p={p} />
@@ -156,11 +156,11 @@ export function Footer() {
         </div>
         <div>
           <h4>Customer policies</h4>
-          <ul><li><Link href="/dashboard">Track orders</Link></li><li><a href="https://wondrpay.vercel.app/security">Payment security</a></li><li><a href="https://wondrpay.vercel.app/app">Refunds in WondrPay</a></li></ul>
+          <ul><li><Link href="/orders">My orders</Link></li><li><a href="https://wondrpay.vercel.app/security">Payment security</a></li><li><a href="https://wondrpay.vercel.app/app">Refunds in WondrPay</a></li></ul>
         </div>
         <div>
           <h4>For developers</h4>
-          <ul><li><a href="/plain.html">Plain HTML checkout</a></li><li><a href="https://wondrpay.vercel.app/developers">Checkout SDK docs</a></li><li><a href="https://github.com/AmrendraTheCoder/whitepay/tree/main/apps/demo-store">Source code</a></li></ul>
+          <ul><li><a href="/dashboard">Seller dashboard (shop owner)</a></li><li><a href="/plain.html">Plain HTML checkout</a></li><li><a href="https://wondrpay.vercel.app/developers">Checkout SDK docs</a></li><li><a href="https://github.com/AmrendraTheCoder/whitepay/tree/main/apps/demo-store">Source code</a></li></ul>
         </div>
         <div className="ks-footer-promise">
           <p><b>100% original</b> guarantee for all products on kesar</p>
@@ -168,7 +168,7 @@ export function Footer() {
           <p><b>No card, no gas fees</b>: pay in USDT with WondrPay</p>
         </div>
       </div>
-      <p className="ks-wrap ks-footer-note">Kesar is a demo store for the WondrPay Checkout SDK. Brands and products are invented, payments use test USDT on Whitechain Sepolia, and nothing is shipped.</p>
+      <p className="ks-wrap ks-footer-note">Kesar is a demo store for the WondrPay Checkout SDK. Brands and products are invented, product photos are from Unsplash, payments use test USDT on Whitechain Sepolia, and nothing is shipped.</p>
     </footer>
   )
 }

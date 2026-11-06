@@ -3,7 +3,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Icon, Skeleton } from "@whitepay/ui"
 import { BY_SKU, CATEGORIES, PRODUCTS, compactCount } from "@/lib/catalog"
-import { Packshot } from "@/lib/packshot"
+import { ProductImage } from "@/lib/packshot"
 import { Marker, useStore } from "../../../store-context"
 import { Price, ProductCard } from "../../shell"
 
@@ -43,7 +43,7 @@ export function ProductView({ sku }: { sku: string }) {
         <div className="ks-gallery" aria-label="Product images">
           {[0, 1, 2, 3].map((v) => (
             <button key={v} type="button" className="ks-gallery-img" onClick={() => setZoom(v)} aria-label={`Enlarge image ${v + 1} of ${p.name}`}>
-              <Packshot p={p} variant={v} />
+              <ProductImage p={p} variant={v} width={640} eager={v < 2} />
               {v === 0 && p.sizes.length === 1 && /ml|g$/.test(p.sizes[0]) && <span className="ks-size-tag ks-size-tag-lg">{p.sizes[0].replace(" ", "")}</span>}
             </button>
           ))}
@@ -118,7 +118,7 @@ export function ProductView({ sku }: { sku: string }) {
             <dl>
               <div><dt>Category</dt><dd>{p.sub}</dd></div>
               <div><dt>Sizes</dt><dd>{p.sizes.join(", ")}</dd></div>
-              <div><dt>Rating</dt><dd>{p.rating} / 5 from {p.reviews.toLocaleString()} ratings</dd></div>
+              <div><dt>Rating</dt><dd>{p.rating} / 5 from {p.reviews.toLocaleString("en-US")} ratings</dd></div>
               <div><dt>SKU</dt><dd><code>{p.sku}</code></dd></div>
             </dl>
           </div>
@@ -139,9 +139,9 @@ export function ProductView({ sku }: { sku: string }) {
       {zoom !== null && (
         <div className="ks-zoom" role="dialog" aria-modal="true" aria-label={`${p.name}, image ${zoom + 1}`} onClick={() => setZoom(null)} onKeyDown={(e) => e.key === "Escape" && setZoom(null)}>
           <button type="button" className="ks-zoom-close" autoFocus onClick={() => setZoom(null)} aria-label="Close image"><Icon name="close" size={22} /></button>
-          <div className="ks-zoom-img" onClick={(e) => e.stopPropagation()}><Packshot p={p} variant={zoom} /></div>
+          <div className="ks-zoom-img" onClick={(e) => e.stopPropagation()}><ProductImage p={p} variant={zoom} width={900} eager /></div>
           <div className="ks-zoom-thumbs" onClick={(e) => e.stopPropagation()}>
-            {[0, 1, 2, 3].map((v) => <button key={v} type="button" aria-pressed={v === zoom} onClick={() => setZoom(v)} aria-label={`Image ${v + 1}`}><Packshot p={p} variant={v} /></button>)}
+            {[0, 1, 2, 3].map((v) => <button key={v} type="button" aria-pressed={v === zoom} onClick={() => setZoom(v)} aria-label={`Image ${v + 1}`}><ProductImage p={p} variant={v} width={120} /></button>)}
           </div>
         </div>
       )}

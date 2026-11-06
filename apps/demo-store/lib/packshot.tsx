@@ -1,4 +1,6 @@
-// Product "photos": drawn packshots, one per shape, coloured per product. No stock photos or real brands.
+// Product images: Unsplash photos, with drawn packshots (one per shape, coloured per product) as the fallback.
+"use client"
+import { useState } from "react"
 import type { Product } from "./catalog"
 
 type A = Product["art"]
@@ -192,5 +194,23 @@ export function Packshot({ p, variant = 0, className }: { p: Pick<Product, "sku"
       <ellipse cx="150" cy="322" rx="96" ry="12" fill="#000" opacity=".08" />
       <g transform={variant === 1 ? "translate(-45 -50) scale(1.3)" : variant === 3 ? "rotate(-8 150 180)" : undefined}><Shape a={p.art} uid={uid} /></g>
     </svg>
+  )
+}
+
+// Unsplash serves through imgix: crop/zoom per gallery angle, sized for the slot, WebP/AVIF when supported.
+const ANGLES = ["", "&crop=focalpoint&fp-x=.5&fp-y=.45&fp-z=1.5", "&crop=focalpoint&fp-x=.5&fp-y=.3&fp-z=1.3", "&crop=focalpoint&fp-x=.5&fp-y=.7&fp-z=1.3"]
+export const photoUrl = (id: string, w: number, variant = 0) => `https://images.unsplash.com/${id}?w=${w}&h=${Math.round(w * 1.2)}&fit=crop${ANGLES[variant] ?? ""}&auto=format&q=70`
+
+/** A product photo (Unsplash) with the drawn packshot as fallback when there is no photo or it fails to load. */
+export function ProductImage({ p, variant = 0, width = 480, eager = false }: { p: Pick<Product, "sku" | "art" | "name" | "photo">; variant?: number; width?: number; eager?: boolean }) {
+  const [failed, setFailed] = useState(false)
+  if (!p.photo || failed) return <Packshot p={p} variant={variant} />
+  return (
+    <img
+      className="ks-photo" src={photoUrl(p.photo, width, variant)}
+      srcSet={`${photoUrl(p.photo, width, variant)} 1x, ${photoUrl(p.photo, width * 2, variant)} 2x`}
+      alt={p.name} loading={eager ? "eager" : "lazy"} decoding="async" onError={() => setFailed(true)}
+      style={{ background: p.art.bg }}
+    />
   )
 }

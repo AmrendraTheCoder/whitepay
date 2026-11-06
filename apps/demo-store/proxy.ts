@@ -31,7 +31,7 @@ export function proxy(req: NextRequest) {
     return res
   }
   const nonce = newNonce()
-  const csp = buildCsp(nonce, dev, { connect: [WP], img: [WP] })
+  const csp = buildCsp(nonce, dev, { connect: [WP], img: [WP, "https://images.unsplash.com"] })
   const h = new Headers(req.headers)
   h.set("x-nonce", nonce)
   h.set("content-security-policy", csp)

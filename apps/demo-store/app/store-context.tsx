@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Button, ButtonLink, Dialog, Drawer, Icon, QuantityStepper, Spinner, useToast } from "@whitepay/ui"
 import { WHITEPAY_URL, SDK_SRC } from "@/lib/sdk"
 import { BY_SKU, PRICE, MAX_QTY } from "@/lib/catalog"
-import { Packshot } from "@/lib/packshot"
+import { ProductImage } from "@/lib/packshot"
 import { DevPanel, gh, type Log } from "./dev-panel"
 
 declare module "react" {
@@ -25,6 +25,21 @@ export const units = (usdt: string) => BigInt(Math.round(Number(usdt) * 1e6))
 export const fmt = (b: bigint) => `${b / 1_000_000n}.${(b % 1_000_000n).toString().padStart(6, "0").slice(0, 2)}`
 const CART_KEY = "kesar.cart.v1"
 const WISH_KEY = "kesar.wish.v1"
+export const ORDERS_KEY = "kesar.orders.v1"
+export const WALLETS_KEY = "kesar.wallets.v1"
+/** An order paid in this browser, kept locally so "My orders" shows it at once (with sizes) before WondrPay indexes it. */
+export type LocalOrder = { orderId: string; txHash?: string; explorer?: string; amount: string; items: Line[]; at: number; payer?: string }
+export const readLocal = <T,>(k: string, fallback: T): T => { try { const v = JSON.parse(localStorage.getItem(k) ?? "null"); return v ?? fallback } catch { return fallback } }
+const saveOrder = (o: LocalOrder) => {
+  try {
+    const all = readLocal<LocalOrder[]>(ORDERS_KEY, []).filter((x) => x.orderId !== o.orderId)
+    localStorage.setItem(ORDERS_KEY, JSON.stringify([o, ...all].slice(0, 50)))
+    if (o.payer) {
+      const w = readLocal<string[]>(WALLETS_KEY, []).filter((a) => a.toLowerCase() !== o.payer!.toLowerCase())
+      localStorage.setItem(WALLETS_KEY, JSON.stringify([o.payer, ...w].slice(0, 5)))
+    }
+  } catch {}
+}
 const lineKey = (l: Pick<Line, "sku" | "size">) => `${l.sku}|${l.size ?? ""}`
 /** What the server sees: sku + qty only (it prices from its own catalog). Same sku in two sizes is merged. */
 export const orderItems = (lines: Line[]) => Object.values(lines.reduce<Record<string, { sku: string; qty: number }>>((m, l) => {
@@ -134,8 +149,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const { p, items } = paid
     setVerified("checking")
     if (items.length) setCart((c) => c.filter((l) => !items.some((i) => i.sku === l.sku)))
+    const local: LocalOrder = { orderId: p.orderId, txHash: p.txHash, explorer: p.explorer, amount: p.amount, items, at: Date.now() }
+    saveOrder(local)
     fetch(`/api/verify?tx=${p.txHash}&orderId=${p.orderId}`).then((r) => r.json()).then((v) => {
       setVerified(v.ok ? "ok" : "bad")
+      if (v.ok && v.payer) saveOrder({ ...local, payer: v.payer }) // remember which wallet paid: "My orders" lists its orders
       push({ src: "chain", msg: v.ok ? `PaymentSettled confirmed in block ${v.block}` : `On-chain check: ${v.reason}`, tone: v.ok ? "ok" : "bad" })
     }).catch(() => setVerified("bad"))
     return poll(`orderId=${p.orderId}`, 12, 1500)
@@ -191,7 +209,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         )}>
         {cart.length === 0 ? (
           <div className="empty">
-            <div className="empty-art"><Packshot p={BY_SKU["dew-facewash"]} /></div>
+            <div className="empty-art"><ProductImage p={BY_SKU["dew-facewash"]} /></div>
             <h3 className="wp-title-3">Hey, it feels so light!</h3>
             <p className="wp-muted">There is nothing in your bag. Let&apos;s add some items.</p>
             <ButtonLink href="/wishlist" variant="secondary" onClick={() => setBagOpen(false)}>Add items from wishlist</ButtonLink>
@@ -202,7 +220,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               const p = BY_SKU[l.sku]
               return (
                 <li key={lineKey(l)}>
-                  <Link href={`/p/${p.sku}`} className="thumb" onClick={() => setBagOpen(false)}><Packshot p={p} /></Link>
+                  <Link href={`/p/${p.sku}`} className="thumb" onClick={() => setBagOpen(false)}><ProductImage p={p} /></Link>
                   <div className="wp-stack" data-gap="2">
                     <b>{p.brand}</b>
                     <span className="wp-muted bag-name">{p.name}</span>
@@ -219,6 +237,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       <Dialog open={!!paid} onClose={() => setPaid(null)} title="Order confirmed" description={paid ? `Order ${paid.p.orderId.slice(2, 10).toUpperCase()} · ${fmt(BigInt(paid.p.amount))} USDT` : undefined}
         footer={<div className="wp-cluster dialog-actions">
+          <ButtonLink href="/orders" variant="secondary" onClick={() => setPaid(null)}>My orders</ButtonLink>
           {paid?.p.explorer && <ButtonLink href={paid.p.explorer} variant="secondary">View receipt</ButtonLink>}
           <Button onClick={() => setPaid(null)}>Continue shopping</Button>
         </div>}>
