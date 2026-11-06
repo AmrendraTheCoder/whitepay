@@ -13,6 +13,8 @@ export default function Home() {
   const data = useWalletData()
   if (data.wallet === undefined) return <main className="shell"><LogoLoader /></main>
   if (!data.wallet) return <Onboard onDone={() => location.reload()} />
+  // connected MetaMask but left before setting the WondrPay PIN: finish that first (nothing works without it)
+  if (data.wallet.kind !== "device" && !data.wallet.hasPin) return <Onboard resumeExternal={data.wallet.address} onDone={() => location.reload()} />
   return <WalletHome {...data} wallet={data.wallet} />
 }
 

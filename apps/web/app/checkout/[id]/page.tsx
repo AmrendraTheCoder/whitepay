@@ -6,7 +6,7 @@
 import { use, useCallback, useEffect, useRef, useState } from "react"
 import { hashTypedData, type Hex } from "viem"
 import { orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, type Order } from "@whitepay/shared"
-import { connectInjectedWallet, hasInjectedWallet, injectedSigner } from "@/lib/wallet"
+import { requestInjectedAccount, hasInjectedWallet, injectedSigner } from "@/lib/wallet"
 import { settle, type SettleError } from "@/lib/settle"
 import { playSound, primeSound } from "@/lib/sound"
 import { Countdown, Icon, Identicon, LogoLoader, SuccessCheck } from "../../ui"
@@ -137,7 +137,7 @@ function BrowserWalletPay({ id, order, digest, amount, shop }: { id: string; ord
     setErr("")
     try {
       setPhase("connecting")
-      const from = (await connectInjectedWallet()) as Hex
+      const from = (await requestInjectedAccount()) as Hex
       const signer = await injectedSigner(from)
       const o: Order = { merchant: order.merchant as Hex, amount: BigInt(order.amount), orderId: order.orderId as Hex, deadline: BigInt(order.deadline) }
       // don't trust the server: recompute the digest the wallet will sign

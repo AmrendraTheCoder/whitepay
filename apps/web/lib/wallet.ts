@@ -292,6 +292,14 @@ async function ensureWhitechain(eth: Eip1193) {
   }
 }
 
+/** Ask the browser wallet for an account WITHOUT adding it to WondrPay (hosted checkout: one-off payments by
+ *  people who may never open the app; a wallet only joins WondrPay through onboarding, with a PIN). */
+export async function requestInjectedAccount(): Promise<`0x${string}`> {
+  const accounts = (await provider().request({ method: "eth_requestAccounts" })) as string[]
+  if (!accounts?.length) throw new Error("No account was shared")
+  return getAddress(accounts[0])
+}
+
 /** Signer backed by the browser wallet. It only signs messages: the payer still pays no gas. */
 export async function injectedSigner(address: `0x${string}`): Promise<Signer> {
   const eth = provider()

@@ -8,11 +8,16 @@ import { getWallet, createWallet, enablePasskey, passkeySupported, connectInject
 import { wcConfigured } from "@/lib/walletconnect"
 
 // -------------------------------------------------------------- onboarding
-export function Onboard({ onDone, adding = false, business = false }: { onDone: () => void; adding?: boolean; business?: boolean }) {
+export function Onboard({ onDone, adding = false, business = false, resumeExternal }: {
+  onDone: () => void; adding?: boolean; business?: boolean
+  /** an external wallet that is connected but has no WondrPay PIN yet: finish its setup first */
+  resumeExternal?: string
+}) {
   // ext* steps: an external wallet was just connected and gets its own WondrPay PIN / fingerprint
-  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio" | "name" | "welcome">("intro")
+  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio" | "name" | "welcome">(resumeExternal ? "extpin" : "intro")
   const [known, setKnown] = useState("") // username this wallet already has
-  const [extAddr, setExtAddr] = useState("")
+  const [extAddr, setExtAddr] = useState(resumeExternal ?? "")
+  const [showExternal, setShowExternal] = useState(false) // MetaMask options are tucked away: new people create a wallet
   const [first, setFirst] = useState("")
   const [pin, setPin] = useState("")
   const [err, setErr] = useState("")
@@ -24,7 +29,8 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
   useEffect(() => { passkeySupported().then(setBioOk); setInjected(hasInjectedWallet()) }, [])
   // World ID happens once, here at account creation: personal wallets claim their name now
   // (shops verify in shop signup). Payments never ask for World ID.
-  const finish = () => (business ? onDone() : setStep("name"))
+  // a wallet that already has a WondrPay name doesn't need the name step again
+  const finish = () => (business || known ? (known ? (setStep("welcome"), setTimeout(onDone, 1600)) : onDone()) : setStep("name"))
 
   /** Connect MetaMask without leaving Chrome: extension if present (desktop), otherwise WalletConnect. */
   const connect = async (via: "extension" | "walletconnect") => {
@@ -32,11 +38,13 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
     try {
       const addr = via === "extension" ? await connectInjectedWallet() : await connectWalletConnect()
       setExtAddr(addr)
-      // seen before? (a username is linked to it): reconnect straight away, no PIN / World ID steps.
-      // Its WondrPay PIN is set at the first payment instead (the payment sheet asks for it).
+      // seen before? (a username is linked to it): no World ID / name steps again. But EVERY external wallet gets a
+      // WondrPay PIN on this device right now, before anything else: payments ask for it before MetaMask signs.
       const who = await fetch(`/api/resolve?q=${addr}`).then((r) => r.json()).catch(() => null)
       const name = typeof who?.name === "string" && (who.kind === "person" || business) ? (who.name as string) : ""
-      if (name) { setKnown(name); setStep("welcome"); setTimeout(onDone, 1600); return }
+      if (name) setKnown(name)
+      const hasPin = getWallet()?.address?.toLowerCase() === addr.toLowerCase() && getWallet()?.hasPin
+      if (hasPin) { if (name) { setStep("welcome"); setTimeout(onDone, 1600) } else finish(); return }
       setStep("extpin")
     } catch (e) {
       const m = (e as Error).message
@@ -84,19 +92,27 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
             Your key stays on this phone, encrypted and unlocked only by your fingerprint or a 6-digit PIN, just like UPI.
           </div>
           <button className="btn btn-primary btn-big" onClick={() => setStep("pin")}>{adding ? "Create another wallet" : "Create my wallet"}</button>
-          {injected && (
-            <button className="btn btn-ghost" onClick={() => connect("extension")} disabled={busy}>
-              {busy ? <span className="spinner" /> : null} Connect browser extension (MetaMask)
-            </button>
+          <div className="sub center">Takes 20 seconds: set a 6-digit PIN, optionally your fingerprint. No seed phrase.</div>
+          {!showExternal ? (
+            <button className="chip self-center" onClick={() => setShowExternal(true)} aria-expanded={false}>I already use MetaMask</button>
+          ) : (
+            <div className="card stack" role="region" aria-label="Use MetaMask">
+              <div className="sub">Use your MetaMask wallet with WondrPay. You'll still set a WondrPay PIN (and fingerprint, if you like) right after connecting: it's asked before MetaMask signs any payment.</div>
+              {injected && (
+                <button className="btn btn-ghost" onClick={() => connect("extension")} disabled={busy}>
+                  {busy ? <span className="spinner" /> : null} Connect browser extension (MetaMask)
+                </button>
+              )}
+              <button className="btn btn-ghost" onClick={() => connect("walletconnect")} disabled={busy || !wcConfigured()}>
+                {busy ? <span className="spinner" /> : null} Connect MetaMask app (WalletConnect)
+              </button>
+              <div className="sub center">
+                {wcConfigured()
+                  ? "WondrPay stays open in this browser. MetaMask opens only to approve, then you come back here."
+                  : "WalletConnect isn't configured on this server yet."}
+              </div>
+            </div>
           )}
-          <button className="btn btn-ghost" onClick={() => connect("walletconnect")} disabled={busy || !wcConfigured()}>
-            {busy ? <span className="spinner" /> : null} Connect MetaMask app (WalletConnect)
-          </button>
-          <div className="sub center">
-            {wcConfigured()
-              ? "WondrPay stays open in this browser. MetaMask opens only to approve, then you come back here."
-              : "WalletConnect isn't configured on this server yet."}
-          </div>
           {err && step === "intro" && <div className="err">{err}</div>}
           <button className="chip self-center" onClick={() => setShowImport((s) => !s)}>
             {showImport ? "Hide" : "Use an existing test key"}
@@ -136,7 +152,7 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
       {(step === "extpin" || step === "extconfirm") && (
         <div className="stack mt-6">
           <div className="title center">{step === "extpin" ? "Set your WondrPay PIN" : "Confirm your PIN"}</div>
-          <div className="sub center">Connected {extAddr.slice(0, 6)}…{extAddr.slice(-4)}. WondrPay asks for this PIN before MetaMask signs any payment.</div>
+          <div className="sub center">{resumeExternal && step === "extpin" ? "One step left before you can use WondrPay. " : ""}Connected {extAddr.slice(0, 6)}…{extAddr.slice(-4)}. WondrPay asks for this PIN before MetaMask signs any payment.</div>
           <PinPad key={step} onComplete={step === "extpin" ? onExtFirst : onExtConfirm} />
           <div className="err">{err}</div>
         </div>

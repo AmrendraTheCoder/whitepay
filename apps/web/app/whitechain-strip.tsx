@@ -20,7 +20,7 @@ export function WhitechainStrip() {
       </span>
       <span className="wc-txt">
         <b>Live on Whitechain</b>
-        <span>Sepolia · ~1 s blocks · you pay 0 gas</span>
+        <span>Sepolia · 1 s blocks · 0 gas</span>
       </span>
       <span className="wc-block" aria-live="off">
         <span key={pulse} className="wc-dot" aria-hidden />

@@ -91,7 +91,10 @@ export function BottomNav() {
 /** Mounted in the root layout: shows the tab bar only on tab routes (never on the marketing site or full-screen flows). */
 export function TabBarHost() {
   const path = usePathname()
-  return tabIndex(path) >= 0 ? <BottomNav /> : null
+  // no tabs until a wallet is fully set up (a MetaMask wallet needs its WondrPay PIN first): setup can't be skipped
+  const [ready, setReady] = useState(false)
+  useEffect(() => { const w = getWallet(); setReady(!!w && (w.kind === "device" || w.hasPin)) }, [path])
+  return ready && tabIndex(path) >= 0 ? <BottomNav /> : null
 }
 
 export const ScanFab = () => (
