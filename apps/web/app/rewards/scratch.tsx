@@ -6,6 +6,7 @@ import type { RewardCard } from "@whitepay/shared/rewards"
 import { Icon } from "../ui"
 import { paintCardFace } from "./art"
 import { PrizeFace } from "./prize"
+import "./rewards.css"
 
 const REVEAL_AT = 0.5
 const BRUSH = 34

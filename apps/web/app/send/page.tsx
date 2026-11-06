@@ -7,6 +7,7 @@ import { directNonce, receiveAuthTypedData, ROUTER_ADDRESS } from "@whitepay/sha
 import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, LogoLoader, Icon } from "../ui"
 import { Processing } from "../processing"
+import { NewBalance, RewardEarned } from "../money-events"
 import { getWallet } from "@/lib/wallet"
 import { PayeeSearch } from "./search"
 import { usdt, short, initials } from "@/lib/format"
@@ -34,6 +35,7 @@ function Send() {
   const [unlock, setUnlock] = useState(false)
   const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "finishing" | "done" | "failed">("idle")
   const [result, setResult] = useState<{ explorer?: string; error?: string; code?: string }>({})
+  const [startedAt, setStartedAt] = useState(0)
 
   useEffect(() => setWallet(getWallet()), [])
 
@@ -72,6 +74,7 @@ function Send() {
     if (!payee) return
     setUnlock(false)
     setPhase("signing")
+    setStartedAt(Math.floor(Date.now() / 1000))
     try {
       const value = parseUnits(amount, 6)
       const memo = keccak256(toHex(`p2p/${account.address}/${payee.address}/${Date.now()}/${crypto.randomUUID()}`))
@@ -119,7 +122,12 @@ function Send() {
             {phase === "done" ? `to ${payee?.displayName ?? payee?.name ?? short(payee?.address)}. Settled on Whitechain. You paid no gas.` : result.error}
           </div>
           {result.explorer && <a className="chip" href={result.explorer} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
+          {phase === "done" && <NewBalance address={wallet.address} spent={parseUnits(amount, 6)} />}
         </div>
+        {/* rewards are for paying shops only, never person-to-person */}
+        {phase === "done" && payee?.kind === "merchant" && (
+          <RewardEarned owner={wallet.address} merchant={payee.address} merchantName={payee.name} amount={parseUnits(amount, 6)} since={startedAt} />
+        )}
         {phase === "failed" && result.code !== "unconfirmed" && !/already|expired/i.test(result.error ?? "") && (
           <button className="btn btn-primary" onClick={() => { setResult({}); setPhase("idle") }}>Try again</button>
         )}

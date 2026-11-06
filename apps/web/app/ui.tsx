@@ -136,9 +136,7 @@ export function useWalletData() {
     if (!b || b.error) return
     const now = BigInt(b.usdt)
     if (detect && last.current !== null && now !== last.current) {
-      const diff = now - last.current
-      if (diff > 0n) setToast(`Received ${usdt(diff)} USDT`)
-      void loadActivity(addr) // something moved: refresh history
+      void loadActivity(addr) // something moved: refresh history (the pop-up + toast come from IncomingWatcher)
     }
     last.current = now
     setBal(b)
@@ -161,8 +159,17 @@ export function useWalletData() {
     reload()
     // auto-detect: poll the chain while the app is open and visible
     const t = setInterval(() => { if (document.visibilityState === "visible") void loadBalance(wallet.address, true) }, 8000)
-    return () => clearInterval(t)
-  }, [wallet, reload, loadBalance])
+    // IncomingWatcher / a payment screen saw a new balance: show it now instead of waiting for the next poll
+    const onBal = (e: Event) => {
+      const d = (e as CustomEvent<{ address: string; usdt: string }>).detail
+      if (d.address !== wallet.address.toLowerCase()) return
+      setBal((b) => (b ? { ...b, usdt: d.usdt } : b))
+      if (last.current !== null && BigInt(d.usdt) !== last.current) void loadActivity(wallet.address)
+      last.current = BigInt(d.usdt)
+    }
+    window.addEventListener("wondrpay:balance", onBal)
+    return () => { clearInterval(t); window.removeEventListener("wondrpay:balance", onBal) }
+  }, [wallet, reload, loadBalance, loadActivity])
 
   useEffect(() => {
     if (!toast) return

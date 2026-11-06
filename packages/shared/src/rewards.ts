@@ -19,6 +19,7 @@ export type RewardCard = {
   merchant: string
   merchantName?: string
   paidAmount: string
+  paymentTx?: string
   earnedAt: number
   expiresAt?: number
   status: "new" | "scratched"

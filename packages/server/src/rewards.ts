@@ -19,6 +19,7 @@ import {
 import { arkiv, wc } from "./clients"
 import { getMerchantByAddress } from "./merchants"
 import { relayDirectPayment } from "./relayer"
+import { settleOnArkiv } from "./requests"
 import { cached, invalidate } from "./cache"
 
 const now = () => Math.floor(Date.now() / 1000)
@@ -79,6 +80,7 @@ const toCard = (e: any): RewardCard => ({
   merchant: getAddress(v(e.merchant)),
   merchantName: v(e.merchantName) || undefined,
   paidAmount: BigInt(v(e.paidAmount) ?? 0).toString(),
+  paymentTx: v(e.paymentTx) || undefined,
   earnedAt: Number(v(e.earnedAt)),
   expiresAt: Number(v(e.earnedAt)) + REWARD_TTL_DAYS * 86400,
   status: v(e.status) === "scratched" ? "scratched" : "new",
@@ -131,7 +133,7 @@ function roll(cardKey: Hex, paid: bigint, hasOffer: boolean) {
 
 const memoFor = (cardKey: Hex) => keccak256(toBytes(`whitepay-reward-payout:${cardKey.toLowerCase()}`))
 const inflight = new Map<string, Promise<ScratchResult>>()
-export type ScratchResult = { card: RewardCard; payout?: { txHash: Hex; explorer: string }; persist: () => Promise<void> }
+export type ScratchResult = { card: RewardCard; payout?: { txHash: Hex; explorer: string; block: bigint }; persist: () => Promise<void> }
 
 /** Scratch a card: decide (deterministically), pay cashback if won, and return a `persist` step that writes
  *  the result to Arkiv (call it after responding; repeating a scratch before it lands is harmless). */
@@ -173,7 +175,7 @@ async function doScratch(key: Hex, owner: Address): Promise<ScratchResult> {
       }))
       const paid = await relayDirectPayment({ to: owner, amount: r.amount, memo, auth: { from: pool.address, validAfter: 0n, validBefore, signature } })
       invalidate("rewards:pool")
-      payout = { txHash: paid.txHash, explorer: paid.explorer }
+      payout = { txHash: paid.txHash, explorer: paid.explorer, block: paid.block }
       out = { prize: "cashback", amount: r.amount }
     } else {
       // pool empty or not configured: never promise money we can't pay
@@ -199,6 +201,9 @@ async function doScratch(key: Hex, owner: Address): Promise<ScratchResult> {
     } catch (e) {
       console.warn("reward patch failed (re-scratch is idempotent):", (e as Error).message.split("\n")[0])
     }
+    // the cashback also appears in the owner's history as an incoming payment from WondrPay Rewards
+    if (payout) await settleOnArkiv({ merchant: owner, merchantName: "WondrPay Rewards", payer: rewardsPool()!.address, amount: out.amount!,
+      paymentId: memoFor(key), txHash: payout.txHash, block: payout.block, kind: "p2p" }).catch(() => {})
     invalidate(`rewards:${owner}`)
   }
   return { card: result, payout, persist }

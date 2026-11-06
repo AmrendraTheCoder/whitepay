@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   try {
     const r = await scratchCard(body.key as Hex, getAddress(body.owner as Address))
     after(r.persist)
-    return json({ card: r.card, payout: r.payout ?? null })
+    return json({ card: r.card, payout: r.payout ? { txHash: r.payout.txHash, explorer: r.payout.explorer } : null })
   } catch (e) {
     if (e instanceof RewardError) return json({ error: e.message, code: e.code }, { status: e.code === "not_found" ? 404 : 403 })
     if (e instanceof PolicyError) return json({ error: "Rewards are busy right now, try again in a minute", code: e.code }, { status: 503 })

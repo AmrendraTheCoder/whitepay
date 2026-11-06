@@ -1,7 +1,7 @@
 // Unified activity for ANY wallet: WondrPay receipts (Arkiv: names, kind, receipt) merged with every
 // on-chain USDT transfer (Whitechain explorer), so swaps, MetaMask sends and direct transfers show too.
 import { getAddress, isAddress, type Address } from "viem"
-import { listReceipts, config } from "@whitepay/server"
+import { listReceipts, config, rewardsPool } from "@whitepay/server"
 import { EXPLORER_URL, ROUTER_ADDRESS, USDT_ADDRESS } from "@whitepay/shared"
 import { json, errorMessage } from "@/lib/json"
 
@@ -80,6 +80,9 @@ export async function GET(req: Request) {
         source: "chain",
       })
     }
+    // scratch-card cashback arrives from the rewards pool: name it
+    const pool = rewardsPool()?.address.toLowerCase()
+    if (pool) for (const r of rows.values()) if (r.direction === "in" && r.counterparty.toLowerCase() === pool) r.counterpartyName = "WondrPay Rewards"
     const list = [...rows.values()].sort((x, y) => y.at - x.at)
     return json({ rows: list, router: config.router })
   } catch (e) {

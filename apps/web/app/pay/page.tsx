@@ -7,6 +7,7 @@ import { orderTypedData, receiveAuthTypedData, ROUTER_ADDRESS, type Order } from
 import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, LogoLoader, Countdown, Icon } from "../ui"
 import { Processing } from "../processing"
+import { NewBalance, RewardEarned } from "../money-events"
 import { getWallet } from "@/lib/wallet"
 import { usdt, initials, mmss } from "@/lib/format"
 import { settle, SettleError } from "@/lib/settle"
@@ -32,6 +33,7 @@ function Pay() {
   const [unlock, setUnlock] = useState(false)
   const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "finishing" | "done" | "failed">("idle")
   const [result, setResult] = useState<{ explorer?: string; error?: string; code?: string }>({})
+  const [startedAt, setStartedAt] = useState(0)
   // undefined = not read yet (server render / first paint); read localStorage only after mount
   const [wallet, setWallet] = useState<ReturnType<typeof getWallet> | undefined>(undefined)
   useEffect(() => setWallet(getWallet()), [])
@@ -98,6 +100,7 @@ function Pay() {
     if (!pending) return
     setUnlock(false)
     setPhase("signing")
+    setStartedAt(Math.floor(Date.now() / 1000))
     try {
       const order: Order = {
         merchant: pending.order.merchant as Hex,
@@ -147,7 +150,11 @@ function Pay() {
               : result.error}
           </div>
           {result.explorer && <a className="chip" href={result.explorer} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
+          {phase === "done" && wallet && <NewBalance address={wallet.address} spent={BigInt(req.amount ?? 0)} />}
         </div>
+        {phase === "done" && wallet && req.merchant && (
+          <RewardEarned owner={wallet.address} merchant={req.merchant} merchantName={req.merchantName} amount={BigInt(req.amount ?? 0)} since={startedAt} />
+        )}
         {phase === "failed" && result.code !== "unconfirmed" && !/already|expired/i.test(result.error ?? "") && (
           <button className="btn btn-primary" onClick={() => { setResult({}); setPhase("idle") }}>Try again</button>
         )}
