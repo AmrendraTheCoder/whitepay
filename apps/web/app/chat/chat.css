@@ -29,3 +29,7 @@
 .chat-pay { display: inline-flex; align-items: center; justify-content: center; min-width: 120px; height: 52px; padding: 0 28px; border-radius: 99px;
   background: var(--brand-soft); color: #0b0d14; font-weight: 700; font-size: 18px; text-decoration: none; }
 @media (prefers-reduced-motion: reduce) { .chat-bubble { transition: none; } }
+.chat-card-art { display: block; height: 120px; border-radius: 18px; background: var(--surface-3); position: relative; overflow: hidden; }
+.chat-card-art span { position: absolute; inset: 14px 26px -18px 34px; border-radius: 14px; transform: rotate(-4deg);
+  background: radial-gradient(circle at 30% 40%, rgba(255,255,255,.35) 0 6px, transparent 7px), radial-gradient(circle at 70% 60%, rgba(255,255,255,.3) 0 5px, transparent 6px),
+    radial-gradient(circle at 50% 25%, rgba(221,240,90,.8) 0 8px, transparent 9px), var(--brand); box-shadow: 0 8px 20px rgba(0,0,0,.25); }

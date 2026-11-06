@@ -33,6 +33,7 @@ function Chat() {
   const [me, setMe] = useState<string | null | undefined>(undefined)
   const [who, setWho] = useState<Who | null>(other ? { address: other, name: q.get("name") ?? undefined } : null)
   const [rows, setRows] = useState<Activity[] | null>(null)
+  const [cards, setCards] = useState<Map<string, { status: string }>>(new Map()) // payment tx -> scratch card
   const [err, setErr] = useState("")
   const [copied, setCopied] = useState(false)
   const end = useRef<HTMLDivElement>(null)
@@ -48,6 +49,13 @@ function Chat() {
     fetch(`/api/activity?address=${me}`).then((r) => r.json())
       .then((d) => { if (live) setRows((d.rows ?? []) as Activity[]) })
       .catch(() => { if (live) { setErr("Couldn't load your payments. Check your connection."); setRows([]) } })
+    // scratch cards earned by paying this shop, shown right after the payment that earned them
+    fetch(`/api/rewards?owner=${me}`).then((r) => r.json()).then((d) => {
+      if (!live) return
+      const m = new Map<string, { status: string }>()
+      for (const c of d.cards ?? []) if (c.paymentTx && c.merchant?.toLowerCase() === other.toLowerCase()) m.set(String(c.paymentTx).toLowerCase(), { status: c.status })
+      setCards(m)
+    }).catch(() => {})
     return () => { live = false }
   }, [me, other])
 
@@ -55,14 +63,16 @@ function Chat() {
     if (!rows || !other) return null
     const mine = rows.filter((r) => r.counterparty.toLowerCase() === other.toLowerCase()).sort((a, b) => a.at - b.at)
     // a new day-and-time divider whenever 6 h or more passed since the previous payment
-    const out: ({ type: "day"; label: string; key: string } | { type: "pay"; r: Activity })[] = []
+    const out: ({ type: "day"; label: string; key: string } | { type: "pay"; r: Activity } | { type: "card"; key: string; fresh: boolean })[] = []
     let last = 0
     for (const r of mine) {
       if (r.at - last >= 6 * 3600) out.push({ type: "day", label: dayLabel(r.at), key: `d${r.at}` })
       out.push({ type: "pay", r }); last = r.at
+      const card = r.direction === "out" ? cards.get(r.txHash.toLowerCase()) : undefined
+      if (card) out.push({ type: "card", key: `c${r.key}`, fresh: card.status === "new" })
     }
     return out
-  }, [rows, other])
+  }, [rows, other, cards])
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }) }, [thread?.length])
 
   if (!other) return <main className="shell"><div className="card">This person couldn't be found. <a href="/app">Go home</a></div></main>
@@ -71,7 +81,8 @@ function Chat() {
 
   const name = who?.displayName ?? prettyName(who?.name, other)
   const ens = who?.name
-  const firstName = (who?.displayName ?? prettyName(who?.name, other)).split(" ")[0]
+  // people by first name (like "Payment to Amrendra"); shops by their full name
+  const firstName = who?.kind === "merchant" ? name : (who?.displayName ?? prettyName(who?.name, other)).split(" ")[0]
   const payHref = `/send?to=${other}${ens ? `&name=${encodeURIComponent(ens)}` : ""}`
   const copy = async () => {
     try { await navigator.clipboard.writeText(other); setCopied(true); setTimeout(() => setCopied(false), 1600) } catch {}
@@ -104,7 +115,15 @@ function Chat() {
         )}
         {thread?.map((x) => x.type === "day"
           ? <div key={x.key} className="chat-day" role="separator"><span>{x.label}</span></div>
-          : <Bubble key={x.r.key} r={x.r} firstName={firstName} />)}
+          : x.type === "card"
+            ? (
+              <a key={x.key} className="chat-bubble out chat-card" href="/rewards">
+                <span className="chat-b-title">{x.fresh ? "You earned a scratch card!" : "Scratch card"}</span>
+                <span className="chat-card-art" aria-hidden><span /></span>
+                <span className="chat-b-foot">{x.fresh ? "Tap to view" : "Scratched · see rewards"}<span className="chat-chev" aria-hidden>{Icon.chev(18)}</span></span>
+              </a>
+            )
+            : <Bubble key={x.r.key} r={x.r} firstName={firstName} />)}
         <div ref={end} />
       </section>
 
