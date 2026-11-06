@@ -10,7 +10,8 @@ import { wcConfigured } from "@/lib/walletconnect"
 // -------------------------------------------------------------- onboarding
 export function Onboard({ onDone, adding = false, business = false }: { onDone: () => void; adding?: boolean; business?: boolean }) {
   // ext* steps: an external wallet was just connected and gets its own WondrPay PIN / fingerprint
-  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio" | "name">("intro")
+  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio" | "name" | "welcome">("intro")
+  const [known, setKnown] = useState("") // username this wallet already has
   const [extAddr, setExtAddr] = useState("")
   const [first, setFirst] = useState("")
   const [pin, setPin] = useState("")
@@ -31,6 +32,11 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
     try {
       const addr = via === "extension" ? await connectInjectedWallet() : await connectWalletConnect()
       setExtAddr(addr)
+      // seen before? (a username is linked to it): reconnect straight away, no PIN / World ID steps.
+      // Its WondrPay PIN is set at the first payment instead (the payment sheet asks for it).
+      const who = await fetch(`/api/resolve?q=${addr}`).then((r) => r.json()).catch(() => null)
+      const name = typeof who?.name === "string" && (who.kind === "person" || business) ? (who.name as string) : ""
+      if (name) { setKnown(name); setStep("welcome"); setTimeout(onDone, 1600); return }
       setStep("extpin")
     } catch (e) {
       const m = (e as Error).message
@@ -143,6 +149,14 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
           {bioOk && <button className="btn btn-primary btn-big" onClick={enableExtBio} disabled={busy}>{busy ? <span className="spinner" /> : null} Enable fingerprint</button>}
           <button className="btn btn-ghost" onClick={finish}>{bioOk ? "Skip for now" : "Continue"}</button>
           <div className="err">{err}</div>
+        </div>
+      )}
+      {step === "welcome" && (
+        <div className="stack center" style={{ marginTop: 48 }}>
+          <div className="hero-icon">{Icon.check(48)}</div>
+          <div className="title">Welcome back</div>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>{known}</div>
+          <div className="sub">This wallet is already linked to your WondrPay name. Nothing to verify.</div>
         </div>
       )}
       {step === "name" && (
