@@ -3,7 +3,7 @@ import { WalletWait } from "./processing"
 import { useEffect, useState } from "react"
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
 import { restoreSession } from "@/lib/session"
-import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout, isExternal, externalSigner, verifyExternalPin, verifyExternalPasskey, setExternalPin } from "@/lib/wallet"
+import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout, isExternal, externalSigner, verifyExternalPin, verifyExternalPasskey, setExternalPin, type WalletInfo } from "@/lib/wallet"
 
 export function TopBar({ right, back = "/app" }: { right?: React.ReactNode; back?: string | null }) {
   return (
@@ -65,13 +65,16 @@ export function UnlockSheet({
   subtitle,
   onUnlocked,
   onCancel,
+  wallet,
 }: {
   title: string
   subtitle?: string
   onUnlocked: (account: PrivateKeyAccount) => void
   onCancel: () => void
+  /** sign with this wallet instead of the active one (e.g. a verified wallet co-signing a new account) */
+  wallet?: WalletInfo
 }) {
-  const w = getWallet()
+  const w = wallet ?? getWallet()
   const external = isExternal(w)
   // already unlocked this session? then don't ask for the PIN / fingerprint again
   // unlocked earlier (this tab or another one, e.g. after coming back from MetaMask)? then no PIN again.
@@ -104,7 +107,7 @@ export function UnlockSheet({
     setErr("")
     try {
       if (external) { await verifyExternalPasskey(w!.address); setMode("wallet"); setBusy(false); void tryWallet(); return }
-      onUnlocked(await unlockWithPasskey())
+      onUnlocked(await unlockWithPasskey(w?.address))
     } catch (e) {
       setErr((e as Error).message.includes("NotAllowed") ? "Fingerprint cancelled" : (e as Error).message)
       setMode("pin")
@@ -134,7 +137,7 @@ export function UnlockSheet({
     setErr("")
     try {
       if (external) { await verifyExternalPin(w!.address, pin); setMode("wallet"); setBusy(false); void tryWallet(); return }
-      onUnlocked(await unlockWithPin(pin))
+      onUnlocked(await unlockWithPin(pin, w?.address))
     } catch (e) {
       setErr((e as Error).message)
     } finally {
@@ -152,7 +155,7 @@ export function UnlockSheet({
     } catch (e) { setErr((e as Error).message) }
   }
 
-  const locked = pinLockout() > 0
+  const locked = pinLockout(w?.address) > 0
   if (session === undefined || (session && !external)) return null
   return (
     <div className="sheet-backdrop" onClick={onCancel}>

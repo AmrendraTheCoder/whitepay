@@ -1,6 +1,6 @@
 // Personal WondrPay names (UPI VPA) on ENSv2: GET ?label= availability, POST claim (wallet sig + World ID).
 import { isAddress, isHex, type Address, type Hex } from "viem"
-import { claimPersonName } from "@whitepay/server"
+import { claimPersonName, linkPersonName } from "@whitepay/server"
 import { after } from "next/server"
 import { json, errorMessage } from "@/lib/json"
 
@@ -20,7 +20,13 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const b = (await req.json()) as { label: string; address: string; issuedAt: number; signature: string; result: any }
+    const b = (await req.json()) as { label: string; address: string; issuedAt: number; signature: string; result?: any; from?: string; fromSignature?: string }
+    // another wallet of an already-verified human: the verified wallet co-signs, no new World ID proof
+    if (b.from !== undefined) {
+      if (!isAddress(b.address) || !isAddress(b.from) || !isHex(b.signature) || !isHex(b.fromSignature)) return json({ error: "malformed link" }, { status: 400 })
+      return json(await linkPersonName({ label: String(b.label), address: b.address as Address, issuedAt: Number(b.issuedAt), signature: b.signature as Hex,
+        from: b.from as Address, fromSignature: b.fromSignature as Hex }, after))
+    }
     if (!isAddress(b.address) || !isHex(b.signature) || !b.result) return json({ error: "malformed claim" }, { status: 400 })
     const r = await claimPersonName({ label: String(b.label), address: b.address as Address, issuedAt: Number(b.issuedAt), signature: b.signature as Hex, result: b.result }, after)
     return json(r)

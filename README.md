@@ -91,13 +91,13 @@ Earlier test with the demo merchant:
 ## Names on ENSv2 (Ethereum Sepolia)
 `wondrpay.eth` is registered on ENSv2 Sepolia with its own **UserRegistry** (`0x7dF61f730b8f90668aD10363e9E086131422264d`) and **PermissionedResolver** (`0xc10Ffe23aada8a5cb09DDbe09259e251971844ea`). Each name stores the holder's **Whitechain address under coinType 2147485522** (ENSIP-11 for chain 1874), plus `display`, `kind` and `verified` text records.
 - **Shops** get `<handle>.wondrpay.eth` automatically at sign-up. Live examples: `chai-shop.wondrpay.eth`, `masala-corner.wondrpay.eth`.
-- **People** claim `<name>.wondrpay.eth` from the home screen: a wallet signature plus World ID, one name per human.
+- **People** claim `<name>.wondrpay.eth` from the home screen: a wallet signature plus World ID: one World ID verifies up to 5 of your wallets (a verified wallet can approve the next one, no second scan).
 - **Paying** a name resolves it live through ENS (`/api/resolve`, `getEnsAddress` with coinType 1874).
 - Scripts: `scripts/ens-setup.ts` (one-time setup), `scripts/ens-issue.ts`, `scripts/ens-check.ts <name>`.
 
 ## World ID (IDKit 4, verified on our backend)
-- **Verified merchant badge:** the shop owner proves unique humanity (action `ens-claim`, signal = shop wallet). The backend verifies with the Developer Portal, records the nullifier on Arkiv (`whitepay.worldclaim`, one shop per human), then sets `verified` in `MerchantRegistry`, Arkiv and the ENS text record.
-- **Personal name:** same action, at most one name per human.
+- **Verified merchant badge:** the shop owner proves unique humanity (action `ens-claim`, signal = shop wallet). The backend verifies with the Developer Portal, records the nullifier on Arkiv (`whitepay.worldclaim`, up to 5 shops per human), then sets `verified` in `MerchantRegistry`, Arkiv and the ENS text record.
+- **Personal names:** one per wallet, up to 5 wallets per human. Extra wallets are approved by an already-verified wallet (`linkAccountMessage`), so the same nullifier counts them.
 - **Only at account creation:** World ID runs once, when a personal wallet claims its name or a shop signs up. Payments never ask for World ID; they need only the device PIN / fingerprint (asked once per session, 15 idle minutes).
 - **Denied, cancelled or expired:** the action does not happen.
 

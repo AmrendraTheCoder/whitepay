@@ -28,7 +28,7 @@ The wallet list is stored on the device as `{ active, list[] }`. **You → Walle
 ## 3. Account types: Personal vs Business (like GPay vs GPay for Business)
 | | Personal | Business (shop) |
 |---|---|---|
-| Name | `you.wondrpay.eth`, one per human (World ID action `whitepay-name`) | `shop-handle.wondrpay.eth`, issued at shop sign-up |
+| Name | `you.wondrpay.eth`, one per wallet, up to 5 wallets per human (World ID action `whitepay-name`) | `shop-handle.wondrpay.eth`, issued at shop sign-up |
 | Registered in | ENS (text `kind=person`) + Arkiv `whitepay.worldclaim` | `MerchantRegistry` on Whitechain + Arkiv `whitepay.merchant` + ENS (`kind=merchant`) |
 | Can | Pay shops, pay and receive from people | Create signed QR orders (5-min Arkiv requests), receive, verified badge |
 | Verified | World ID when claiming the name | World ID action `whitepay-shop` → `verified=true` in registry, Arkiv and ENS |
@@ -50,8 +50,8 @@ Only the official hackathon USDT `0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7` co
 
 ## 6. World ID rules: one human = one name (movable between your wallets)
 Each person has **one fixed World ID fingerprint (nullifier) per action**. WondrPay stores it on Arkiv (`whitepay.worldclaim`) and enforces the limits itself:
-- `whitepay-name`: **one personal name per human.** If the same human verifies from a *different* wallet, the name isn't duplicated; it **moves** to the new wallet. The ENS address records are re-pointed and the Arkiv directory and claim are updated.
-- `whitepay-shop`: **one verified shop per human.**
+- `whitepay-name`: **up to 5 verified wallets per human, each with its own name.** Verify once with World ID; each further wallet is approved by an already-verified wallet on the device (both sign `linkAccountMessage`), so no second scan, and the shared nullifier enforces the limit.
+- `whitepay-shop`: **up to 5 verified shops per human.** Further shops can be approved the same way (`linkShopMessage`).
 - `whitepay-pay`: step-up for payments above 100 USDT, each proof bound to one payment.
 
 **Developer Portal setting:** set all three actions to **unlimited verifications**. With "max 1", World App blocks the second attempt itself ("Already verified") before WondrPay can recognize the person and move the name. Uniqueness is enforced by WondrPay instead.

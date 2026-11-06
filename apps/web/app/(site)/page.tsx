@@ -23,7 +23,7 @@ const FEATURES: { icon: IconName; title: string; body: string }[] = [
   { icon: "at", title: "Names, not addresses", body: "Pay ravi.wondrpay.eth instead of a 42-character address. Every name is a real ENS name." },
   { icon: "repeat", title: "Subscriptions", body: "Approve renewals with one tap, or turn on Autopay. Every payment has hard limits enforced on-chain." },
   { icon: "receipt", title: "Receipts that last", body: "Each payment writes a receipt to Arkiv: searchable, exportable, and not locked in one company's database." },
-  { icon: "shield", title: "Verified shops", body: "Shops verify with World ID, one shop per person, so you know a real human is behind the counter." },
+  { icon: "shield", title: "Verified shops", body: "Shops verify with World ID (up to 5 per person), so you know a real human is behind the counter." },
 ]
 
 const FAQ = [

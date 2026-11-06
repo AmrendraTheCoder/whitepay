@@ -6,6 +6,7 @@ import { merchantSignupMessage, orderTypedData, receiveAuthTypedData, ROUTER_ADD
 import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, MiniLogo, Countdown, Identicon, Icon } from "../ui"
 import { WorldVerify } from "../world"
+import { ShopLink } from "./shop-link"
 import { PlansCard } from "./plans"
 import { OfferCard } from "./offer"
 import { getWallet } from "@/lib/wallet"
@@ -129,7 +130,8 @@ function Signup({ address, account, setAccount, onDone }: {
         <div className="card stack center">
           <SuccessCheck />
           <div className="title">{label}.wondrpay.eth is yours</div>
-          <div className="sub">Last step: prove a real, unique person runs this shop with World ID (one verified shop per human). Customers see the Verified badge before they pay. You only do this once; payments never ask for it.</div>
+          <div className="sub">Last step: prove a real, unique person runs this shop with World ID (one World ID covers up to 5 of your shops). Customers see the Verified badge before they pay. You only do this once; payments never ask for it.</div>
+          <ShopLink shop={account} onVerified={onDone} />
           <WorldVerify
             purpose="shop"
             signal={address}

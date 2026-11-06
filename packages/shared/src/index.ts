@@ -232,6 +232,15 @@ export const stepUpSignal = (payer: Address, paymentRef: Hex) => `step-up:${getA
 export const nameClaimMessage = (p: { label: string; address: Address; issuedAt: number }) =>
   `WondrPay name claim\nname: ${p.label}\naddress: ${p.address}\nissued: ${p.issuedAt}`
 
+/** Signed by an ALREADY World-verified wallet to extend its human verification to another wallet
+ *  of the same person (no second World ID scan). */
+export const linkAccountMessage = (p: { from: Address; to: Address; label: string; issuedAt: number }) =>
+  `WondrPay add account\nverified wallet: ${p.from}\nnew wallet: ${p.to}\nname: ${p.label}\nissued: ${p.issuedAt}`
+
+/** Same idea for a shop: an already-verified wallet vouches that the same human runs this shop. */
+export const linkShopMessage = (p: { from: Address; shop: Address; issuedAt: number }) =>
+  `WondrPay verify my shop\nverified wallet: ${p.from}\nshop wallet: ${p.shop}\nissued: ${p.issuedAt}`
+
 /** WondrPay's ENSv2 deployment on Ethereum Sepolia (parent wondrpay.eth). */
 export const ENS_WHITEPAY = {
   parent: "wondrpay.eth",

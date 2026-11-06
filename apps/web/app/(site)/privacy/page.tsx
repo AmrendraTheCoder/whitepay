@@ -13,7 +13,7 @@ export default function Privacy() {
         <h2>Public by design</h2>
         <p>Payments on Whitechain (addresses, amounts, times), your WondrPay name on ENS if you claim one, and payment requests, receipts and subscriptions on Arkiv. These are public blockchains and data networks: anyone can read them, and they can't be deleted by us.</p>
         <h2>World ID</h2>
-        <p>When you verify, World ID sends us a zero-knowledge proof and an anonymous identifier (nullifier) for that action. We store the nullifier to enforce "one name / one shop per person". We never receive your name, face or iris data.</p>
+        <p>When you verify, World ID sends us a zero-knowledge proof and an anonymous identifier (nullifier) for that action. We store the nullifier to cap how many accounts one person can verify (5 names, 5 shops). We never receive your name, face or iris data.</p>
         <h2>Our servers</h2>
         <p>Standard request logs (IP address, time, path) kept by our hosting provider for security and rate limiting. No advertising trackers, no analytics cookies, no data sales.</p>
         <h2>On this device</h2>

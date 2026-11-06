@@ -153,21 +153,23 @@ export function pinLockout(address = getWallet()?.address ?? ""): number {
   }
 }
 
-function activeDevice(): DeviceWallet {
-  const w = activeEntry()
+function activeDevice(address?: string): DeviceWallet {
+  const w = address ? load().list.find((x) => same(x.address, address)) ?? null : activeEntry()
   if (!w) throw new Error("No wallet on this device")
   if (w.kind !== "device") throw new Error("This wallet is a browser wallet; confirm in your wallet app")
   return w
 }
 
-export async function unlockWithPin(pin: string): Promise<PrivateKeyAccount> {
-  const w = activeDevice()
+/** `address`: unlock a specific (non-active) wallet once, e.g. to co-sign; it doesn't replace the session. */
+export async function unlockWithPin(pin: string, address?: string): Promise<PrivateKeyAccount> {
+  const w = activeDevice(address)
+  const keep = !address || same(address, load().active)
   const wait = pinLockout(w.address)
   if (wait) throw new Error(`Too many wrong PINs. Try again in ${Math.ceil(wait / 60000)} min`)
   try {
     const pk = await open(await pinKey(pin, unb64(w.pin.salt)), w.pin.iv, w.pin.ct)
     localStorage.removeItem(LOCK(w.address))
-    rememberSession(w.address, pk)
+    if (keep) rememberSession(w.address, pk)
     return privateKeyToAccount(pk)
   } catch {
     const l = JSON.parse(localStorage.getItem(LOCK(w.address)) ?? "{}") as { tries?: number }
@@ -233,12 +235,12 @@ export async function enablePasskey(pin: string) {
   replace({ ...w, passkey: { credId: b64(credId), prfSalt: b64(prfSalt), ...sealed } })
 }
 
-export async function unlockWithPasskey(): Promise<PrivateKeyAccount> {
-  const w = activeDevice()
+export async function unlockWithPasskey(address?: string): Promise<PrivateKeyAccount> {
+  const w = activeDevice(address)
   if (!w.passkey) throw new Error("Fingerprint not set up")
   const secret = await prfSecret(unb64(w.passkey.credId), unb64(w.passkey.prfSalt))
   const pk = await open(await prfKey(secret), w.passkey.iv, w.passkey.ct)
-  rememberSession(w.address, pk)
+  if (!address || same(address, load().active)) rememberSession(w.address, pk)
   return privateKeyToAccount(pk)
 }
 
@@ -383,7 +385,7 @@ export async function setExternalPin(address: string, pin: string) {
   const w = extEntry(address)
   const salt = rand(16)
   replace({ ...w, pinCheck: { salt: b64(salt), hash: await pinHash(pin, salt) } })
-  rememberSession(w.address)
+  if (same(w.address, load().active)) rememberSession(w.address)
 }
 /** Check the WondrPay PIN (same 5-tries lockout as device wallets). */
 export async function verifyExternalPin(address: string, pin: string) {
@@ -391,7 +393,7 @@ export async function verifyExternalPin(address: string, pin: string) {
   if (!w.pinCheck) throw new Error("Set a WondrPay PIN for this wallet first")
   const wait = pinLockout(w.address)
   if (wait) throw new Error(`Too many wrong PINs. Try again in ${Math.ceil(wait / 60000)} min`)
-  if ((await pinHash(pin, unb64(w.pinCheck.salt))) === w.pinCheck.hash) { localStorage.removeItem(LOCK(w.address)); rememberSession(w.address); return }
+  if ((await pinHash(pin, unb64(w.pinCheck.salt))) === w.pinCheck.hash) { localStorage.removeItem(LOCK(w.address)); if (same(w.address, load().active)) rememberSession(w.address); return }
   const l = JSON.parse(localStorage.getItem(LOCK(w.address)) ?? "{}") as { tries?: number }
   const tries = (l.tries ?? 0) + 1
   localStorage.setItem(LOCK(w.address), JSON.stringify(tries >= MAX_TRIES ? { tries: 0, until: Date.now() + LOCKOUT_MS } : { tries }))
@@ -427,7 +429,7 @@ export async function verifyExternalPasskey(address: string) {
     },
   })
   if (!a) throw new Error("Fingerprint cancelled")
-  rememberSession(w.address)
+  if (same(w.address, load().active)) rememberSession(w.address)
 }
 
 /** Remove the active wallet from this device (device keys are deleted). */

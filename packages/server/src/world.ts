@@ -10,14 +10,14 @@ import { signRequest } from "@worldcoin/idkit/signing"
 import { hashSignal } from "@worldcoin/idkit/hashing"
 import { getAddress, verifyMessage, type Address, type Hex } from "viem"
 import { WorldClaim, MerchantProfile, PersonProfile } from "@whitepay/shared/arkiv"
-import { REGISTRY_ABI, stepUpSignal, nameClaimMessage } from "@whitepay/shared"
+import { REGISTRY_ABI, stepUpSignal, nameClaimMessage, linkAccountMessage, linkShopMessage } from "@whitepay/shared"
 import { arkiv, wc } from "./clients"
 import { currentEnsName } from "./merchants"
 import { config } from "./config"
 
 // Actions must exist in the World Developer Portal (World App rejects unknown ones).
-//  - whitepay-name: one personal name per human   (max verifications: 1)
-//  - whitepay-shop: one verified shop per human    (max verifications: 1)
+//  - whitepay-name: personal names, up to MAX_ACCOUNTS_PER_HUMAN wallets per human (extra wallets via co-sign)
+//  - whitepay-shop: verified shops, same limit (extra shops via co-sign)
 //  - whitepay-pay:  step-up for large payments     (max verifications: unlimited)
 //    Each step-up proof is bound to ONE payment through its signal (payer + payment ref),
 //    so a proof can't be reused for a different payment even though the action is shared.
@@ -88,26 +88,58 @@ export async function verifyProof(result: IDKitResultLike, action: Action, signa
 }
 
 // ------------------------------------------------------------ uniqueness
-async function claimFor(nullifier: string) {
+/** One verified human may run several wallets (personal accounts and shops), like having more than
+ *  one bank account, but not unlimited ones: still Sybil-resistant, every account traces to the
+ *  same World ID nullifier. */
+export const MAX_ACCOUNTS_PER_HUMAN = 5
+
+/** Wallets this human (nullifier) has already verified for a purpose. */
+async function claimsFor(nullifier: string, action: string, purpose: "merchant-verify" | "name-claim") {
   const a = arkiv()
   const page = await a.pub
     .select({ $key: true, address: true })
     .from(WorldClaim)
     .ownedBy(a.owner)
-    .where(and(eq("action", WORLD_ACTIONS.shop), eq("nullifier", nullifier), eq("purpose", "merchant-verify")))
-    .limit(1)
+    .where(and(eq("action", action), eq("nullifier", nullifier), eq("purpose", purpose)))
+    .limit(100)
     .fetch()
-  return page.entities[0] as { $key: Hex; address: { value: string } } | undefined
+  return (page.entities as any[]).map((e) => ({ key: e.$key as Hex, address: getAddress(e.address.value as string) }))
 }
 
 /** Merchant owner proves they are a unique human -> shop gets the verified badge (registry + Arkiv + ENS). */
 export async function verifyMerchantHuman(merchant: Address, result: IDKitResultLike, defer: Defer = runNow) {
   merchant = getAddress(merchant)
   const { nullifier } = await verifyProof(result, WORLD_ACTIONS.shop, merchant)
+  return markMerchantVerified(merchant, nullifier, defer)
+}
 
-  const existing = await claimFor(nullifier)
-  if (existing && getAddress(existing.address.value) !== merchant)
-    throw new Error("This person has already verified another WondrPay shop (one shop per human)")
+/** Verify another shop of an already-verified human: a World-verified wallet (shop or personal) and
+ *  the shop wallet both sign; the shop is counted against that human's limit. No second World ID scan. */
+export async function verifyMerchantByLink(
+  p: { merchant: Address; from: Address; issuedAt: number; signature: Hex; fromSignature: Hex },
+  defer: Defer = runNow,
+) {
+  const merchant = getAddress(p.merchant), from = getAddress(p.from)
+  if (merchant === from) throw new Error("Pick a different wallet")
+  if (Math.abs(Date.now() / 1000 - p.issuedAt) > 600) throw new Error("Request expired, try again")
+  const msg = linkShopMessage({ from, shop: merchant, issuedAt: p.issuedAt })
+  if (!(await verifyMessage({ address: merchant, message: msg, signature: p.signature }))) throw new Error("Signature does not match the shop wallet")
+  if (!(await verifyMessage({ address: from, message: msg, signature: p.fromSignature }))) throw new Error("The verified wallet didn't approve this")
+  const a = arkiv()
+  const src = await a.pub.select({ $key: true, nullifier: true, action: true }).from(WorldClaim).ownedBy(a.owner).where(eq("address", addr(from))).limit(10).fetch()
+  const c = (src.entities as any[]).find((e) => e.action?.value === WORLD_ACTIONS.shop) ?? src.entities[0] as any
+  if (!c?.nullifier?.value) throw new Error("That wallet isn't World ID verified yet. Verify it first.")
+  // nullifiers are per World action: keep the human key stable across the two actions
+  const key = c.action.value === WORLD_ACTIONS.shop ? c.nullifier.value : `${c.action.value}:${c.nullifier.value}`
+  return markMerchantVerified(merchant, key, defer)
+}
+
+async function markMerchantVerified(merchant: Address, nullifier: string, defer: Defer) {
+
+  const claims = await claimsFor(nullifier, WORLD_ACTIONS.shop, "merchant-verify")
+  const existing = claims.find((c) => c.address === merchant)
+  if (!existing && claims.length >= MAX_ACCOUNTS_PER_HUMAN)
+    throw new Error(`This World ID already verified ${claims.length} shops, the limit per person`)
 
   const m = await wc().pub.readContract({ address: config.registry, abi: REGISTRY_ABI, functionName: "get", args: [merchant] })
   if (!m.active) throw new Error("Register the shop first")
@@ -142,7 +174,7 @@ export async function verifyMerchantHuman(merchant: Address, result: IDKitResult
   return { verified: true, registryTx }
 }
 
-/** Personal ENS name (UPI VPA): one name per human. Requires a wallet signature AND a World ID proof
+/** Personal ENS name (UPI VPA): one per wallet, up to MAX_ACCOUNTS_PER_HUMAN wallets per human. Requires a wallet signature AND a World ID proof
  *  bound to the same wallet; the nullifier is recorded on Arkiv so the human can't claim twice. */
 /** Schedules slow work (ENS txs ~25 s) after the HTTP response; Next passes `after`. */
 export type Defer = (task: () => Promise<unknown>) => void
@@ -157,7 +189,7 @@ export async function getPersonByAddress(address: Address) {
   return e ? { key: e.$key as Hex, label: e.label.value as string, ensName: currentEnsName(e.ensName.value as string), ensIssued: !!e.ensIssued?.value } : null
 }
 
-/** Personal ENS name (UPI VPA): one name per human. Requires a wallet signature AND a World ID proof
+/** Personal ENS name (UPI VPA): one per wallet, up to MAX_ACCOUNTS_PER_HUMAN wallets per human. Requires a wallet signature AND a World ID proof
  *  bound to the same wallet. Responds as soon as the proof is verified and recorded on Arkiv
  *  (a few seconds, so World's widget doesn't time out); the ENSv2 subname is issued right after. */
 export async function claimPersonName(
@@ -176,33 +208,51 @@ export async function claimPersonName(
   const ens: any = await import("./ens")
   const { nullifier } = await verifyProof(p.result, WORLD_ACTIONS.claim, address)
   const a = arkiv()
-  const prior = await a.pub
-    .select({ $key: true, address: true })
-    .from(WorldClaim).ownedBy(a.owner)
-    .where(and(eq("action", WORLD_ACTIONS.claim), eq("nullifier", nullifier), eq("purpose", "name-claim")))
-    .limit(1).fetch()
-  const priorAddr = (prior.entities[0] as any)?.address?.value as string | undefined
-  if (priorAddr && getAddress(priorAddr) !== address) {
-    // Same human (same nullifier), different wallet: one World ID = one name, so MOVE it here.
-    const old = await getPersonByAddress(getAddress(priorAddr))
-    if (!old) throw new Error("This World ID already has a WondrPay name on another wallet")
-    const claimKey = (prior.entities[0] as any).$key as Hex
-    await a.writer.executeBatch(
-      {
-        patches: [
-          { schema: PersonProfile, entityKey: old.key, set: { address: addr(address) } },
-          { schema: WorldClaim, entityKey: claimKey, set: { address: addr(address) } },
-        ],
-      } as any,
-      { gas: 2_000_000n },
-    )
-    defer(async () => {
-      try { await ens.setWalletAddress(old.ensName, address) }
-      catch (e) { console.error("[world] ENS move failed for", old.ensName, (e as Error).message) }
-    })
-    return { name: old.ensName, pending: true, moved: true, from: getAddress(priorAddr) }
-  }
+  // Same human, another wallet: that wallet gets its OWN verified name (up to the limit),
+  // instead of taking over the first wallet's name.
+  const claims = await claimsFor(nullifier, WORLD_ACTIONS.claim, "name-claim")
+  if (!claims.some((c) => c.address === address) && claims.length >= MAX_ACCOUNTS_PER_HUMAN)
+    throw new Error(`This World ID already has ${claims.length} verified accounts, the limit per person`)
+  const alreadyClaimed = claims.some((c) => c.address === address)
 
+  return issuePersonName({ label, address, nullifier, recordClaim: !alreadyClaimed }, defer)
+}
+
+/** Add another wallet for an already-verified human: the verified wallet co-signs, no new World ID scan.
+ *  Both wallets prove control (signatures); the new wallet inherits the SAME nullifier, so the
+ *  per-human limit still counts it. */
+export async function linkPersonName(
+  p: { label: string; address: Address; issuedAt: number; signature: Hex; from: Address; fromSignature: Hex },
+  defer: Defer = runNow,
+) {
+  const address = getAddress(p.address)
+  const from = getAddress(p.from)
+  const label = p.label.trim().toLowerCase()
+  if (address === from) throw new Error("Pick a different wallet to add")
+  if (Math.abs(Date.now() / 1000 - p.issuedAt) > 600) throw new Error("Request expired, try again")
+  if (!(await verifyMessage({ address, message: nameClaimMessage({ label, address, issuedAt: p.issuedAt }), signature: p.signature })))
+    throw new Error("Signature does not match the new wallet")
+  if (!(await verifyMessage({ address: from, message: linkAccountMessage({ from, to: address, label, issuedAt: p.issuedAt }), signature: p.fromSignature })))
+    throw new Error("The verified wallet didn't approve this")
+
+  const existing = await getPersonByAddress(address)
+  if (existing) return { name: existing.ensName, pending: !existing.ensIssued, already: true }
+
+  const a = arkiv()
+  const src = await a.pub.select({ $key: true, nullifier: true }).from(WorldClaim).ownedBy(a.owner)
+    .where(and(eq("action", WORLD_ACTIONS.claim), eq("address", addr(from)), eq("purpose", "name-claim"))).limit(1).fetch()
+  const nullifier = (src.entities[0] as any)?.nullifier?.value as string | undefined
+  if (!nullifier) throw new Error("That wallet isn't World ID verified yet. Verify it first.")
+  const claims = await claimsFor(nullifier, WORLD_ACTIONS.claim, "name-claim")
+  if (claims.length >= MAX_ACCOUNTS_PER_HUMAN) throw new Error(`You already have ${claims.length} verified accounts, the limit per person`)
+  return issuePersonName({ label, address, nullifier, recordClaim: true }, defer)
+}
+
+/** Record the verified wallet on Arkiv, then issue <label>.<parent> on ENSv2 after the response. */
+async function issuePersonName(p: { label: string; address: Address; nullifier: string; recordClaim: boolean }, defer: Defer) {
+  const { label, address, nullifier } = p
+  const ens: any = await import("./ens")
+  const a = arkiv()
   const check = await ens.isLabelAvailable(label)
   if (!check.available) throw new Error(`${check.name}: ${check.reason}`)
 
@@ -212,7 +262,7 @@ export async function claimPersonName(
   const res = await a.writer.executeBatch(
     {
       creates: [
-        ...(priorAddr ? [] : [{ schema: WorldClaim, values: { action: WORLD_ACTIONS.claim, nullifier, address: addr(address), purpose: "name-claim", verifiedAt: now }, expiration: ExpirationTime.max() }]),
+        ...(!p.recordClaim ? [] : [{ schema: WorldClaim, values: { action: WORLD_ACTIONS.claim, nullifier, address: addr(address), purpose: "name-claim", verifiedAt: now }, expiration: ExpirationTime.max() }]),
         { schema: PersonProfile, values: { address: addr(address), label, ensName, registeredAt: now, ensIssued: false }, expiration: ExpirationTime.max() },
       ],
     } as any,
