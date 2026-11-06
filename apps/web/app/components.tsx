@@ -1,4 +1,5 @@
 "use client"
+import { WalletWait } from "./processing"
 import { useEffect, useState } from "react"
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
 import { sessionFor } from "@/lib/session"
@@ -151,9 +152,9 @@ export function UnlockSheet({
         {mode === "wallet" ? (
           <>
             <div className="sub center">Verified. Now approve the signature in {walletName}. It costs no gas.</div>
-            <button className="btn btn-primary btn-big" onClick={tryWallet} disabled={busy}>
-              {busy ? <span className="spinner" /> : null} Confirm in {walletName}
-            </button>
+            {busy ? <WalletWait /> : (
+              <button className="btn btn-primary btn-big" onClick={tryWallet}>Confirm in {walletName}</button>
+            )}
           </>
         ) : mode === "passkey" ? (
           <button className="btn btn-primary btn-big" onClick={tryPasskey} disabled={busy}>

@@ -12,6 +12,7 @@ import { getWallet } from "@/lib/wallet"
 import { usdt, short, countdown, when } from "@/lib/format"
 import { enableReminderNotifications } from "@/lib/reminders"
 import { Processing } from "../processing"
+import { settle } from "@/lib/settle"
 import "./subscribe.css"
 
 type PlanResp = {
@@ -93,13 +94,13 @@ function Subscribe() {
       const startAt = Math.floor(Date.now() / 1000)
       if (mode === "reminder") {
         // sign ONLY the first payment; every later one is requested when due and approved then
-        const signature = await acct.signTypedData(cycleAuthTypedData({ subscriber: acct.address, merchant: plan.merchant as Hex, amount, subscriptionId, cycle: 0, startAt, period: plan.period, grace: plan.grace }))
+        const td = cycleAuthTypedData({ subscriber: acct.address, merchant: plan.merchant as Hex, amount, subscriptionId, cycle: 0, startAt, period: plan.period, grace: plan.grace })
+        const signature = await acct.signTypedData(td)
         setProgress(1); setPhase("charging")
-        const r = await fetch("/api/subscriptions", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ planKey, subscriber: acct.address, subscriptionId, startAt, signature }) })
-        const d = await r.json()
-        if (!r.ok) throw new Error(d.error ?? "Subscription failed")
-        setDone({ explorer: d.explorer, nextDueAt: d.nextDueAt, tx: d.firstTx }); setPhase("finishing"); setTimeout(() => setPhase("done"), 1100)
+        // timeout / dropped connection: ask the chain whether the first payment went through
+        const d = await settle("/api/subscriptions", { planKey, subscriber: acct.address, subscriptionId, startAt, signature },
+          { from: acct.address, nonce: (td.message as any).nonce }) as any
+        setDone({ explorer: d.explorer, nextDueAt: d.nextDueAt ?? (plan.cycles > 1 ? cycleDueAt(startAt, plan.period, 1) : null), tx: d.firstTx }); setPhase("finishing"); setTimeout(() => setPhase("done"), 1100)
         return
       }
       const terms = termsFor({ subscriber: acct.address, merchant: plan.merchant as Hex, amount, period: plan.period, grace: plan.grace, cycles: plan.cycles, startAt, subscriptionId })
@@ -116,8 +117,9 @@ function Subscribe() {
       setProgress(1)
       setPhase("charging")
       const r = await fetch("/api/subscriptions", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ planKey, subscriber: acct.address, subscriptionId, startAt, permit: { deadline, signature } }) })
-      const d = await r.json()
+        body: JSON.stringify({ planKey, subscriber: acct.address, subscriptionId, startAt, permit: { deadline, signature } }), signal: AbortSignal.timeout(50_000) })
+        .catch(() => { throw new Error("Network problem. Check Subscriptions before trying again.") })
+      const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.error ?? "Subscription failed")
       setDone({ explorer: d.explorer, nextDueAt: d.nextDueAt, tx: d.firstTx }); setPhase("finishing"); setTimeout(() => setPhase("done"), 1100)
     } catch (e) { setErr(friendly((e as Error).message, amount)); setPhase("failed") }
@@ -219,6 +221,7 @@ const shortPeriod = (label: string) => label.replace(" (demo)", "").replace(/^ev
 /** Turn contract / relayer errors into something a person can act on. */
 function friendly(msg: string, amount: bigint) {
   const m = msg.toLowerCase()
+  if (/check your history|check subscriptions|nothing was charged\.$/.test(m)) return msg
   if (/exceeds balance|insufficient|transfer amount/.test(m)) return `Not enough USDT for the first payment (${usdt(amount)} USDT). Add USDT to this wallet and try again.`
   if (/authorization is used|authorizationused|nonce/.test(m)) return "These payment approvals were already used. Reload the page to start fresh."
   if (/not yet valid|authorization is expired|expired/.test(m)) return "Your phone's clock looks off, so the payment windows don't line up. Turn on automatic date & time and try again."

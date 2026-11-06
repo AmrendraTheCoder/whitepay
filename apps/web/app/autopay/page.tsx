@@ -3,6 +3,7 @@
 // Each countdown is a live "due" entity on Arkiv.
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Processing } from "../processing"
+import { settle } from "@/lib/settle"
 import "./subs.css"
 import type { Hex } from "viem"
 import type { PrivateKeyAccount } from "viem/accounts"
@@ -75,15 +76,16 @@ export default function Subscriptions() {
     try {
       const cycle = m.nextCycle!
       // ONE signature for THIS payment only, valid only inside its window
-      const signature = await acct.signTypedData(cycleAuthTypedData({ subscriber: acct.address, merchant: m.merchant as Hex, amount: BigInt(m.amount), subscriptionId: m.subscriptionId as Hex, cycle, startAt: m.startAt, period: m.period, grace: m.grace }))
+      const td = cycleAuthTypedData({ subscriber: acct.address, merchant: m.merchant as Hex, amount: BigInt(m.amount), subscriptionId: m.subscriptionId as Hex, cycle, startAt: m.startAt, period: m.period, grace: m.grace })
+      const signature = await acct.signTypedData(td)
       setProc((p) => p && { ...p, step: 1 })
-      const r = await post("/api/subscriptions/pay", { mandateKey: m.key, subscriber: acct.address, cycle, signature })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.error ?? "Payment failed")
+      const d = await settle("/api/subscriptions/pay", { mandateKey: m.key, subscriber: acct.address, cycle, signature },
+        { from: acct.address, nonce: (td.message as any).nonce }) as any
       setProc((p) => p && { ...p, step: 2, done: true })
       await new Promise((res) => setTimeout(res, 900))
       setPaid({ title: m.title, amount: m.amount, explorer: d.explorer })
       // the server answers as soon as the chain confirms and updates Arkiv right after: reflect it instantly
+      if (d.confirmedOnChain) { void load(acct.address); return } // confirmed from the chain after a dropped response: re-read
       setRows((rs) => rs?.map((x) => x.key === m.key ? { ...x, payNow: false, paidCycles: x.paidCycles + 1, nextCycle: (x.nextCycle ?? 0) + 1,
         nextDueAt: d.nextDueAt ?? 0, status: d.nextDueAt ? "active" : "completed", lastTxUrl: d.explorer } : x) ?? null)
     } catch (e) { setMsg(friendly((e as Error).message)) } finally { setBusy(""); setProc(null) }
@@ -112,6 +114,7 @@ export default function Subscriptions() {
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
       gone.current.set(m.key, Date.now())
+      if (d.confirmedOnChain) { void load(acct.address); return } // confirmed from the chain after a dropped response: re-read
       setRows((rs) => rs?.map((x) => x.key === m.key ? { ...x, status: "cancelled", payNow: false } : x) ?? null)
       setProc((p) => p && { ...p, step: 2, done: true })
       await new Promise((res) => setTimeout(res, 900))
@@ -308,6 +311,7 @@ function post(url: string, body: unknown) {
 
 function friendly(msg: string) {
   const m = msg.toLowerCase()
+  if (/check your history|check subscriptions|nothing was charged\.$/.test(m)) return msg
   if (/exceeds balance|insufficient|not enough usdt/.test(m)) return "Not enough USDT for this payment. Add USDT and try again before the window closes."
   if (/window .* closed|skipped/.test(m)) return "This payment's window closed, so it was skipped. You'll be asked for the next one."
   if (/opens in/.test(m)) return `Too early: ${msg}`

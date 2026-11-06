@@ -10,6 +10,7 @@ import { Processing } from "../processing"
 import { getWallet } from "@/lib/wallet"
 import { PayeeSearch } from "./search"
 import { usdt, short, initials } from "@/lib/format"
+import { settle, SettleError } from "@/lib/settle"
 
 type Payee = { address: Address; name?: string; displayName?: string; kind?: string; source?: string }
 
@@ -32,7 +33,7 @@ function Send() {
   const fixedAmount = !!sp.get("amount")
   const [unlock, setUnlock] = useState(false)
   const [phase, setPhase] = useState<"idle" | "signing" | "settling" | "finishing" | "done" | "failed">("idle")
-  const [result, setResult] = useState<{ explorer?: string; error?: string }>({})
+  const [result, setResult] = useState<{ explorer?: string; error?: string; code?: string }>({})
 
   useEffect(() => setWallet(getWallet()), [])
 
@@ -86,24 +87,23 @@ function Send() {
         memo,
         auth: { from: account.address, validAfter: "0", validBefore: validBefore.toString(), signature },
       }
-      await submit(body, account.address, memo)
+      await submit(body, account.address, nonce)
     } catch (e) {
       setResult({ error: friendlyPayError((e as Error).message) })
       setPhase("failed")
     }
   }
 
-  async function submit(body: any, payer: Address, ref: Hex) {
+  async function submit(body: any, payer: Address, nonce: Hex) {
     setPhase("settling")
     try {
-      const r = await fetch("/api/send", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
-      const out = await r.json()
-      if (!r.ok) throw new Error(out.error ?? "Payment failed")
-      setResult({ explorer: out.explorer })
+      const out = await settle("/api/send", body, { from: payer, nonce })
+      setResult({ explorer: out.explorer as string | undefined })
       setPhase("finishing")
       setTimeout(() => setPhase("done"), 900)
     } catch (e) {
-      setResult({ error: friendlyPayError((e as Error).message) })
+      const err = e as SettleError
+      setResult({ error: err.code === "unconfirmed" ? err.message : friendlyPayError(err.message), code: err.code })
       setPhase("failed")
     }
   }
@@ -114,13 +114,18 @@ function Send() {
         <TopBar right={<a className="chip" href="/app">Home</a>} />
         <div className="card result">
           {phase === "done" ? <SuccessCheck /> : <div className="icon bad" aria-hidden>{Icon.close(40)}</div>}
-          <h1>{phase === "done" ? `Sent ${amount} USDT` : "Not sent"}</h1>
+          <h1>{phase === "done" ? `Sent ${amount} USDT` : result.code === "unconfirmed" ? "Couldn't confirm" : "Not sent"}</h1>
           <div className="sub">
             {phase === "done" ? `to ${payee?.displayName ?? payee?.name ?? short(payee?.address)}. Settled on Whitechain. You paid no gas.` : result.error}
           </div>
           {result.explorer && <a className="chip" href={result.explorer} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
         </div>
-        <a className="btn btn-primary" href="/app">Done</a>
+        {phase === "failed" && result.code !== "unconfirmed" && !/already|expired/i.test(result.error ?? "") && (
+          <button className="btn btn-primary" onClick={() => { setResult({}); setPhase("idle") }}>Try again</button>
+        )}
+        <a className={`btn ${phase === "failed" ? "btn-ghost" : "btn-primary"}`} href={phase === "failed" && result.code === "unconfirmed" ? "/transactions" : "/app"}>
+          {phase === "failed" && result.code === "unconfirmed" ? "Check history" : "Done"}
+        </a>
       </main>
     )
 
@@ -180,6 +185,7 @@ function Send() {
 /** Contract / relayer errors in words a person can act on (same wording as subscriptions). */
 function friendlyPayError(msg: string) {
   const m = msg.toLowerCase()
+  if (/check your history|check subscriptions|nothing was charged\.$/.test(m)) return msg
   if (/exceeds balance|insufficient|not enough usdt/.test(m)) return "Not enough USDT in this wallet. Add USDT and try again."
   if (/authorization is used|already paid|orderalreadypaid/.test(m)) return "This payment was already made. Nothing more was charged."
   if (/expired|orderexpired/.test(m)) return "This payment request expired. Ask for a new QR code."

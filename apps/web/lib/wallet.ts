@@ -297,10 +297,48 @@ export async function injectedSigner(address: `0x${string}`): Promise<Signer> {
   if (!accounts.some((a) => same(a, address))) throw new Error(`Switch your wallet to ${address.slice(0, 6)}…${address.slice(-4)} and try again`)
   await ensureWhitechain(eth)
   const client = createWalletClient({ chain: whitechainSepolia, transport: custom(eth), account: address })
+  return guardedSigner(address, client, "injected")
+}
+
+// ------------------------------------------------ pending wallet request (timeout + cancel + UI signal)
+// An external wallet can sit on a request forever (app closed, deep link blocked, dead WalletConnect
+// session). Every external signature therefore: has a 2-minute deadline, can be cancelled from the
+// processing screen, and announces itself so that screen can offer "Open MetaMask".
+export type PendingWallet = { kind: "injected" | "walletconnect"; since: number } | null
+let pendingReq: { info: NonNullable<PendingWallet>; reject: (e: Error) => void } | null = null
+const listeners = new Set<(p: PendingWallet) => void>()
+const emit = () => listeners.forEach((f) => f(pendingReq?.info ?? null))
+export function onWalletPending(f: (p: PendingWallet) => void) { listeners.add(f); f(pendingReq?.info ?? null); return () => { listeners.delete(f) } }
+export function cancelWalletRequest() { pendingReq?.reject(Object.assign(new Error("Cancelled. Nothing was charged."), { code: 4001 })) }
+const WALLET_TIMEOUT_MS = 120_000
+
+function guarded<T>(kind: "injected" | "walletconnect", run: () => Promise<T>): Promise<T> {
+  cancelWalletRequest() // never two at once
+  return new Promise<T>((resolve, reject) => {
+    const me = { info: { kind, since: Date.now() }, reject: (e: Error) => finish(() => reject(e)) }
+    let settled = false
+    const finish = (f: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(t)
+      if (pendingReq === me) { pendingReq = null; emit() }
+      f()
+    }
+    const name = kind === "walletconnect" ? "MetaMask" : "Your wallet"
+    const t = setTimeout(() => me.reject(new Error(kind === "walletconnect"
+      ? `${name} didn't respond. Open MetaMask and try again; if it keeps happening, reconnect it under You.`
+      : `${name} didn't respond. Open the extension and try again.`)), WALLET_TIMEOUT_MS)
+    pendingReq = me
+    emit()
+    run().then((v) => finish(() => resolve(v)), (e) => finish(() => reject(e)))
+  })
+}
+
+function guardedSigner(address: `0x${string}`, client: { signTypedData: (a: any) => Promise<Hex>; signMessage: (a: any) => Promise<Hex> }, kind: "injected" | "walletconnect"): Signer {
   return {
     address,
-    signTypedData: ((td: any) => client.signTypedData(td)) as Signer["signTypedData"],
-    signMessage: ((m: any) => client.signMessage(m)) as Signer["signMessage"],
+    signTypedData: ((td: any) => guarded(kind, () => client.signTypedData(td))) as Signer["signTypedData"],
+    signMessage: ((m: any) => guarded(kind, () => client.signMessage(m))) as Signer["signMessage"],
   }
 }
 
@@ -320,15 +358,12 @@ export async function externalSigner(w: WalletInfo): Promise<Signer> {
   if (w.kind === "injected") return injectedSigner(w.address)
   const { wcEnsureSession } = await import("./walletconnect")
   const p = await wcEnsureSession()
-  const accounts = (await p.request({ method: "eth_accounts" })) as string[]
+  const accounts = ((await p.request({ method: "eth_accounts" }).catch(() => null)) as string[] | null) ?? p.accounts ?? []
   if (!accounts.some((a) => same(a, w.address))) throw new Error(`Connected wallet is not ${w.address.slice(0, 6)}…${w.address.slice(-4)}; reconnect it under You`)
-  await ensureWhitechain(p as unknown as Eip1193)
+  // a chain switch over WalletConnect opens MetaMask; bound it so a dead session can't hang the sheet
+  await guarded("walletconnect", () => ensureWhitechain(p as unknown as Eip1193))
   const client = createWalletClient({ chain: whitechainSepolia, transport: custom(p as any), account: w.address })
-  return {
-    address: w.address,
-    signTypedData: ((td: any) => client.signTypedData(td)) as Signer["signTypedData"],
-    signMessage: ((m: any) => client.signMessage(m)) as Signer["signMessage"],
-  }
+  return guardedSigner(w.address, client, "walletconnect")
 }
 
 // ------------------------------------------ WhitePay PIN / fingerprint for external wallets

@@ -9,6 +9,7 @@ import { SuccessCheck, LogoLoader, Countdown, Icon } from "../ui"
 import { Processing } from "../processing"
 import { getWallet } from "@/lib/wallet"
 import { usdt, initials, mmss } from "@/lib/format"
+import { settle, SettleError } from "@/lib/settle"
 
 type Check = { label: string; detail: string }
 type ReqResp =
@@ -121,18 +122,14 @@ function Pay() {
   async function submit(body: any, payer: string, ref: Hex) {
     setPhase("settling")
     try {
-      const r = await fetch("/api/pay", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      const out = await r.json()
-      if (!r.ok) throw Object.assign(new Error(out.error ?? "Payment failed"), { code: out.code })
-      setResult({ explorer: out.explorer })
+      // a timeout or dropped connection is checked against the chain before we say anything
+      const out = await settle("/api/pay", body, { from: payer, nonce: ref })
+      setResult({ explorer: out.explorer as string | undefined })
       setPhase("finishing")
       setTimeout(() => setPhase("done"), 900)
     } catch (e) {
-      setResult({ error: friendlyPayError((e as Error).message), code: (e as any).code })
+      const err = e as SettleError
+      setResult({ error: err.code === "unconfirmed" ? err.message : friendlyPayError(err.message), code: err.code })
       setPhase("failed")
     }
   }
@@ -143,7 +140,7 @@ function Pay() {
         <TopBar right={<a className="chip" href="/app">Home</a>} />
         <div className="card result">
           {phase === "done" ? <SuccessCheck /> : <div className="icon bad" aria-hidden>{Icon.close(40)}</div>}
-          <h1>{phase === "done" ? `Paid ${usdt(req.amount)} USDT` : "Payment not sent"}</h1>
+          <h1>{phase === "done" ? `Paid ${usdt(req.amount)} USDT` : result.code === "unconfirmed" ? "Couldn't confirm" : "Payment not sent"}</h1>
           <div className="sub">
             {phase === "done"
               ? `to ${req.merchantName}. Settled on Whitechain, receipt saved on Arkiv. You paid no gas.`
@@ -151,7 +148,12 @@ function Pay() {
           </div>
           {result.explorer && <a className="chip" href={result.explorer} target="_blank" rel="noreferrer">View on Whitechain ↗</a>}
         </div>
-        <a className="btn btn-primary" href="/app">Done</a>
+        {phase === "failed" && result.code !== "unconfirmed" && !/already|expired/i.test(result.error ?? "") && (
+          <button className="btn btn-primary" onClick={() => { setResult({}); setPhase("idle") }}>Try again</button>
+        )}
+        <a className={`btn ${phase === "failed" ? "btn-ghost" : "btn-primary"}`} href={phase === "failed" && result.code === "unconfirmed" ? "/transactions" : "/app"}>
+          {phase === "failed" && result.code === "unconfirmed" ? "Check history" : "Done"}
+        </a>
       </main>
     )
 
@@ -215,6 +217,7 @@ function Pay() {
 /** Contract / relayer errors in words a person can act on (same wording as subscriptions). */
 function friendlyPayError(msg: string) {
   const m = msg.toLowerCase()
+  if (/check your history|check subscriptions|nothing was charged\.$/.test(m)) return msg
   if (/exceeds balance|insufficient|not enough usdt/.test(m)) return "Not enough USDT in this wallet. Add USDT and try again."
   if (/authorization is used|already paid|orderalreadypaid/.test(m)) return "This payment was already made. Nothing more was charged."
   if (/expired|orderexpired/.test(m)) return "This payment request expired. Ask for a new QR code."
