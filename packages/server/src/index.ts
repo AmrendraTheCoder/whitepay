@@ -23,3 +23,4 @@ export { assertSafeWebhookUrl, deliverWebhook, webhookSignerAddress, webhookMess
 export { createPlan, getPlan, subscribe, subscribeReminder, payReminderCycle, type Defer, runKeeper, cancelMandate, getMandate, listMandates, remainingCycles, type PlanView, type MandateView } from "./autopay"
 export { cached, invalidate } from "./cache"
 export { awardScratchCard, scratchCard, listRewards, getOffer, listOffers, setOffer, rewardsPool, rewardsPoolBalance, RewardError, type ScratchResult } from "./rewards"
+export { openRefundRequest, respondToRefund, replyToRefund, listRefundCases, getRefundCase, refundKeeper, caseIdOf, type RefundCase, type CaseEvent } from "./refund-cases"

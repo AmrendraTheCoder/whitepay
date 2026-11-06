@@ -25,12 +25,17 @@ export const WORLD_ACTIONS = {
   claim: "whitepay-name",
   shop: "whitepay-shop",
   stepUp: (_paymentRef?: string) => "whitepay-pay",
+  /** Refund requests. Needs "unlimited" max verifications in the Developer Portal (one proof per request).
+   *  Set WORLD_REFUND_ACTION=whitepay-refund once that action exists; until then the unlimited step-up
+   *  action is reused (each proof is still bound to one refund case through its signal). */
+  refund: process.env.WORLD_REFUND_ACTION || "whitepay-pay",
 } as const
 type Action = string
 export const ACTION_DESCRIPTIONS: Record<string, string> = {
   "whitepay-name": "Claim your WondrPay name (one per person)",
   "whitepay-shop": "Verify that a real person runs this WondrPay shop",
   "whitepay-pay": "Confirm a large WondrPay payment",
+  "whitepay-refund": "Request a refund on WondrPay (one human, verified)",
 }
 export const describeAction = (a: string) => ACTION_DESCRIPTIONS[a] ?? "Confirm this WondrPay payment"
 
@@ -48,12 +53,12 @@ export const worldConfigured = () => {
 }
 
 /** RP context for the IDKit widget (backend-signed nonce; 5 min TTL). */
-export function rpContext(action: Action) {
+export function rpContext(action: Action, description?: string) {
   const e = env()
   const s = signRequest({ signingKeyHex: e.key, action, ttl: 300 })
   return {
     action,
-    action_description: describeAction(action),
+    action_description: description ?? describeAction(action),
     app_id: e.appId as `app_${string}`,
     environment: e.environment,
     rp_context: { rp_id: e.rpId, nonce: s.nonce, created_at: s.createdAt, expires_at: s.expiresAt, signature: s.sig },

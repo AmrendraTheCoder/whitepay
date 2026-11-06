@@ -249,3 +249,24 @@ export const ENS_WHITEPAY = {
   app: (name: string) => `https://sepolia.app.ens.domains/${name}`,
   etherscan: (a: string) => `https://sepolia.etherscan.io/address/${a}`,
 } as const
+
+// ---------------------------------------------------------------- refund requests (signed messages)
+export const REFUND_WINDOW_S = 7 * 86_400 // an unanswered request is re-opened for another window
+export const REFUND_QUIET_S = 12 * 3_600 // after a response, this long without activity => resolved
+export const REFUND_REASONS = ["not_received", "damaged", "not_as_described", "wrong_item", "duplicate", "other"] as const
+
+/** Payer opens a refund request for an order they paid. */
+export const refundRequestMessage = (p: { paymentId: Hex; payer: Address; reason: string; message: string; evidence?: string; issuedAt: number }) =>
+  `WondrPay refund request\npayment: ${p.paymentId.toLowerCase()}\npayer: ${p.payer}\nreason: ${p.reason}\nproof: ${p.message}\nevidence: ${p.evidence ?? ""}\nissued: ${p.issuedAt}`
+
+/** Shop answers a refund request (signed by its payout wallet). */
+export const refundResponseMessage = (p: { caseId: string; merchant: Address; decision: "approve" | "reject"; percent: number; message: string; issuedAt: number }) =>
+  `WondrPay refund response\ncase: ${p.caseId}\nshop: ${p.merchant}\ndecision: ${p.decision}\npercent: ${p.percent}\nmessage: ${p.message}\nissued: ${p.issuedAt}`
+
+/** Payer adds more proof / a reply after a response. */
+export const refundReplyMessage = (p: { caseId: string; payer: Address; message: string; evidence?: string; issuedAt: number }) =>
+  `WondrPay refund reply\ncase: ${p.caseId}\npayer: ${p.payer}\nmessage: ${p.message}\nevidence: ${p.evidence ?? ""}\nissued: ${p.issuedAt}`
+
+/** One id per refund request (an order can be disputed again after an earlier case closed). */
+export const refundCaseId = (paymentId: Hex, payer: Address, issuedAt: number) =>
+  keccak256(encodeAbiParameters([{ type: "bytes32" }, { type: "address" }, { type: "uint64" }], [paymentId, getAddress(payer), BigInt(issuedAt)]))

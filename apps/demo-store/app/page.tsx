@@ -142,7 +142,7 @@ export default function Store() {
             <svg width="32" height="32" viewBox="0 0 40 40" aria-hidden><rect width="40" height="40" rx="10" fill="currentColor" /><path d="M11 15h16v8a7 7 0 0 1-7 7h-2a7 7 0 0 1-7-7z" fill="#e9a23b" /><path d="M27 17h2a3 3 0 0 1 0 6h-2" fill="none" stroke="#e9a23b" strokeWidth="2.4" /></svg>
             <span>Chai &amp; Co.</span>
           </a>
-          <nav className="nav-links" aria-label="Main"><a href="#shop">Shop</a><a href="#club">Chai Club</a><a href="#reviews">Reviews</a></nav>
+          <nav className="nav-links" aria-label="Main"><a href="#shop">Shop</a><a href="#club">Chai Club</a><a href="#reviews">Reviews</a><a href="/dashboard">Orders</a></nav>
           <Button variant="secondary" size="sm" iconLeft="bag" onClick={() => setBagOpen(true)} aria-label={`Bag, ${count} ${count === 1 ? "item" : "items"}`}>
             Bag{count > 0 && <span className="count" aria-hidden>{count}</span>}
           </Button>

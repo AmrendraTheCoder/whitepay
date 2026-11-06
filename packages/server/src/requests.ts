@@ -114,6 +114,7 @@ export type RequestView = {
   payer?: Address
   receiptRef?: Hex
   webhook?: string
+  note?: string
   expiresAtBlock: bigint
 }
 
@@ -160,6 +161,7 @@ async function fetchRequestByKey(entityKey: Hex): Promise<RequestView | null> {
       payer: v(e.payer) ? getAddress(v(e.payer)) : undefined,
       receiptRef: v(e.receiptRef) || undefined,
       webhook: v(e.webhook) || undefined,
+      note: v(e.note) || undefined,
       expiresAtBlock: BigInt(e.$expiresAt),
     }
   } catch (err) {
@@ -237,6 +239,9 @@ export async function settleOnArkiv(p: {
     ...(p.request ? { requestRef: key(p.request.entityKey) } : {}),
     ...(p.merchantName ? { merchantName: p.merchantName } : {}),
     kind: p.kind ?? "p2m",
+    // keep what was bought and the shop's order id: the request itself expires within minutes
+    ...(p.request?.note ? { item: p.request.note.slice(0, 120) } : {}),
+    ...(p.request?.orderId ? { orderId: String(p.request.orderId).toLowerCase() } : {}),
   }
 
   if (p.request) {
@@ -275,10 +280,10 @@ export async function listReceipts(p: { merchant?: Address; payer?: Address; par
     ...(p.sinceSeconds ? [gte("paidAt", u64(BigInt(now() - p.sinceSeconds)))] : []),
   ]
   const q = a.pub
-    .select({ $key: true, merchant: true, payer: true, amount: true, status: true, paidAt: true, wcTxHash: true, merchantName: true, kind: true, paymentId: true, refunded: true })
+    .select({ $key: true, merchant: true, payer: true, amount: true, status: true, paidAt: true, wcTxHash: true, merchantName: true, kind: true, paymentId: true, refunded: true, item: true, orderId: true })
     .from(Receipt)
     .ownedBy(a.owner)
-  return (conds.length ? q.where(and(...conds)) : q).orderBy(desc("paidAt")).limit(p.limit ?? 20).withCount().fetch()
+  return (conds.length ? q.where(and(...conds)) : q).orderBy(desc("paidAt")).limit(Math.min(p.limit ?? 20, 100)).withCount().fetch() // Arkiv node max is 100
 }
 
 export async function listPendingRequests(merchant: Address) {

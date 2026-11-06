@@ -7,6 +7,8 @@ import { TopBar, UnlockSheet } from "../components"
 import { SuccessCheck, MiniLogo, Countdown, Identicon, Icon } from "../ui"
 import { WorldVerify } from "../world"
 import { ShopLink } from "./shop-link"
+import { ReviewSheet } from "./review"
+import type { RefundCase } from "../refund-timeline"
 import { PlansCard } from "./plans"
 import { OfferCard } from "./offer"
 import { getWallet } from "@/lib/wallet"
@@ -15,7 +17,7 @@ import { usdt, short, ago, mmss } from "@/lib/format"
 
 type Merchant = { address: string; label: string; ensName: string; displayName: string; category?: string; verified: boolean; active: boolean }
 type Created = { entityKey: string; payUrl: string; amount: string; deadline: string }
-type Row = { key: string; payer: string; amount: string; paidAt: number; explorer: string; kind: string; status?: string; paymentId?: string; refunded?: string; txHash?: string }
+type Row = { key: string; payer: string; amount: string; paidAt: number; explorer: string; kind: string; status?: string; paymentId?: string; refunded?: string; txHash?: string; item?: string | null }
 
 export default function MerchantPage() {
   const [wallet, setWallet] = useState<ReturnType<typeof getWallet> | undefined>(undefined)
@@ -224,7 +226,15 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
   }
 
   const loadReceipts = useCallback(() =>
-    fetch(`/api/receipts?merchant=${merchant.address}`).then((r) => r.json()).then((d) => { setRows(d.rows ?? []); setTotal(d.total ?? "0") }), [merchant.address])
+    fetch(`/api/receipts?merchant=${merchant.address}&limit=100`).then((r) => r.json()).then((d) => { setRows(d.rows ?? []); setTotal(d.total ?? "0") }), [merchant.address])
+  // refund requests on this shop's orders (signed, immutable cases on Arkiv)
+  const [cases, setCases] = useState<RefundCase[]>([])
+  const [review, setReview] = useState<RefundCase | null>(null)
+  const loadCases = useCallback(() =>
+    fetch(`/api/refunds?merchant=${merchant.address}`).then((r) => r.json()).then((d) => setCases(d.cases ?? [])).catch(() => {}), [merchant.address])
+  useEffect(() => { void loadCases() }, [loadCases])
+  const caseFor = (paymentId?: string) => (paymentId ? cases.find((c) => c.paymentId.toLowerCase() === paymentId.toLowerCase()) : undefined)
+  const waiting = cases.filter((c) => c.status === "open")
   useEffect(() => {
     void loadReceipts()
     return () => clearInterval(poll.current)
@@ -362,6 +372,12 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
               <button className="chip" onClick={() => exportCsv(merchant)} aria-label="Download payments as CSV">Export CSV</button>
             </div>
             {rows === null && <div className="list" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="item"><span className="pic skel circle" /><div className="grow"><span className="skel" style={{ width: "50%", height: 14 }} /></div></div>)}</div>}
+            {waiting.length > 0 && (
+              <button className="rf-status warn" style={{ all: "unset", cursor: "pointer", display: "flex", flexDirection: "column", gap: 3, padding: "12px 14px", borderRadius: 16, margin: "10px 0" }} onClick={() => setReview(waiting[0])}>
+                <b>{waiting.length} refund request{waiting.length === 1 ? "" : "s"} waiting for you</b>
+                <span className="sub">Unanswered requests re-open every 7 days. Tap to review.</span>
+              </button>
+            )}
             {rows?.length === 0 && <div className="empty">No payments yet. Charge your first customer from the Charge tab.</div>}
             {groups.map((g) => (
               <div key={g.k} className="pay-group">
@@ -371,16 +387,22 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
                     const refunded = BigInt(r.refunded ?? "0")
                     const full = refunded >= BigInt(r.amount)
                     const canRefund = r.kind !== "p2p" && !!r.paymentId && !full
+                    const rc = caseFor(r.paymentId)
+                    const live = rc && (rc.status === "open" || rc.status === "responded")
                     return (
                       <div key={r.key} className="item">
                         <Identicon seed={r.payer} size={40} />
-                        <a href={r.explorer} target="_blank" rel="noreferrer" className="grow" style={{ color: "inherit", textDecoration: "none" }}>
-                          <div className="t">{short(r.payer)}</div>
-                          <div className="sub">{new Date(r.paidAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {r.kind === "p2p" ? "Direct" : r.kind === "autopay" ? "Subscription" : "QR"}{refunded > 0n ? ` · refunded ${usdt(refunded.toString())}` : ""}</div>
+                        <a href={r.explorer} target="_blank" rel="noreferrer" className="grow" style={{ color: "inherit", textDecoration: "none", minWidth: 0 }}>
+                          <div className="t">{r.item ?? short(r.payer)}</div>
+                          <div className="sub">{r.item ? `${short(r.payer)} · ` : ""}{new Date(r.paidAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {r.kind === "p2p" ? "Direct" : r.kind === "autopay" ? "Subscription" : "Order"}{refunded > 0n ? ` · refunded ${usdt(refunded.toString())}` : ""}</div>
+                          {rc && <span className={`badge ${rc.status === "open" ? "badge-warn" : rc.decision === "approve" ? "badge-ok" : "badge-bad"}`} style={{ marginTop: 4 }}>
+                            {rc.status === "open" ? "Refund requested" : rc.status === "responded" ? (rc.decision === "approve" ? "Refund approved" : "Refund declined") : "Refund resolved"}
+                          </span>}
                         </a>
                         <div className="right">
                           <div className={`amt ${full ? "" : "pos"}`} style={full ? { color: "var(--muted)", textDecoration: "line-through" } : undefined}>+{usdt(r.amount)}</div>
-                          {canRefund && <button className="chip" style={{ marginTop: 4, fontSize: 12 }} onClick={() => setRefundRow(r)}>Refund</button>}
+                          {rc ? <button className={`chip ${live ? "chip-warn" : ""}`} style={{ marginTop: 4, fontSize: 12 }} onClick={() => setReview(rc)}>{rc.status === "open" ? "Review" : "View"}</button>
+                            : canRefund && <button className="chip" style={{ marginTop: 4, fontSize: 12 }} onClick={() => setRefundRow(r)}>Refund</button>}
                         </div>
                       </div>
                     )
@@ -405,6 +427,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
       )}
 
       {unlock && <UnlockSheet title="Unlock terminal" subtitle={`${amount} USDT request`} onUnlocked={create} onCancel={() => setUnlock(false)} />}
+      {review && <ReviewSheet c={review} account={account} setAccount={setAccount} onClose={(changed) => { setReview(null); if (changed) { void loadCases(); void loadReceipts() } }} />}
       {refundRow && <RefundSheet row={refundRow} account={account} setAccount={setAccount} onClose={(done) => { setRefundRow(null); if (done) void loadReceipts() }} />}
     </main>
   )

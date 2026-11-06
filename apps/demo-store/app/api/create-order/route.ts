@@ -2,7 +2,7 @@
 import { createWondrPayOrder } from "@whitepay/checkout/server"
 import { formatUnits, parseUnits, type Hex } from "viem"
 import { recordEvent } from "@/lib/events"
-import { PRICE, MAX_QTY } from "@/lib/catalog"
+import { PRICE, MAX_QTY, PRODUCTS } from "@/lib/catalog"
 
 type Line = { sku?: unknown; qty?: unknown }
 
@@ -17,7 +17,7 @@ function total(payload: { sku?: unknown; items?: unknown } | undefined) {
     const qty = Number(l.qty ?? 1)
     if (!Object.hasOwn(PRICE, sku) || !Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return null
     sum += parseUnits(PRICE[sku], 6) * BigInt(qty)
-    desc.push(`${sku}x${qty}`)
+    desc.push(`${PRODUCTS.find((x) => x.sku === sku)?.name ?? sku} ×${qty}`) // shown on receipts and in the orders dashboard
   }
   return { amount: formatUnits(sum, 6), note: desc.join(",").slice(0, 120) }
 }

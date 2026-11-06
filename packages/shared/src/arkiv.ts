@@ -21,6 +21,8 @@ export const Receipt = defineSchema("whitepay.receipt", {
   merchantName: str().indexed().optional(), // payee display/ENS name, e.g. chai-shop.wondrpay.eth
   kind: str().indexed().optional(), // "p2m" (merchant order) | "p2p" (person push); `merchant` = payee for p2p
   memo: bytes().optional(), // encrypted envelope only
+  item: str().optional(), // what was bought, from the shop's signed order note (e.g. "1×Masala Chai Kit")
+  orderId: str().indexed().optional(), // the shop's order id (bytes32 hex), to map back to its own records
 })
 
 /** A payment in progress. Lives only for its TTL (Arkiv expiration == on-chain order deadline).
@@ -190,4 +192,32 @@ export const ShopOffer = defineSchema("whitepay.offer", {
   code: str(), // e.g. "CHAI10"
   active: bool().indexed().default(true),
   updatedAt: u64().indexed(),
+})
+
+// ---------------------------------------------------------------- refund requests
+/** One immutable event in a refund case. Created by the WondrPay writer ($creator), then ownership is
+ *  moved to the burn address 0x…dEaD, so NOBODY (WondrPay included) can edit or delete it; it only expires.
+ *  Authenticity: readers keep only events created by the writer AND carrying a valid signature of
+ *  the party that acted (payer for opened/reply, the shop's payout wallet for response). */
+export const RefundEvent = defineSchema("whitepay.refundevt", {
+  caseId: str().indexed(), // keccak(paymentId, payer): one case per order
+  paymentId: str().indexed(),
+  merchant: addr().indexed(),
+  payer: addr().indexed(),
+  kind: str().indexed(), // "opened" | "renewed" | "response" | "reply"
+  round: i32(), // 1, 2, ... (each unanswered 7-day window re-opens as the next round)
+  at: u64().indexed(),
+  deadline: u64(), // opened/renewed: end of this 7-day window; response/reply: at + 12 h
+  amount: u256(), // what was paid
+  item: str().optional(),
+  reason: str().optional(), // opened: category
+  message: str().optional(), // opened: the payer's proof text; response/reply: message
+  evidence: str().optional(), // opened/reply: optional https link to proof
+  decision: str().optional(), // response: "approve" | "reject"
+  percent: i32().optional(), // response approve: 1..100
+  refundAmount: u256().optional(),
+  refundTx: str().optional(), // response approve: Whitechain tx that paid the refund
+  human: str().indexed().optional(), // opened: World ID nullifier for the refund action (per human, not per wallet)
+  signedAt: u64(), // the timestamp inside the signed message
+  sig: bytes(), // EIP-191 signature of the actor over the canonical message
 })

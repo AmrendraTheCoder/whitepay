@@ -1,9 +1,11 @@
-// @whitepay/checkout/server: what a merchant's backend needs (2 functions).
+// @whitepay/checkout/server: what a merchant's backend needs.
 //  createWondrPayOrder: sign an EIP-712 order with the shop's key and publish it as a WondrPay request.
 //  verifyWondrPayPayment: trustlessly confirm a payment on Whitechain from its tx hash (use in webhooks).
+//  listWondrPayOrders: every paid order (item, payer, time, refunds) with its refund request, if any.
+//  respondToWondrPayRefund: approve a share (paid on-chain right away) or decline a customer's refund request.
 import { createPublicClient, decodeEventLog, getAddress, http, keccak256, parseUnits, recoverMessageAddress, toBytes, toHex, type Address, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { orderTypedData, ROUTER_ADDRESS, ROUTER_ABI, whitechainSepolia, type Order } from "@whitepay/shared"
+import { orderTypedData, receiveAuthTypedData, refundResponseMessage, ROUTER_ADDRESS, ROUTER_ABI, whitechainSepolia, type Order } from "@whitepay/shared"
 
 export type CreatedOrder = { entityKey: Hex; payUrl: string; amount: string; deadline: string; orderId: Hex }
 
@@ -133,4 +135,58 @@ export async function verifyWondrPaySubscriptionCharge(p: { txHash: Hex; merchan
     } catch {}
   }
   return { ok: false as const, reason: "no matching autopay charge in this transaction" }
+}
+
+// ------------------------------------------------------------------ orders + refund requests
+export type WondrPayRefundCase = {
+  caseId: Hex; paymentId: Hex; merchant: Address; payer: Address; amount: string; item?: string
+  status: "open" | "responded" | "resolved" | "lapsed"; decision?: "approve" | "reject"; round: number; openedAt: number; until: number
+  refunded: string; humanRequests30d: number
+  events: { key: Hex; kind: string; at: number; reason?: string; message?: string; evidence?: string; decision?: string; percent?: number; refundAmount?: string; refundTx?: string }[]
+}
+export type WondrPayOrder = {
+  paymentId: Hex; orderId: Hex | null; item: string | null; payer: Address; amount: string; refunded: string; status: string
+  paidAt: number; txHash: Hex; explorer: string; refund: WondrPayRefundCase | null
+}
+
+/** Every paid order for this shop (newest first), each with what was bought and its refund request, if any.
+ *  Read from public Arkiv data; refund cases are re-verified from their signatures by WondrPay. */
+export async function listWondrPayOrders(p: { merchant: Address; whitepayUrl?: string }): Promise<{ orders: WondrPayOrder[]; cases: WondrPayRefundCase[] }> {
+  const r = await fetch(`${p.whitepayUrl ?? "https://wondrpay.vercel.app"}/api/orders?merchant=${getAddress(p.merchant)}`, { cache: "no-store" })
+  const d = await r.json()
+  if (!r.ok) throw new Error(d.error ?? `WondrPay ${r.status}`)
+  return d
+}
+
+/**
+ * Answer a refund request. "approve" refunds `percent` of what was paid RIGHT AWAY on Whitechain (the router
+ * pays only the original payer, capped at the amount paid); "reject" sends `message` to the customer.
+ * Both are signed with the shop key and stored on Arkiv where nobody can alter them.
+ */
+export async function respondToWondrPayRefund(p: {
+  merchantKey: Hex; caseId: Hex; decision: "approve" | "reject"; percent?: number; message?: string; whitepayUrl?: string
+}) {
+  const base = p.whitepayUrl ?? "https://wondrpay.vercel.app"
+  const shop = privateKeyToAccount(p.merchantKey)
+  const issuedAt = Math.floor(Date.now() / 1000)
+  const percent = p.decision === "approve" ? Math.round(p.percent ?? 100) : 0
+  const resp = { caseId: p.caseId, merchant: shop.address, decision: p.decision, percent, message: (p.message ?? "").trim(), issuedAt }
+  let refundAuth: Record<string, string> | undefined
+  if (p.decision === "approve") {
+    const c = await fetch(`${base}/api/refunds?caseId=${p.caseId}`).then((r) => r.json())
+    const paymentId = c.cases?.[0]?.paymentId as Hex | undefined
+    if (!paymentId) throw new Error("refund request not found")
+    const info = await fetch(`${base}/api/refund?paymentId=${paymentId}`).then((r) => r.json())
+    if (info.error) throw new Error(info.error)
+    let value = (BigInt(info.amount) * BigInt(percent)) / 100n
+    if (value > BigInt(info.refundable)) value = BigInt(info.refundable)
+    const validBefore = BigInt(issuedAt + 600)
+    const signature = await shop.signTypedData(receiveAuthTypedData({ from: shop.address, to: ROUTER_ADDRESS, value, validAfter: 0n, validBefore, nonce: info.nonce }))
+    refundAuth = { from: shop.address, validAfter: "0", validBefore: validBefore.toString(), signature, value: value.toString() }
+  }
+  const signature = await shop.signMessage({ message: refundResponseMessage(resp) })
+  const r = await fetch(`${base}/api/refunds`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "respond", ...resp, signature, refundAuth }) })
+  const d = await r.json()
+  if (!r.ok) throw new Error(d.error ?? `WondrPay ${r.status}`)
+  return d.case as WondrPayRefundCase
 }

@@ -16,10 +16,13 @@ export function proxy(req: NextRequest) {
       if (!Number.isFinite(len) || len > 16_384) return NextResponse.json({ error: "bad or oversized body" }, { status: 413 })
       if (!(req.headers.get("content-type") ?? "").startsWith("application/json")) return NextResponse.json({ error: "json only" }, { status: 415 })
       const origin = req.headers.get("origin")
+      // the admin route moves the shop's money: it must come from this site's own dashboard
+      if (pathname.startsWith("/api/dashboard/refund") && origin !== req.nextUrl.origin)
+        return NextResponse.json({ error: "cross-site request blocked" }, { status: 403 })
       if (pathname.startsWith("/api/create-order") && origin && origin !== req.nextUrl.origin)
         return NextResponse.json({ error: "cross-site request blocked" }, { status: 403 })
     }
-    const [limit, win] = pathname.startsWith("/api/create-order") ? [12, 60_000] : pathname.startsWith("/api/webhook") ? [120, 60_000] : [120, 60_000]
+    const [limit, win] = pathname.startsWith("/api/dashboard/refund") ? [8, 60_000] : pathname.startsWith("/api/create-order") ? [12, 60_000] : pathname.startsWith("/api/webhook") ? [120, 60_000] : [120, 60_000]
     const r = rateLimit(`${clientIp(req.headers)}|${pathname}`, limit, win)
     if (!r.ok) return NextResponse.json({ error: "too many requests" }, { status: 429, headers: { "retry-after": String(r.retryAfter) } })
     const res = NextResponse.next()

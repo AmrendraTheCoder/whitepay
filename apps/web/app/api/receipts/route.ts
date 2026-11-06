@@ -30,6 +30,8 @@ export async function GET(req: Request) {
       kind: r.kind?.value ?? "p2m",
       paymentId: r.paymentId?.value,
       refunded: BigInt(r.refunded?.value ?? 0),
+      item: r.item?.value ?? null,
+      orderId: r.orderId?.value ?? null,
       paidAt: Number(r.paidAt.value),
       txHash: r.wcTxHash.value,
       explorer: `${EXPLORER_URL}/tx/${r.wcTxHash.value}`,

@@ -190,7 +190,8 @@ export default function Transactions() {
                 const incoming = r.direction === "in"
                 const label = prettyName(r.counterpartyName, r.counterparty)
                 return (
-                  <a key={r.key} className="item tx-row" href={r.explorer} target="_blank" rel="noreferrer">
+                  // a shop order you paid opens its order page (details, refund request); everything else the explorer
+                  <a key={r.key} className="item tx-row" {...(!incoming && r.kind === "p2m" ? { href: `/order?tx=${r.txHash}` } : { href: r.explorer, target: "_blank", rel: "noreferrer" })}>
                     <span className="tx-av">
                       <Identicon seed={r.counterparty} name={r.counterpartyName} size={46} />
                       <span className={`dir ${incoming ? "in" : "out"}`} aria-hidden>{incoming ? "↓" : "↑"}</span>
