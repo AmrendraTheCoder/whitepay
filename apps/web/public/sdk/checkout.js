@@ -24,7 +24,7 @@
 (() => {
   "use strict"
   if (typeof window === "undefined" || customElements.get("wondrpay-button")) return
-  const VERSION = "1.3.0"
+  const VERSION = "1.3.1"
   const ORIGIN = (document.currentScript && new URL(document.currentScript.src).origin) || "https://wondrpay.vercel.app"
   const RE = {
     key: /^0x[0-9a-fA-F]{64}$/, uint: /^\d{1,30}$/, tx: /^0x[0-9a-fA-F]{64}$/,

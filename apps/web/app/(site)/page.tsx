@@ -35,7 +35,7 @@ const FAQ = [
   { id: "data", title: "Where is my data stored?", content: "Your key stays on your device. Payment requests and receipts are public, tamper-evident records on Arkiv with no personal data in clear text." },
 ]
 
-const SNIPPET = `<script src="https://wondrpay.vercel.app/sdk/v1.3.0/checkout.js"
+const SNIPPET = `<script src="https://wondrpay.vercel.app/sdk/v1.3.1/checkout.js"
         integrity="sha384-…" crossorigin="anonymous" defer></script>
 
 <wondrpay-button order-endpoint="/api/create-order"

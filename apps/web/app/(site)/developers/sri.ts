@@ -1,1 +1,1 @@
-export const SDK_SRI = "sha384-0EZPRTTTjn+z90N4KNq1JDS7yT/PyJk/Jl9nsS98UGzr+1mXNBUN/nC3KN1aB8Vl"
+export const SDK_SRI = "sha384-Cp+n+4w2CBEdJkp7hwtAPP7fZuwcvYW8VTE1xzHLjSCIOGAgVpIIalSrrQSjVUx1"

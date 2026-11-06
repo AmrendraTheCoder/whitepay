@@ -47,6 +47,6 @@ export async function statusChecks(): Promise<Check[]> {
       detail: arkivRpc.value != null ? `block ${arkivRpc.value}` : "RPC not responding" },
     { name: "Gasless relayer", ms: relayer.ms, state: wbt == null ? "down" : wbt < 0.05 ? "degraded" : "ok",
       detail: wbt == null ? "balance unavailable" : wbt < 0.05 ? `low gas balance (${wbt.toFixed(3)} WBT)` : `funded (${wbt.toFixed(2)} WBT for gas)` },
-    { name: "Checkout SDK", state: "ok", detail: "v1.3.0 · immutable + SRI pinned" },
+    { name: "Checkout SDK", state: "ok", detail: "v1.3.1 · immutable + SRI pinned" },
   ]
 }
