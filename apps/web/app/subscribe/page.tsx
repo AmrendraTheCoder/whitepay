@@ -211,7 +211,7 @@ function Subscribe() {
           done={phase === "finishing"}
         />
       )}
-      {unlock && <UnlockSheet title={mode === "reminder" ? `Pay ${usdt(amount)} USDT` : "Approve autopay"} subtitle={mode === "reminder" ? `${plan.title}: first payment only` : `${usdt(amount)} USDT ${shortPeriod(plan.periodLabel)} · ${plan.cycles} payments`} onUnlocked={approve} onCancel={() => setUnlock(false)} />}
+      {unlock && <UnlockSheet payment={{ amountMicro: amount }} title={mode === "reminder" ? `Pay ${usdt(amount)} USDT` : "Approve autopay"} subtitle={mode === "reminder" ? `${plan.title}: first payment only` : `${usdt(amount)} USDT ${shortPeriod(plan.periodLabel)} · ${plan.cycles} payments`} onUnlocked={approve} onCancel={() => setUnlock(false)} />}
     </main>
   )
 }

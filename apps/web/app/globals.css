@@ -635,3 +635,5 @@ html[data-nav-dir="back"] .shell.with-nav { animation: tab-in-back .28s cubic-be
 .verify-shop .btn { width: 100%; }
 .badge-btn { border: 0; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .badge-btn:hover { filter: brightness(1.15); }
+.seg.seg-2 { grid-template-columns: repeat(2, 1fr); }
+.seg.seg-4 { grid-template-columns: repeat(4, 1fr); }

@@ -1,9 +1,16 @@
 "use client"
 import { WalletWait } from "./processing"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import dynamic from "next/dynamic"
+import { getAddress, toHex } from "viem"
+import { stepUpSignal } from "@whitepay/shared"
+import { paySecurity } from "@/lib/security"
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
 import { restoreSession } from "@/lib/session"
 import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout, isExternal, externalSigner, verifyExternalPin, verifyExternalPasskey, setExternalPin, type WalletInfo } from "@/lib/wallet"
+
+// World ID widget only loads when a payment actually needs the scan
+const WorldVerify = dynamic(() => import("./world").then((m) => m.WorldVerify), { ssr: false })
 
 export function TopBar({ right, back = "/app" }: { right?: React.ReactNode; back?: string | null }) {
   return (
@@ -66,6 +73,7 @@ export function UnlockSheet({
   onUnlocked,
   onCancel,
   wallet,
+  payment,
 }: {
   title: string
   subtitle?: string
@@ -73,14 +81,29 @@ export function UnlockSheet({
   onCancel: () => void
   /** sign with this wallet instead of the active one (e.g. a verified wallet co-signing a new account) */
   wallet?: WalletInfo
+  /** this sheet authorizes moving money: apply the wallet's payment security (You → Payment security) */
+  payment?: { amountMicro: bigint }
 }) {
   const w = wallet ?? getWallet()
   const external = isExternal(w)
+  const sec = paySecurity(w?.address)
+  // "every": a payment never rides on the 15-minute unlock; it asks for the PIN / fingerprint itself
+  const fresh = !!payment && sec.confirm === "every"
+  const needWorld = !!payment && sec.worldAboveUsd !== null && payment.amountMicro >= BigInt(Math.round(sec.worldAboveUsd * 1e6))
+  const [paymentRef] = useState(() => toHex(crypto.getRandomValues(new Uint8Array(16))))
+  const pendingAcct = useRef<PrivateKeyAccount | null>(null)
+  /** PIN / fingerprint passed: World ID next if this payment is large, else hand the account over */
+  const finish = (a: PrivateKeyAccount) => {
+    if (!needWorld) return onUnlocked(a)
+    pendingAcct.current = a
+    setErr("")
+    setMode("world")
+  }
   // already unlocked this session? then don't ask for the PIN / fingerprint again
   // unlocked earlier (this tab or another one, e.g. after coming back from MetaMask)? then no PIN again.
   // undefined = still checking (an async decrypt for device wallets, a few ms)
   const [session, setSession] = useState<{ address: string; pk?: `0x${string}` } | null | undefined>(undefined)
-  type Mode = "passkey" | "pin" | "setpin" | "confirmpin" | "wallet"
+  type Mode = "passkey" | "pin" | "setpin" | "confirmpin" | "wallet" | "world"
   const [mode, setMode] = useState<Mode>("pin")
   const [firstPin, setFirstPin] = useState("")
   const [err, setErr] = useState("")
@@ -93,7 +116,7 @@ export function UnlockSheet({
     setErr("")
     try {
       // the external wallet only signs a message; it is never asked to send a transaction
-      onUnlocked((await externalSigner(w)) as unknown as PrivateKeyAccount)
+      finish((await externalSigner(w)) as unknown as PrivateKeyAccount)
     } catch (e) {
       const m = (e as Error).message
       setErr(/reject|denied|4001|User rejected/i.test(m) ? "Request rejected in your wallet" : m.split("\n")[0])
@@ -107,7 +130,7 @@ export function UnlockSheet({
     setErr("")
     try {
       if (external) { await verifyExternalPasskey(w!.address); setMode("wallet"); setBusy(false); void tryWallet(); return }
-      onUnlocked(await unlockWithPasskey(w?.address))
+      finish(await unlockWithPasskey(w?.address))
     } catch (e) {
       setErr((e as Error).message.includes("NotAllowed") ? "Fingerprint cancelled" : (e as Error).message)
       setMode("pin")
@@ -120,11 +143,11 @@ export function UnlockSheet({
     let live = true
     void restoreSession(w?.address ?? "").then((raw) => {
       if (!live) return
-      const s = raw && (external || raw.pk) ? raw : null // a device wallet is unlocked only if we have its key
+      const s = !fresh && raw && (external || raw.pk) ? raw : null // a device wallet is unlocked only if we have its key
       const m: Mode = external && s ? "wallet" : external && !w?.hasPin ? "setpin" : w?.hasPasskey ? "passkey" : "pin"
       setSession(s); setMode(m)
       // (an effect may only return a cleanup function, so never `return onUnlocked(...)` here)
-      if (s?.pk && !external) { void onUnlocked(privateKeyToAccount(s.pk)); return }
+      if (s?.pk && !external) { finish(privateKeyToAccount(s.pk)); return }
       if (s && external) { void tryWallet(); return }
       if (m === "passkey") void tryPasskey()
     })
@@ -137,7 +160,7 @@ export function UnlockSheet({
     setErr("")
     try {
       if (external) { await verifyExternalPin(w!.address, pin); setMode("wallet"); setBusy(false); void tryWallet(); return }
-      onUnlocked(await unlockWithPin(pin, w?.address))
+      finish(await unlockWithPin(pin, w?.address))
     } catch (e) {
       setErr((e as Error).message)
     } finally {
@@ -156,13 +179,34 @@ export function UnlockSheet({
   }
 
   const locked = pinLockout(w?.address) > 0
-  if (session === undefined || (session && !external)) return null
+  if (session === undefined || (session && !external && mode !== "world")) return null
   return (
     <div className="sheet-backdrop" onClick={onCancel}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <h3>{title}</h3>
         {subtitle && <div className="sub center">{subtitle}</div>}
-        {mode === "wallet" ? (
+        {mode === "world" && w ? (
+          <>
+            <div className="sub center">This payment is at or above your ${sec.worldAboveUsd} World ID limit. Confirm it's you with World App{external ? `, then approve it in ${walletName}` : ""}.</div>
+            <WorldVerify
+              purpose="pay"
+              paymentRef={paymentRef}
+              signal={stepUpSignal(getAddress(w.address), paymentRef)}
+              label="Confirm with World ID"
+              className="btn btn-primary btn-big"
+              verify={async (proof) => {
+                const r = await fetch("/api/world/verify", { method: "POST", headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ purpose: "step-up", address: w.address, paymentRef, result: proof }) })
+                const d = await r.json()
+                if (!r.ok) throw new Error(d.error)
+                return d
+              }}
+              onVerified={() => { const a = pendingAcct.current; pendingAcct.current = null; if (a) onUnlocked(a) }}
+              onDenied={(reason) => setErr(reason)}
+            />
+            <div className="sub center">Change this limit under You → Payment security.</div>
+          </>
+        ) : mode === "wallet" ? (
           <>
             <div className="sub center">Verified. Now approve the signature in {walletName}. It costs no gas.</div>
             {busy ? <WalletWait /> : (

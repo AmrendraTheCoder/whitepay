@@ -194,7 +194,7 @@ function Send() {
         </>
       )}
       {unlock && payee && (
-        <UnlockSheet title={`Send ${amount} USDT`} subtitle={`to ${label}`} onUnlocked={pay} onCancel={() => setUnlock(false)} />
+        <UnlockSheet payment={{ amountMicro: parseUnits(amount, 6) }} title={`Send ${amount} USDT`} subtitle={`to ${label}`} onUnlocked={pay} onCancel={() => setUnlock(false)} />
       )}
     </main>
   )

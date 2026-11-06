@@ -291,7 +291,7 @@ export default function Subscriptions() {
           done={proc.done}
         />
       )}
-      {pay && <UnlockSheet title={`Pay ${usdt(pay.amount)} USDT`} subtitle={`${pay.title}: payment ${(pay.nextCycle ?? 0) + 1} of ${pay.cycles}`} onUnlocked={doPay} onCancel={() => setPay(null)} />}
+      {pay && <UnlockSheet payment={{ amountMicro: BigInt(pay.amount) }} title={`Pay ${usdt(pay.amount)} USDT`} subtitle={`${pay.title}: payment ${(pay.nextCycle ?? 0) + 1} of ${pay.cycles}`} onUnlocked={doPay} onCancel={() => setPay(null)} />}
       {cancel && (
         <UnlockSheet title="Cancel subscription" subtitle={cancel.mode === "reminder" ? `${cancel.title}: stop all future payment requests` : `${cancel.title}: block ${cancel.cycles - cancel.paidCycles} remaining payment(s) on-chain`} onUnlocked={doCancel} onCancel={() => setCancel(null)} />
       )}

@@ -1,7 +1,8 @@
 "use client"
 import { useEffect, useState } from "react"
 import { Icon, avatarColor, prettyName, useWalletData, AccountBadge, LogoLoader, Identicon } from "../ui"
-import { PinPad } from "../components"
+import { PinPad, UnlockSheet } from "../components"
+import { paySecurity, setPaySecurity, looser, WORLD_THRESHOLDS, type PaySecurity } from "@/lib/security"
 import {
   enablePasskey, passkeySupported, removeWallet, listWallets, setActiveWallet, type WalletInfo,
 } from "@/lib/wallet"
@@ -24,6 +25,15 @@ export default function You() {
   const [copied, setCopied] = useState(false)
   const [bioOk, setBioOk] = useState(false)
   const [askPin, setAskPin] = useState(false)
+  const [sec, setSec] = useState<PaySecurity | null>(null)
+  const [pendingSec, setPendingSec] = useState<PaySecurity | null>(null)
+  useEffect(() => { if (wallet) setSec(paySecurity(wallet.address)) }, [wallet])
+  // tightening applies at once; loosening needs the PIN / fingerprint, so a borrowed unlocked phone can't turn checks off
+  const changeSec = (next: PaySecurity) => {
+    if (!wallet || !sec) return
+    if (looser(sec, next)) { setPendingSec(next); return }
+    setPaySecurity(wallet.address, next); setSec(next)
+  }
   const [msg, setMsg] = useState("")
   useEffect(() => {
     passkeySupported().then(setBioOk)
@@ -112,6 +122,33 @@ export default function You() {
           </button>
         ))}
       </div>
+
+      {sec && (
+        <>
+          <div className="section-title">Payment security</div>
+          <div className="card stack">
+            <div className="strong">Ask for {wallet.hasPasskey ? "fingerprint / PIN" : "PIN"}</div>
+            <div className="seg seg-2" role="radiogroup" aria-label="When to ask for PIN or fingerprint">
+              {([["every", "Every payment"], ["session", "Once per 15 min"]] as const).map(([v, l]) => (
+                <button key={v} className={sec.confirm === v ? "on" : ""} role="radio" aria-checked={sec.confirm === v} onClick={() => changeSec({ ...sec, confirm: v })}>{l}</button>
+              ))}
+            </div>
+            <div className="sub">{sec.confirm === "every" ? "Every send, QR payment and subscription payment asks for it, even right after another one." : "One check unlocks payments for 15 minutes of use. Faster, but anyone holding your unlocked phone can pay in that window."}</div>
+            <div className="strong" style={{ marginTop: 8 }}>Also ask for World ID</div>
+            <div className="seg seg-4" role="radiogroup" aria-label="World ID above this amount">
+              {WORLD_THRESHOLDS.map((t) => (
+                <button key={String(t)} className={sec.worldAboveUsd === t ? "on" : ""} role="radio" aria-checked={sec.worldAboveUsd === t} onClick={() => changeSec({ ...sec, worldAboveUsd: t })}>{t === null ? "Never" : `$${t}+`}</button>
+              ))}
+            </div>
+            <div className="sub">{sec.worldAboveUsd === null ? "World ID is never asked when you pay." : `Payments of $${sec.worldAboveUsd} or more also need a World App scan, after your ${wallet.hasPasskey ? "fingerprint" : "PIN"}.`}{wallet.kind !== "device" ? " MetaMask always asks you to approve each payment too." : ""}</div>
+          </div>
+        </>
+      )}
+      {pendingSec && (
+        <UnlockSheet payment={{ amountMicro: 0n }} title="Change payment security" subtitle="Confirm it's you to relax these checks"
+          onUnlocked={() => { setPaySecurity(wallet.address, pendingSec); setSec(pendingSec); setPendingSec(null) }}
+          onCancel={() => setPendingSec(null)} />
+      )}
 
       <div className="section-title">Payments &amp; security</div>
       <div className="menu-list">

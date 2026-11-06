@@ -221,6 +221,7 @@ function Pay() {
 
       {unlock && (
         <UnlockSheet
+          payment={{ amountMicro: BigInt(req.amount ?? 0) }}
           title={`Pay ${usdt(req.amount)} USDT`}
           subtitle={`to ${req.merchantName}`}
           onUnlocked={pay}
