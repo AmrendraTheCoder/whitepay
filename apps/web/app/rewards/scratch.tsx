@@ -80,6 +80,8 @@ export function ScratchSheet({ card, owner, onClose, onRevealed }: {
   const draw = (p: { x: number; y: number }) => {
     const ctx = canvasRef.current!.getContext("2d")!
     ctx.globalCompositeOperation = "destination-out"
+    // destination-out erases by the SOURCE alpha: the brush must be fully opaque (the foil's last stroke colour is 22%)
+    ctx.strokeStyle = "#000"
     ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = BRUSH
     ctx.beginPath()
     const from = last.current ?? { x: p.x - 0.1, y: p.y }
