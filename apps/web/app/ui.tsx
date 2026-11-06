@@ -111,7 +111,7 @@ export type Activity = {
 }
 
 export const activityLabel = (r: Activity) =>
-  r.kind === "p2m" ? "Shop QR" : r.kind === "p2p" ? "Person" : r.kind === "refund" ? "Refund" : r.kind === "autopay" ? "Autopay" : r.kind === "whitepay" ? "WhitePay" : "Transfer"
+  r.kind === "p2m" ? "Shop QR" : r.kind === "p2p" ? "Person" : r.kind === "refund" ? "Refund" : r.kind === "autopay" ? "Autopay" : r.kind === "whitepay" ? "WondrPay" : "Transfer"
 
 /** Wallet + live data for the ACTIVE wallet (any kind): balance (Whitechain), name, unified activity
  *  (Arkiv receipts + every on-chain USDT transfer). Polls the balance and auto-detects incoming money. */
@@ -120,7 +120,7 @@ export function useWalletData() {
   const [bal, setBal] = useState<{ usdt: string; wbt: string } | null>(null)
   const [rows, setRows] = useState<Activity[] | null>(null)
   const [name, setName] = useState<string | null | undefined>(undefined)
-  /** personal = has a personal WhitePay name; business = registered shop; new = neither yet */
+  /** personal = has a personal WondrPay name; business = registered shop; new = neither yet */
   const [account, setAccount] = useState<"personal" | "business" | "new" | undefined>(undefined)
   const [displayName, setDisplayName] = useState<string | undefined>(undefined)
   const [toast, setToast] = useState<string | null>(null)

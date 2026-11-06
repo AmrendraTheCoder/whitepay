@@ -10,4 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - run: curl -fsS --max-time 60 https://whitepay.vercel.app/api/autopay/tick
+      - run: curl -fsS --max-time 60 https://wondrpay.vercel.app/api/autopay/tick

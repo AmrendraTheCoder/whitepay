@@ -4,14 +4,14 @@ pragma solidity ^0.8.24;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title MerchantRegistry
-/// @notice UPI-style merchant onboarding: the WhitePay operator (acting like an acquiring PSP)
+/// @notice UPI-style merchant onboarding: the WondrPay operator (acting like an acquiring PSP)
 /// registers merchants after checks, and marks large/trusted ones as "verified"
 /// (the "address verified" badge). Only verified merchants may raise collect requests (off-chain rule).
 contract MerchantRegistry is Ownable {
     struct Merchant {
         address payout; // where settled USDT goes; also the refund source
         address signer; // backend key that signs orders (UPI "Reference ID")
-        bytes32 ensNode; // namehash of the merchant's ENS name, e.g. chai-shop.whitepay.eth
+        bytes32 ensNode; // namehash of the merchant's ENS name, e.g. chai-shop.wondrpay.eth
         bool active;
         bool verified;
     }

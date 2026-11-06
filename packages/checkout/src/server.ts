@@ -1,21 +1,21 @@
 // @whitepay/checkout/server: what a merchant's backend needs (2 functions).
-//  createWhitePayOrder: sign an EIP-712 order with the shop's key and publish it as a WhitePay request.
-//  verifyWhitePayPayment: trustlessly confirm a payment on Whitechain from its tx hash (use in webhooks).
+//  createWondrPayOrder: sign an EIP-712 order with the shop's key and publish it as a WondrPay request.
+//  verifyWondrPayPayment: trustlessly confirm a payment on Whitechain from its tx hash (use in webhooks).
 import { createPublicClient, decodeEventLog, getAddress, http, keccak256, parseUnits, recoverMessageAddress, toBytes, toHex, type Address, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { orderTypedData, ROUTER_ADDRESS, ROUTER_ABI, whitechainSepolia, type Order } from "@whitepay/shared"
 
 export type CreatedOrder = { entityKey: Hex; payUrl: string; amount: string; deadline: string; orderId: Hex }
 
-export async function createWhitePayOrder(p: {
-  /** the shop's private key (registered as a WhitePay merchant; payout + order signer) */
+export async function createWondrPayOrder(p: {
+  /** the shop's private key (registered as a WondrPay merchant; payout + order signer) */
   merchantKey: Hex
   /** USDT, e.g. "2.50" */
   amount: string
   whitepayUrl?: string
   /** seconds the QR stays payable (60-1800, default 300) */
   ttlSeconds?: number
-  /** https URL WhitePay POSTs to when paid */
+  /** https URL WondrPay POSTs to when paid */
   webhook?: string
   note?: string
 }): Promise<CreatedOrder> {
@@ -28,7 +28,7 @@ export async function createWhitePayOrder(p: {
     deadline: BigInt(Math.floor(Date.now() / 1000) + Math.min(Math.max(p.ttlSeconds ?? 300, 60), 1800)),
   }
   const merchantSig = await shop.signTypedData(orderTypedData(ROUTER_ADDRESS, order))
-  const r = await fetch(`${p.whitepayUrl ?? "https://whitepay.vercel.app"}/api/requests`, {
+  const r = await fetch(`${p.whitepayUrl ?? "https://wondrpay.vercel.app"}/api/requests`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -37,12 +37,12 @@ export async function createWhitePayOrder(p: {
     }),
   })
   const d = await r.json()
-  if (!r.ok) throw new Error(d.error ?? `WhitePay ${r.status}`)
+  if (!r.ok) throw new Error(d.error ?? `WondrPay ${r.status}`)
   return d as CreatedOrder
 }
 
 /** Don't trust a webhook body: read the PaymentSettled event from Whitechain yourself. */
-export async function verifyWhitePayPayment(p: { txHash: Hex; merchant: Address; orderId?: Hex; minAmount?: bigint; rpcUrl?: string }) {
+export async function verifyWondrPayPayment(p: { txHash: Hex; merchant: Address; orderId?: Hex; minAmount?: bigint; rpcUrl?: string }) {
   const client = createPublicClient({ chain: whitechainSepolia, transport: http(p.rpcUrl) })
   const receipt = await client.getTransactionReceipt({ hash: p.txHash })
   if (receipt.status !== "success") return { ok: false as const, reason: "transaction failed" }
@@ -58,19 +58,19 @@ export async function verifyWhitePayPayment(p: { txHash: Hex; merchant: Address;
       return { ok: true as const, orderId: a.orderId, payer: a.payer, amount: a.amount, block: receipt.blockNumber }
     } catch {}
   }
-  return { ok: false as const, reason: "no matching WhitePay payment in this transaction" }
+  return { ok: false as const, reason: "no matching WondrPay payment in this transaction" }
 }
 
-/** Address that signs WhitePay webhooks (also published at https://whitepay.vercel.app/api/webhook-key). */
+/** Address that signs WondrPay webhooks (also published at https://wondrpay.vercel.app/api/webhook-key). */
 export const WHITEPAY_WEBHOOK_SIGNER: Address = "0x27d2F6770F18E1C0Eefc129124747407Ef44aBe1"
 
 /**
  * Authenticate an incoming webhook BEFORE trusting it: checks the EIP-191 signature over
  * "whitepay-webhook:v1:<timestamp>:<keccak256(rawBody)>" and rejects anything older than maxAgeSeconds
  * (replay protection). Pass the RAW body text (read with req.text(), not req.json()).
- * Then still confirm the money on-chain with verifyWhitePayPayment and de-duplicate by event id.
+ * Then still confirm the money on-chain with verifyWondrPayPayment and de-duplicate by event id.
  */
-export async function verifyWhitePayWebhook(p: { rawBody: string; headers: Headers; maxAgeSeconds?: number; signer?: Address }) {
+export async function verifyWondrPayWebhook(p: { rawBody: string; headers: Headers; maxAgeSeconds?: number; signer?: Address }) {
   const ts = Number(p.headers.get("x-whitepay-timestamp"))
   const sig = p.headers.get("x-whitepay-signature") as Hex | null
   const eventId = p.headers.get("x-whitepay-event-id") ?? ""
@@ -93,7 +93,7 @@ export type CreatedSubscription = { planKey: Hex; subscribeUrl: string; amount: 
  * (one subscriber, offer expires in ttlSeconds); omit it for a shareable "subscribe" link.
  * Webhook events: subscription.started / .charged / .completed / .cancelled / .failed.
  */
-export async function createWhitePaySubscription(p: {
+export async function createWondrPaySubscription(p: {
   merchantKey: Hex; title: string; amount: string; period: PeriodKey; cycles: number
   single?: boolean; ttlSeconds?: number; webhook?: string; whitepayUrl?: string
 }): Promise<CreatedSubscription> {
@@ -104,13 +104,13 @@ export async function createWhitePaySubscription(p: {
     planId: toHex(crypto.getRandomValues(new Uint8Array(32))),
     expiresAt: BigInt(Math.floor(Date.now() / 1000) + Math.min(Math.max(p.ttlSeconds ?? 900, 120), 30 * 86400)),
   }
-  const r = await fetch(`${p.whitepayUrl ?? "https://whitepay.vercel.app"}/api/plans`, {
+  const r = await fetch(`${p.whitepayUrl ?? "https://wondrpay.vercel.app"}/api/plans`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ plan: { ...plan, amount: plan.amount.toString(), expiresAt: plan.expiresAt.toString() },
       merchantSig: await shop.signTypedData(planTypedData(plan)), title: p.title, periodKey: p.period, single: p.single ?? true, webhook: p.webhook }),
   })
   const d = await r.json()
-  if (!r.ok) throw new Error(d.error ?? `WhitePay ${r.status}`)
+  if (!r.ok) throw new Error(d.error ?? `WondrPay ${r.status}`)
   return { planKey: d.planKey, subscribeUrl: d.subscribeUrl, amount: plan.amount.toString(), period: plan.period, periodLabel: PERIODS[p.period].label, cycles: p.cycles, expiresAt: plan.expiresAt.toString() }
 }
 
@@ -118,8 +118,8 @@ const DIRECT_PAYMENT_EVENT = [{ type: "event", name: "DirectPayment", inputs: [
   { name: "from", type: "address", indexed: true }, { name: "to", type: "address", indexed: true },
   { name: "amount", type: "uint256", indexed: false }, { name: "memo", type: "bytes32", indexed: false } ] }] as const
 
-/** Confirm an autopay charge on Whitechain: a DirectPayment from the subscriber to you, via the WhitePay router. */
-export async function verifyWhitePaySubscriptionCharge(p: { txHash: Hex; merchant: Address; subscriber: Address; minAmount?: bigint; rpcUrl?: string }) {
+/** Confirm an autopay charge on Whitechain: a DirectPayment from the subscriber to you, via the WondrPay router. */
+export async function verifyWondrPaySubscriptionCharge(p: { txHash: Hex; merchant: Address; subscriber: Address; minAmount?: bigint; rpcUrl?: string }) {
   const client = createPublicClient({ chain: whitechainSepolia, transport: http(p.rpcUrl) })
   const receipt = await client.getTransactionReceipt({ hash: p.txHash })
   if (receipt.status !== "success") return { ok: false as const, reason: "transaction failed" }

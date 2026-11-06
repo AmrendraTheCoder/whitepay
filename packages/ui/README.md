@@ -1,6 +1,6 @@
 # @whitepay/ui
 
-Design tokens and accessible React components shared by **whitepay.vercel.app** (theme `ink`) and the
+Design tokens and accessible React components shared by **wondrpay.vercel.app** (theme `ink`) and the
 **Chai & Co. demo store** (theme `chai`). One spacing, radius and type scale everywhere. No inline styles,
 no emoji icons, no one-off colours.
 

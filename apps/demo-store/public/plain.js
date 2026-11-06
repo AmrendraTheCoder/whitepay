@@ -1,5 +1,5 @@
 // 3) listen for the result (UI only; the shop's server fulfils from the signed webhook + on-chain check)
-document.addEventListener("whitepay:paid", (e) => {
+document.addEventListener("wondrpay:paid", (e) => {
   const out = document.getElementById("result")
   out.textContent = `Paid ${(Number(e.detail.amount) / 1e6).toFixed(2)} USDT ✓ `
   if (e.detail.explorer) {
@@ -7,4 +7,4 @@ document.addEventListener("whitepay:paid", (e) => {
     out.append(a)
   }
 })
-document.addEventListener("whitepay:error", (e) => { document.getElementById("result").textContent = `Error: ${e.detail.message}` })
+document.addEventListener("wondrpay:error", (e) => { document.getElementById("result").textContent = `Error: ${e.detail.message}` })

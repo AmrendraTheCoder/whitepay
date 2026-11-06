@@ -1,4 +1,4 @@
-// @whitepay/ui: tokens + accessible components shared by whitepay.vercel.app and the demo store.
+// @whitepay/ui: tokens + accessible components shared by wondrpay.vercel.app and the demo store.
 // Import the CSS once per app: `import "@whitepay/ui/styles.css"`, and set data-theme="ink" | "chai" on a root.
 export { Icon, ICONS, type IconName, type IconProps } from "./Icon"
 export { Button, IconButton, type ButtonProps, type IconButtonProps, type ButtonVariant, type ButtonSize } from "./Button"

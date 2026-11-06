@@ -9,7 +9,7 @@ import { useTheme, type Theme } from "@/lib/prefs"
 import { short } from "@/lib/format"
 import { ENS_WHITEPAY } from "@whitepay/shared"
 
-/** GPay "You": name, WhitePay ID (ENS, like a UPI ID), QR, wallets, appearance, security. */
+/** GPay "You": name, WondrPay ID (ENS, like a UPI ID), QR, wallets, appearance, security. */
 export default function You() {
   const { wallet, name, account, displayName, reload } = useWalletData()
   const [types, setTypes] = useState<Record<string, string>>({})
@@ -38,7 +38,7 @@ export default function You() {
   if (!wallet) return <main className="shell"><a className="btn btn-primary" href="/app">Create your wallet</a></main>
 
   const switchTo = (a: string) => { setActiveWallet(a); location.reload() }
-  // connecting (extension or WalletConnect) + setting its WhitePay PIN happens in the add-wallet flow
+  // connecting (extension or WalletConnect) + setting its WondrPay PIN happens in the add-wallet flow
   const connect = () => { location.href = "/add?connect=1" }
 
 
@@ -47,7 +47,7 @@ export default function You() {
       <div className="profile-hero">
         <div className="hero-top"><span className="hero-ident"><Identicon seed={wallet.address} size={52} /></span><AccountBadge account={account} /></div>
         <div className="nm">{name === undefined ? <span className="skel" style={{ width: 200, height: 34 }} /> : account === "business" && displayName ? displayName : name ? prettyName(name) : wallet.label}</div>
-        <div className="id">{account === "business" ? "Shop ID" : "WhitePay ID"}: {name === undefined ? <span className="skel" style={{ width: 160, height: 16 }} /> : <b>{name ?? "not claimed yet"}</b>}</div>
+        <div className="id">{account === "business" ? "Shop ID" : "WondrPay ID"}: {name === undefined ? <span className="skel" style={{ width: 160, height: 16 }} /> : <b>{name ?? "not claimed yet"}</b>}</div>
         <button className="addr chip" style={{ background: "rgba(255,255,255,.14)", border: 0, color: "#fff" }}
           onClick={() => { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1400) }}>
           {copied ? "Copied" : <>{short(wallet.address)} <span style={{ opacity: .7 }}>· {wallet.kind === "walletconnect" ? "MetaMask app" : wallet.kind === "injected" ? "browser extension" : "this device"}</span> <span aria-hidden style={{ opacity: .8 }}>⧉</span></>}
@@ -115,7 +115,7 @@ export default function You() {
 
       <div className="section-title">Payments &amp; security</div>
       <div className="menu-list">
-        <a className="menu-row" href="/receive"><span className="ic">{Icon.receive(26)}</span><div>Your QR code<div className="s">Use to receive money from any WhitePay user</div></div><span className="chev">{Icon.chev()}</span></a>
+        <a className="menu-row" href="/receive"><span className="ic">{Icon.receive(26)}</span><div>Your QR code<div className="s">Use to receive money from any WondrPay user</div></div><span className="chev">{Icon.chev()}</span></a>
         <a className="menu-row" href="/autopay"><span className="ic">{Icon.repeat(26)}</span><div>Subscriptions<div className="s">Payment requests, countdowns, cancel anytime</div></div><span className="chev">{Icon.chev()}</span></a>
         <a className="menu-row" href="/merchant"><span className="ic">{Icon.shop(26)}</span><div>Shop &amp; merchant tools<div className="s">Sign up a shop, QR payments, subscription plans</div></div><span className="chev">{Icon.chev()}</span></a>
         {wallet.kind === "device" && (
@@ -131,7 +131,7 @@ export default function You() {
 
       <button className="btn btn-ghost text-bad"
         onClick={() => {
-          const warn = wallet.kind === "device" ? "Remove this wallet from the device? Its funds are lost unless you have the key." : "Disconnect MetaMask from WhitePay?"
+          const warn = wallet.kind === "device" ? "Remove this wallet from the device? Its funds are lost unless you have the key." : "Disconnect MetaMask from WondrPay?"
           if (confirm(warn)) { removeWallet(wallet.address); location.href = "/app" }
         }}>
         {wallet.kind === "device" ? "Remove this wallet from device" : "Disconnect MetaMask"}

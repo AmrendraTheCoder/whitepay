@@ -6,8 +6,8 @@ import { toHex, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { cycleAuthTypedData, reminderCancelMessage } from "@whitepay/shared/autopay"
 
-const STORE = process.argv[2] ?? "https://whitepay-demo-store.vercel.app"
-const WP = process.argv[3] ?? "https://whitepay.vercel.app"
+const STORE = process.argv[2] ?? "https://wondrpay-demo-store.vercel.app"
+const WP = process.argv[3] ?? "https://wondrpay.vercel.app"
 const sub = privateKeyToAccount(process.env.CUSTOMER_PK as Hex)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const t0 = Date.now(), ts = () => `+${Math.round((Date.now() - t0) / 1000)}s`.padEnd(6)

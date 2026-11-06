@@ -1,4 +1,4 @@
-# Arkiv developer reference (for WhitePay)
+# Arkiv developer reference (for WondrPay)
 
 Digest of the Arkiv docs (docs.arkiv.network, read in full via the sitemap on 2026-11-05) and the published `@arkiv-network/sdk@1.0.1` package source. Written in our own words. Each section lists its sources.
 
@@ -87,7 +87,7 @@ const chain = rabdi({ accessKey: process.env.ARKIV_ACCESS_KEY ?? "" })
 // Reads: no account, safe in browser
 export const publicClient = createPublicClient({ chain, transport: http() })
 
-// Server writes (WhitePay backend): private key from env/secret store
+// Server writes (WondrPay backend): private key from env/secret store
 export const walletClient = createWalletClient({
   chain, transport: http(),
   account: privateKeyToAccount(process.env.ARKIV_PRIVATE_KEY as Hex),
@@ -360,7 +360,7 @@ Sources: https://docs.arkiv.network/start-here/introduction/ ("Arkiv is public")
   - API: `generateKey()` (64-hex secret), `importKey(hexOr32Bytes)`, `encryptBytes(key, data)` (AES-256-GCM, envelope `iv‖ct‖tag`), `decryptBytes(key, envelope)`, `CONTENT_TYPE = "application/vnd.arkiv.encrypted.v1"`, `MAX_PLAINTEXT_BYTES = 100000`.
   - Store the ciphertext in a `bytes` column, and a `contentType` str column next to it.
   - **Encrypted content can't be filtered**, and indexed columns stay public. [UNVERIFIED by us]
-- **For WhitePay:**
+- **For WondrPay:**
   - Payer/merchant addresses, amounts and timestamps are public on Whitechain anyway, so mirroring them to Arkiv adds no leak.
   - Do **not** put phone numbers, names, UPI-style handles that link to a real identity, notes or KYC data in plain columns.
   - Put private memos in an encrypted `bytes` column, or keep them off Arkiv. Write down what we kept off Arkiv and why: the prize asks for this.
@@ -395,7 +395,7 @@ Sources: https://docs.arkiv.network/start-here/agent-skill/ · https://hub.arkiv
   - Skills: `arkiv` (router), `arkiv-first-write`, `arkiv-data-modeling`, `arkiv-query`, `arkiv-entity-lifecycle`, `arkiv-entity-expiration`, `arkiv-write-safety`, `arkiv-app-integration`, `arkiv-security-trust`, `arkiv-troubleshooting`, `arkiv-encryption`, `arkiv-large-files`, `arkiv-social-graph`, `arkiv-indexing`, `arkiv-feedback`, `arkiv-mcp`.
   - The docs page still says to install **`arkiv-best-practices`**, which is now a **deprecated** entrypoint.
 
-## 10. WhitePay mapping
+## 10. WondrPay mapping
 
 Our design, based on the API above. **[UNVERIFIED]: not yet compiled or run against Rabdi.** Run `tsc` on it before relying on it.
 

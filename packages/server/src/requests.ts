@@ -39,7 +39,7 @@ export type CreatePaymentRequestParams = {
   note?: string
   /** Order already signed on the merchant's own device (non-custodial). Verified against the registry. */
   signed?: { order: Order; merchantSig: Hex }
-  /** https URL the WhitePay server POSTs to when this request is paid */
+  /** https URL the WondrPay server POSTs to when this request is paid */
   webhook?: string
 }
 

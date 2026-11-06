@@ -1,4 +1,4 @@
-# WhitePay: Risks, Vulnerabilities, Analogs
+# WondrPay: Risks, Vulnerabilities, Analogs
 
 ## 1. What could go wrong (project / hackathon risk)
 

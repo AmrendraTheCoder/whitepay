@@ -49,10 +49,10 @@ function Subscribe() {
       // scanned before the plan's Arkiv write landed (a few seconds): keep checking for up to 45 s
       if ((p.state as string) === "publishing") { if (tries++ < 30) { setTimeout(load, 1500); return } return setPlan({ state: "expired" } as PlanResp) }
       if (r.status === 404 || p.state === "expired") return setPlan({ state: "expired" } as PlanResp)
-      if (!r.ok || !p.state) return setLoadErr(`WhitePay couldn't load this plan${p.error ? `: ${p.error}` : ` (HTTP ${r.status})`}. Try again in a moment.`)
+      if (!r.ok || !p.state) return setLoadErr(`WondrPay couldn't load this plan${p.error ? `: ${p.error}` : ` (HTTP ${r.status})`}. Try again in a moment.`)
       setPlan(p)
       if (p.merchant) fetch(`/api/merchants?address=${p.merchant}`).then((r) => r.json()).then((d) => setVerified(!!d.merchant?.verified)).catch(() => {})
-    }).catch(() => setLoadErr("You're offline or WhitePay is unreachable. Check your connection and try again."))
+    }).catch(() => setLoadErr("You're offline or WondrPay is unreachable. Check your connection and try again."))
     void load()
     return undefined
   }, [planKey])
@@ -80,7 +80,7 @@ function Subscribe() {
       </main>
     )
   if (!wallet)
-    return <main className="shell"><TopBar /><div className="card stack"><b>Create a WhitePay wallet first</b><a className="btn btn-primary" href="/app">Create wallet</a></div></main>
+    return <main className="shell"><TopBar /><div className="card stack"><b>Create a WondrPay wallet first</b><a className="btn btn-primary" href="/app">Create wallet</a></div></main>
 
   const amount = BigInt(plan.amount)
   const total = amount * BigInt(plan.cycles)
@@ -227,7 +227,7 @@ function friendly(msg: string, amount: bigint) {
   if (/not yet valid|authorization is expired|expired/.test(m)) return "Your phone's clock looks off, so the payment windows don't line up. Turn on automatic date & time and try again."
   if (/already used/.test(m)) return "This checkout QR was already used. Ask the shop for a new one."
   if (/rate|too many/.test(m)) return "Too many attempts. Wait a minute and try again."
-  if (/daily limit/.test(m)) return "You've reached today's WhitePay spending limit."
+  if (/daily limit/.test(m)) return "You've reached today's WondrPay spending limit."
   if (/reject|denied|cancel/.test(m)) return "Approval cancelled."
   if (/fetch|network|failed to fetch/.test(m)) return "Network problem: nothing was charged. Check your connection and try again."
   return `Subscription failed: ${msg}`

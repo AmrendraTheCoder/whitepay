@@ -20,7 +20,7 @@ struct Terms {
     bytes32 subscriptionId; // random, makes the address unique
 }
 
-/// @title WhitePay Autopay mandate (one minimal clone per subscription)
+/// @title WondrPay Autopay mandate (one minimal clone per subscription)
 /// @notice Pulls `amount` from the subscriber to the merchant once per cycle, only inside that cycle's
 ///         window [due - EARLY, due + grace], never more than `cycles` times (the permit also caps the
 ///         allowance at amount * cycles). Missed windows are skipped, never charged late. Anyone may
@@ -99,7 +99,7 @@ contract AutopayMandate {
     }
 }
 
-/// @title WhitePay Autopay factory
+/// @title WondrPay Autopay factory
 /// @notice start(): deploys the mandate clone for `t`, applies the subscriber's single permit
 ///         (spender = the clone, value = amount * cycles) and charges cycle 0.
 contract AutopayFactory {

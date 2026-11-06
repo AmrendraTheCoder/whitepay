@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generates fresh WhitePay wallets with Foundry's `cast` and writes the private keys into .env.
+# Generates fresh WondrPay wallets with Foundry's `cast` and writes the private keys into .env.
 # Private keys are NEVER printed; only public addresses are shown.
 # Refuses to overwrite a key that is already set.
 set -euo pipefail

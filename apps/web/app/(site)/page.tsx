@@ -6,40 +6,40 @@ import { OpenApp } from "./open-app"
 import { networkStats } from "@/lib/site-stats"
 
 export const metadata: Metadata = {
-  title: { absolute: "WhitePay · Pay anyone in digital dollars" },
+  title: { absolute: "WondrPay · Pay anyone in digital dollars" },
   description: "Scan a QR, confirm with your fingerprint, settled in about a second. USDT payments, checkout and subscriptions on Whitechain, with ENS names and receipts on Arkiv.",
   alternates: { canonical: "/" },
 }
 
 const STEPS: { icon: IconName; title: string; body: string }[] = [
-  { icon: "scan", title: "Scan", body: "Point your camera at a WhitePay QR. You see the shop's verified name and the exact amount before anything happens." },
+  { icon: "scan", title: "Scan", body: "Point your camera at a WondrPay QR. You see the shop's verified name and the exact amount before anything happens." },
   { icon: "fingerprint", title: "Confirm", body: "Your fingerprint unlocks the key on your phone, which signs this one payment. Only the signature leaves your device." },
   { icon: "check", title: "Done", body: "Settled on Whitechain in about a second. The receipt is saved to Arkiv and the shop's screen shows the payment." },
 ]
 
 const FEATURES: { icon: IconName; title: string; body: string }[] = [
-  { icon: "bolt", title: "No gas, ever", body: "WhitePay's relayer pays the network fee. You only ever see the amount you send." },
+  { icon: "bolt", title: "No gas, ever", body: "WondrPay's relayer pays the network fee. You only ever see the amount you send." },
   { icon: "key", title: "No seed phrase", body: "Your key is created and encrypted on your phone, unlocked by fingerprint or a 6-digit PIN." },
-  { icon: "at", title: "Names, not addresses", body: "Pay ravi.whitepay.eth instead of a 42-character address. Every name is a real ENS name." },
+  { icon: "at", title: "Names, not addresses", body: "Pay ravi.wondrpay.eth instead of a 42-character address. Every name is a real ENS name." },
   { icon: "repeat", title: "Subscriptions", body: "Approve renewals with one tap, or turn on Autopay. Every payment has hard limits enforced on-chain." },
   { icon: "receipt", title: "Receipts that last", body: "Each payment writes a receipt to Arkiv: searchable, exportable, and not locked in one company's database." },
   { icon: "shield", title: "Verified shops", body: "Shops verify with World ID, one shop per person, so you know a real human is behind the counter." },
 ]
 
 const FAQ = [
-  { id: "real-money", title: "Is this real money?", content: "Not yet. WhitePay runs on Whitechain Sepolia testnet with test USDT, so you can try every feature safely. Mainnet follows audits and licensing." },
-  { id: "wallet", title: "Do I need a crypto wallet?", content: "No. WhitePay creates one on your phone in seconds and protects it with your fingerprint or PIN. If you already use MetaMask, connect it with WalletConnect." },
-  { id: "gas", title: "Who pays the network fees?", content: "WhitePay does. Payments are signed USDT authorizations that our relayer submits, so you never need a gas token." },
+  { id: "real-money", title: "Is this real money?", content: "Not yet. WondrPay runs on Whitechain Sepolia testnet with test USDT, so you can try every feature safely. Mainnet follows audits and licensing." },
+  { id: "wallet", title: "Do I need a crypto wallet?", content: "No. WondrPay creates one on your phone in seconds and protects it with your fingerprint or PIN. If you already use MetaMask, connect it with WalletConnect." },
+  { id: "gas", title: "Who pays the network fees?", content: "WondrPay does. Payments are signed USDT authorizations that our relayer submits, so you never need a gas token." },
   { id: "double", title: "Can a shop charge me twice?", content: "No. Each payment carries a single-use nonce and the exact amount the shop signed. Subscription payments are capped and can only run in their own time window." },
   { id: "refunds", title: "Can a shop refund me?", content: "Yes, from its dashboard with no fee. A refund can only go back to the wallet that paid, and never for more than you paid." },
   { id: "data", title: "Where is my data stored?", content: "Your key stays on your device. Payment requests and receipts are public, tamper-evident records on Arkiv with no personal data in clear text." },
 ]
 
-const SNIPPET = `<script src="https://whitepay.vercel.app/sdk/v1.2.1/checkout.js"
+const SNIPPET = `<script src="https://wondrpay.vercel.app/sdk/v1.3.0/checkout.js"
         integrity="sha384-…" crossorigin="anonymous" defer></script>
 
-<whitepay-button order-endpoint="/api/create-order"
-                 payload='{"sku":"chai-kit"}'></whitepay-button>`
+<wondrpay-button order-endpoint="/api/create-order"
+                 payload='{"sku":"chai-kit"}'></wondrpay-button>`
 
 const fmt = (n: number | null) => (n == null ? null : n.toLocaleString("en-US"))
 
@@ -51,10 +51,10 @@ const ROWS = [
 
 function PhonePreview() {
   return (
-    <figure className="phone" aria-label="The WhitePay wallet home screen">
+    <figure className="phone" aria-label="The WondrPay wallet home screen">
       <div className="phone-screen" aria-hidden>
         <div className="phone-search"><Icon name="scan" size={14} /> Pay friends and merchants</div>
-        <div className="phone-balance"><small>USDT balance</small><b>1,284.50</b><small>ravi.whitepay.eth</small></div>
+        <div className="phone-balance"><small>USDT balance</small><b>1,284.50</b><small>ravi.wondrpay.eth</small></div>
         <div className="phone-actions">
           {([["scan", "Scan"], ["arrowUpRight", "Pay"], ["qr", "Receive"], ["store", "Shop"]] as const).map(([i, l]) => <span key={l}><i><Icon name={i} size={18} /></i>{l}</span>)}
         </div>
@@ -69,7 +69,7 @@ function PhonePreview() {
 export default async function Landing() {
   const [s, qr] = await Promise.all([
     networkStats(),
-    QRCode.toString("https://whitepay.vercel.app/business", { type: "svg", margin: 0, errorCorrectionLevel: "M", color: { dark: "#0b0d14", light: "#ffffff" } }),
+    QRCode.toString("https://wondrpay.vercel.app/business", { type: "svg", margin: 0, errorCorrectionLevel: "M", color: { dark: "#0b0d14", light: "#ffffff" } }),
   ])
   return (
     <>
@@ -78,7 +78,7 @@ export default async function Landing() {
           <div className="site-hero-copy">
             <Badge tone="success" dot>Live on Whitechain testnet</Badge>
             <h1 id="hero-title" className="wp-title-1">Pay anyone in digital dollars.</h1>
-            <p className="wp-lead">WhitePay brings UPI-style payments to USDT. Scan a QR, confirm with your fingerprint, and it settles in about a second. No gas, no seed phrase.</p>
+            <p className="wp-lead">WondrPay brings UPI-style payments to USDT. Scan a QR, confirm with your fingerprint, and it settles in about a second. No gas, no seed phrase.</p>
             <div className="wp-cluster">
               <OpenApp size="lg" label="Get started" />
               <ButtonLink href="/business" variant="secondary" size="lg" iconRight="arrowRight">Accept payments</ButtonLink>
@@ -112,7 +112,7 @@ export default async function Landing() {
       </Section>
 
       <Section tone="muted" id="autopay" aria-labelledby="features">
-        <SectionHeader id="features" eyebrow="Why WhitePay" title="Everything a payment app should do, nothing a crypto wallet makes you learn." />
+        <SectionHeader id="features" eyebrow="Why WondrPay" title="Everything a payment app should do, nothing a crypto wallet makes you learn." />
         <Grid cols={3}>
           {FEATURES.map((f) => <Spotlight key={f.title}><Card icon={f.icon} title={f.title}><p>{f.body}</p></Card></Spotlight>)}
         </Grid>
@@ -130,7 +130,7 @@ export default async function Landing() {
             ]} />
             <div className="wp-cluster">
               <ButtonLink href="/business" variant="highlight">Accept payments</ButtonLink>
-              <ButtonLink href="https://whitepay-demo-store.vercel.app" variant="secondary">See a live store</ButtonLink>
+              <ButtonLink href="https://wondrpay-demo-store.vercel.app" variant="secondary">See a live store</ButtonLink>
             </div>
           </div>
           <Tilt max={10}><Card className="terminal" aria-label="Example counter QR for 2.50 USDT">
@@ -156,7 +156,7 @@ export default async function Landing() {
       </Section>
 
       <Section aria-labelledby="security">
-        <SectionHeader id="security" eyebrow="Security" title="Your money moves only when you say so." actions={<ButtonLink href="/security" variant="secondary" iconRight="arrowRight">How WhitePay is secured</ButtonLink>} />
+        <SectionHeader id="security" eyebrow="Security" title="Your money moves only when you say so." actions={<ButtonLink href="/security" variant="secondary" iconRight="arrowRight">How WondrPay is secured</ButtonLink>} />
         <Grid cols={3}>
           <Spotlight><Card icon="key" title="Keys stay on your phone"><p>Encrypted with your fingerprint (passkey) or PIN, locked after five wrong tries.</p></Card></Spotlight>
           <Spotlight><Card icon="lock" title="Every amount is signed"><p>The shop signs the price, you sign the payment, and the contract settles exactly that, once.</p></Card></Spotlight>
@@ -170,7 +170,7 @@ export default async function Landing() {
       </Section>
 
       <Section aria-labelledby="cta">
-        <SectionHeader id="cta" align="center" title="Your first payment takes 30 seconds." description="Create a wallet in your browser, get test USDT, and scan any WhitePay QR." actions={<><OpenApp size="lg" label="Get started" /><ButtonLink href="/business" variant="secondary" size="lg">For business</ButtonLink></>} />
+        <SectionHeader id="cta" align="center" title="Your first payment takes 30 seconds." description="Create a wallet in your browser, get test USDT, and scan any WondrPay QR." actions={<><OpenApp size="lg" label="Get started" /><ButtonLink href="/business" variant="secondary" size="lg">For business</ButtonLink></>} />
       </Section>
     </>
   )

@@ -25,7 +25,7 @@
   },
   "demo": {
     "merchant": {
-      "ens": "chai-shop.whitepay.eth",
+      "ens": "chai-shop.wondrpay.eth",
       "address": "0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10",
       "registerTx": "0x0bb8b54b82aab3ba8c0a0c071730275d759bbcef23129229700c0ed41c88c94d",
       "verifyTx": "0x78992ba2a5ffc244b0846a27b995c9ef332fae103f1f191867fa5f896a81653b"
@@ -35,7 +35,7 @@
   "relayerGated": true,
   "payments": [
     {
-      "note": "First gasless USDT payment: customer (0 WBT) -> chai-shop.whitepay.eth, 1 USDT, relayer paid gas",
+      "note": "First gasless USDT payment: customer (0 WBT) -> chai-shop.wondrpay.eth, 1 USDT, relayer paid gas",
       "tx": "0x1c9057fc24477b69f37e8da80b2c1e1bf80908a55a84e908139e07cac86c362f",
       "paymentId": "0x22de5f4e6314454e7d80c8e3bc842f6c3182c90a71ff3c432cc72e6bb191de03",
       "explorer": "https://explorer.testnet.whitechain.io/tx/0x1c9057fc24477b69f37e8da80b2c1e1bf80908a55a84e908139e07cac86c362f"

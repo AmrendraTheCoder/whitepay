@@ -4,7 +4,7 @@ import { Badge, ButtonLink, Card, CheckList, Grid, Section, SectionHeader } from
 export const metadata: Metadata = { title: "Pricing", description: "Personal payments are free. Merchants pay a small fee only when they get paid. Everything is free during the testnet.", alternates: { canonical: "/pricing" } }
 
 const PLANS = [
-  { name: "Personal", price: "Free", unit: "forever", cta: { label: "Open the app", href: "/app", variant: "secondary" as const }, items: ["Send and receive USDT", "No gas fees", "Fingerprint or PIN wallet", "Your own .whitepay.eth name", "Subscriptions and Autopay"] },
+  { name: "Personal", price: "Free", unit: "forever", cta: { label: "Open the app", href: "/app", variant: "secondary" as const }, items: ["Send and receive USDT", "No gas fees", "Fingerprint or PIN wallet", "Your own .wondrpay.eth name", "Subscriptions and Autopay"] },
   { name: "Business", price: "0.4%", unit: "per payment received", featured: true, cta: { label: "Open a business account", href: "/add?type=business", variant: "highlight" as const }, items: ["Counter QR terminal", "Checkout SDK and signed webhooks", "Subscription plans", "Refunds and CSV export", "World ID verified badge", "Settlement in about a second"] },
   { name: "Scale", price: "Custom", unit: "volume pricing", cta: { label: "Contact us", href: "https://github.com/AmrendraTheCoder/whitepay/issues", variant: "secondary" as const }, items: ["Everything in Business", "Multiple outlets and staff roles", "Dedicated relayer capacity", "Volume-based fees", "Priority support"] },
 ]

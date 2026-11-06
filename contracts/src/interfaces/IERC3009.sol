@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @notice EIP-3009 subset used by WhitePay. Whitechain Sepolia USDT
+/// @notice EIP-3009 subset used by WondrPay. Whitechain Sepolia USDT
 /// (0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7, TetherTokenV2) implements this.
 interface IERC3009 {
     function receiveWithAuthorization(

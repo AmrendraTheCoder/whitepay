@@ -1,5 +1,5 @@
-// ── WHITEPAY INTEGRATION ③ (server, autopay) ── sign a subscription plan for this shopper's checkout.
-import { createWhitePaySubscription } from "@whitepay/checkout/server"
+// ── WONDRPAY INTEGRATION ③ (server, autopay) ── sign a subscription plan for this shopper's checkout.
+import { createWondrPaySubscription } from "@whitepay/checkout/server"
 import type { Hex } from "viem"
 
 // the plan terms live on the SERVER (demo: 3 × 0.10 USDT, every 2 minutes so judges can watch it run)
@@ -7,9 +7,9 @@ const CLUB = { title: "Chai Club (demo)", amount: "0.10", period: "demo" as cons
 
 export async function POST() {
   try {
-    const plan = await createWhitePaySubscription({
+    const plan = await createWondrPaySubscription({
       merchantKey: process.env.STORE_MERCHANT_PK as Hex, ...CLUB, single: true, ttlSeconds: 900,
-      whitepayUrl: process.env.WHITEPAY_URL ?? "https://whitepay.vercel.app",
+      whitepayUrl: process.env.WHITEPAY_URL ?? "https://wondrpay.vercel.app",
       webhook: process.env.STORE_URL?.startsWith("https://") ? `${process.env.STORE_URL}/api/webhook` : undefined,
     })
     return Response.json(plan)

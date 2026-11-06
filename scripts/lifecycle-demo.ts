@@ -1,4 +1,4 @@
-// WhitePay payment-request lifecycle, end to end on live networks:
+// WondrPay payment-request lifecycle, end to end on live networks:
 //   merchant creates request (Arkiv, TTL) -> payer scans + verifies -> fingerprint/PIN signs -> relayer settles
 //   on Whitechain -> receipt + request=paid on Arkiv -> merchant dashboard reads Arkiv.
 // Failure paths: tampered amount, forged signature, double pay, (--expiry) depleted request.
@@ -27,7 +27,7 @@ import {
 } from "@whitepay/server"
 
 const MERCHANT = "0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10" as const
-const MERCHANT_NAME = "chai-shop.whitepay.eth"
+const MERCHANT_NAME = "chai-shop.wondrpay.eth"
 const amount = parseUnits(process.argv.find((a) => /^\d+(\.\d+)?$/.test(a)) ?? "1", 6)
 const expiryTest = process.argv.includes("--expiry")
 
@@ -74,7 +74,7 @@ async function main() {
   const forged = await verifyRequest({ ...view!, merchantSig: forgedSig })
   forged.ok ? bad("forged signature accepted!") : ok(`forged signature rejected: ${forged.reason}`)
   const foreign = await verifyRequest({ ...view!, owner: rogue.address })
-  foreign.ok ? bad("foreign-owned entity accepted!") : ok(`entity not owned by WhitePay rejected: ${foreign.reason}`)
+  foreign.ok ? bad("foreign-owned entity accepted!") : ok(`entity not owned by WondrPay rejected: ${foreign.reason}`)
 
   // 4. payer authorises (fingerprint/PIN unlocks key) -> relayer settles on Whitechain
   step("4", "payer signs EIP-3009 authorization (0 WBT) -> relayer submits payOrder")

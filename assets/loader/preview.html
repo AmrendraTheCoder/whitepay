@@ -1,5 +1,5 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>WhitePay loader test</title>
+<html><head><meta charset="utf-8"><title>WondrPay loader test</title>
 <style>body{margin:0;background:#0a0c19;display:flex;gap:16px;padding:16px;flex-wrap:wrap}div{width:240px;height:240px;background:#0a0c19;border:1px solid #2a3158}</style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script></head>
 <body><div id="a"></div><div id="b"></div><div id="c"></div><div id="d"></div><div id="r"></div>
@@ -11,8 +11,8 @@ const mk = (id, file, frame) => new Promise(res => {
   anim.addEventListener("data_failed", () => res({ error: "data_failed" }));
 });
 Promise.all([
-  mk("a", "whitepay-loader.json", 30), mk("b", "whitepay-loader.json", 63),
-  mk("c", "whitepay-loader.json", 80), mk("d", "whitepay-loader.json", 100),
-  mk("r", "whitepay-loader-reduced.json", 60),
+  mk("a", "wondrpay-loader.json", 30), mk("b", "wondrpay-loader.json", 63),
+  mk("c", "wondrpay-loader.json", 80), mk("d", "wondrpay-loader.json", 100),
+  mk("r", "wondrpay-loader-reduced.json", 60),
 ]).then(r => { window.results = r });
 </script></body></html>

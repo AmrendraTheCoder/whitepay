@@ -50,7 +50,7 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
         </div>
         <div className="meta">
           <span className="pill-lime">0 gas</span>
-          {name === undefined ? <span className="skel" style={{ width: 170, height: 16 }} /> : <span>{account === "business" && displayName ? `${displayName} · ${name}` : name ?? "No WhitePay name yet"}</span>}
+          {name === undefined ? <span className="skel" style={{ width: 170, height: 16 }} /> : <span>{account === "business" && displayName ? `${displayName} · ${name}` : name ?? "No WondrPay name yet"}</span>}
         </div>
         <a className="cta" href={account === "business" ? "/merchant" : "/money"}>
           {name === undefined ? <span className="skel" style={{ width: 120, height: 18 }} /> : account === "business" ? "Open shop terminal" : "View money"} <span className="circle">{Icon.arrow()}</span>
@@ -69,7 +69,7 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
       <div className="chips">
         <a className="chip-card" href="/money"><span className="ic">{Icon.balance()}</span><div><div className="t1">USDT balance</div><div className="t2">Check</div></div></a>
         <a className="chip-card" href="/transactions"><span className="ic">{Icon.history()}</span><div><div className="t1">Transactions</div><div className="t2">See all</div></div></a>
-        <a className="chip-card" href="/you"><span className="ic">{Icon.id()}</span><div><div className="t1">WhitePay ID</div><div className="t2 link">{name ? "View" : "Claim"}</div></div></a>
+        <a className="chip-card" href="/you"><span className="ic">{Icon.id()}</span><div><div className="t1">WondrPay ID</div><div className="t2 link">{name ? "View" : "Claim"}</div></div></a>
       </div>
 
       <div className="section-title">Pay again</div>

@@ -12,7 +12,7 @@ import {IERC3009} from "./interfaces/IERC3009.sol";
 import {MerchantRegistry} from "./MerchantRegistry.sol";
 
 /// @title PaymentRouter
-/// @notice WhitePay settlement switch on Whitechain (the "NPCI" of the system).
+/// @notice WondrPay settlement switch on Whitechain (the "NPCI" of the system).
 ///  - Gasless: payers sign EIP-3009 `receiveWithAuthorization`; a relayer submits and pays WBT gas.
 ///  - Order-bound: merchant backend signs an EIP-712 Order (UPI "Reference ID"); the payer's
 ///    authorization nonce MUST equal the order digest, so a signature can only ever settle that order.
@@ -202,7 +202,7 @@ contract PaymentRouter is EIP712, Ownable, Pausable, ReentrancyGuard {
         emit Refunded(paymentId, p.payer, amount, p.refunded);
     }
 
-    /// @notice Gasless P2P push ("send to ravi.whitepay.eth"). Nonce binds recipient + memo.
+    /// @notice Gasless P2P push ("send to ravi.wondrpay.eth"). Nonce binds recipient + memo.
     function payDirect(address to, uint256 amount, bytes32 memo, Auth calldata a)
         external
         nonReentrant

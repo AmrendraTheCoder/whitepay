@@ -1,6 +1,6 @@
 # Arkiv schema (Rabdi testnet, chain 7794095, `@arkiv-network/sdk` 1.0.1)
 
-- **Writer / owner of every entity:** `0x4D5910272479420d1383100b3986d5fc9d5D658F` (WhitePay backend).
+- **Writer / owner of every entity:** `0x4D5910272479420d1383100b3986d5fc9d5D658F` (WondrPay backend).
 - **Every read filters on `$owner`,** because anyone can write entities that reuse our schema names.
 - **Amounts** are `u256` USDT base units (6 decimals).
 - **Timestamps** are our own indexed `u64` unix seconds, because `$createdAt` can't be filtered.

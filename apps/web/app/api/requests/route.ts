@@ -13,7 +13,7 @@ type Body = {
   order: { merchant: string; amount: string; orderId: string; deadline: string }
   merchantSig: string
   note?: string
-  /** optional https URL WhitePay POSTs to when this request is paid (<=128 chars) */
+  /** optional https URL WondrPay POSTs to when this request is paid (<=128 chars) */
   webhook?: string
 }
 

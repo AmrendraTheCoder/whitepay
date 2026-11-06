@@ -1,5 +1,5 @@
-// ── WHITEPAY INTEGRATION ③ (server) ── sign the order with the shop's key and publish it on WhitePay.
-import { createWhitePayOrder } from "@whitepay/checkout/server"
+// ── WONDRPAY INTEGRATION ③ (server) ── sign the order with the shop's key and publish it on WondrPay.
+import { createWondrPayOrder } from "@whitepay/checkout/server"
 import { formatUnits, parseUnits, type Hex } from "viem"
 import { recordEvent } from "@/lib/events"
 import { PRICE, MAX_QTY } from "@/lib/catalog"
@@ -27,14 +27,14 @@ export async function POST(req: Request) {
   const t = total(body?.payload)
   if (!t) return Response.json({ error: "unknown product or quantity" }, { status: 400 })
   try {
-    const order = await createWhitePayOrder({
+    const order = await createWondrPayOrder({
       merchantKey: process.env.STORE_MERCHANT_PK as Hex,
       amount: t.amount,
-      whitepayUrl: process.env.WHITEPAY_URL ?? "https://whitepay.vercel.app",
+      whitepayUrl: process.env.WHITEPAY_URL ?? "https://wondrpay.vercel.app",
       webhook: process.env.STORE_URL?.startsWith("https://") ? `${process.env.STORE_URL}/api/webhook` : undefined,
       note: t.note,
     })
-    recordEvent(order.orderId, `order signed by shop key, published to WhitePay (${t.amount} USDT · ${t.note})`)
+    recordEvent(order.orderId, `order signed by shop key, published to WondrPay (${t.amount} USDT · ${t.note})`)
     return Response.json(order)
   } catch (e) {
     console.error("[create-order]", (e as Error).message)

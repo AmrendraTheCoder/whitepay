@@ -1,4 +1,4 @@
-// Shared HTTP security layer for WhitePay apps (runs in Next.js proxy.ts, edge- and node-safe).
+// Shared HTTP security layer for WondrPay apps (runs in Next.js proxy.ts, edge- and node-safe).
 //  - strict nonce-based Content-Security-Policy (XSS, injected scripts, clickjacking via frame-ancestors)
 //  - transport + browser hardening headers (HSTS, nosniff, referrer, permissions, COOP)
 //  - sliding-window rate limiter keyed by client IP + route bucket (abuse, brute force, relayer drain)

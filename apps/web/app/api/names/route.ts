@@ -1,4 +1,4 @@
-// Personal WhitePay names (UPI VPA) on ENSv2: GET ?label= availability, POST claim (wallet sig + World ID).
+// Personal WondrPay names (UPI VPA) on ENSv2: GET ?label= availability, POST claim (wallet sig + World ID).
 import { isAddress, isHex, type Address, type Hex } from "viem"
 import { claimPersonName } from "@whitepay/server"
 import { after } from "next/server"

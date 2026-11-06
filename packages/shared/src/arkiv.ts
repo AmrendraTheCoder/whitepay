@@ -1,4 +1,4 @@
-// Arkiv entity schemas for WhitePay (Rabdi testnet, chain 7794095, @arkiv-network/sdk 1.0.1).
+// Arkiv entity schemas for WondrPay (Rabdi testnet, chain 7794095, @arkiv-network/sdk 1.0.1).
 // Design notes: docs/arkiv-reference.md §10.
 //  - The backend wallet owns every entity; ALWAYS read with .ownedBy(BACKEND): anyone can write our tags.
 //  - $createdAt is not filterable, so each schema carries its own indexed u64 unix-seconds timestamp.
@@ -18,7 +18,7 @@ export const Receipt = defineSchema("whitepay.receipt", {
   wcBlock: u64(),
   refunded: u256().default(0n),
   requestRef: key().indexed().optional(),
-  merchantName: str().indexed().optional(), // payee display/ENS name, e.g. chai-shop.whitepay.eth
+  merchantName: str().indexed().optional(), // payee display/ENS name, e.g. chai-shop.wondrpay.eth
   kind: str().indexed().optional(), // "p2m" (merchant order) | "p2p" (person push); `merchant` = payee for p2p
   memo: bytes().optional(), // encrypted envelope only
 })
@@ -67,11 +67,11 @@ export const Daily = defineSchema("whitepay.daily", {
 })
 
 /** Public merchant directory (UPI "merchant whitelist"): who a payee is, shown before paying.
- *  Written by the WhitePay backend after a merchant signs up and is registered on-chain. */
+ *  Written by the WondrPay backend after a merchant signs up and is registered on-chain. */
 export const MerchantProfile = defineSchema("whitepay.merchant", {
   address: addr().indexed(),
   label: str().indexed(), // ENS label, e.g. "chai-shop"
-  ensName: str().indexed(), // full name, e.g. "chai-shop.whitepay.eth"
+  ensName: str().indexed(), // full name, e.g. "chai-shop.wondrpay.eth"
   displayName: str(),
   category: str().optional(),
   registeredAt: u64().indexed(),
@@ -89,7 +89,7 @@ export const WorldClaim = defineSchema("whitepay.worldclaim", {
   verifiedAt: u64().indexed(),
 })
 
-/** Public directory of personal WhitePay names (address -> name), so an address shows its name. */
+/** Public directory of personal WondrPay names (address -> name), so an address shows its name. */
 export const PersonProfile = defineSchema("whitepay.person", {
   address: addr().indexed(),
   label: str().indexed(),

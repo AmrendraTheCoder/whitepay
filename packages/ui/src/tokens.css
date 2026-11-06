@@ -22,7 +22,7 @@
   --focus-ring: 0 0 0 3px var(--c-focus);
 }
 
-/* WhitePay product theme (dark) */
+/* WondrPay product theme (dark) */
 [data-theme="ink"] {
   --font-body: var(--font-sans, ui-sans-serif, -apple-system, "Segoe UI", sans-serif);
   --font-display: var(--font-body);

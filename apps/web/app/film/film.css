@@ -1,4 +1,4 @@
-/* WhitePay film: 1920×1080 stage, scaled to fit. Brand tokens match the app. */
+/* WondrPay film: 1920×1080 stage, scaled to fit. Brand tokens match the app. */
 .film-root { --navy: #0b1033; --surface: #141a3a; --surface2: #1b2350; --blue: #2448ff; --blue2: #1d39d9; --lime: #ddf05a; --lime-ink: #1b2108;
   --ok: #12a86b; --red: #ff5a6e; --muted: #8a92c8; --line: rgba(255,255,255,.1);
   position: fixed; inset: 0; background: #03050f; overflow: hidden; color: #fff; font-family: var(--font-sans), Manrope, ui-sans-serif, system-ui; cursor: default; user-select: none; }

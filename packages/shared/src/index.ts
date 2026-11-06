@@ -93,7 +93,7 @@ export const receiveAuthTypedData = (p: {
   }) as const
 
 /** QR payload for a dynamic merchant QR / payment link. */
-export const requestUri = (entityKey: Hex) => `whitepay://pay?req=${entityKey}`
+export const requestUri = (entityKey: Hex) => `wondrpay://pay?req=${entityKey}`
 export const parseRequestUri = (uri: string): Hex | null => {
   const m = uri.match(/[?&]req=(0x[0-9a-fA-F]{64})/)
   return m ? (m[1] as Hex) : null
@@ -195,7 +195,7 @@ export const ROUTER_ADDRESS: Address = "0x9f38d33010345dcd62e26640b539263fa13902
 export const REGISTRY_ADDRESS: Address = "0xe063c2fb8f80c20ff699f9f211be300f58781f68"
 export const DEMO_MERCHANT = {
   address: "0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10" as Address,
-  name: "chai-shop.whitepay.eth",
+  name: "chai-shop.wondrpay.eth",
   displayName: "Chai Shop",
 } as const
 export const EXPLORER_URL = "https://explorer.testnet.whitechain.io"
@@ -221,7 +221,7 @@ export const receiveUrl = (origin: string, p: { to: Address; name?: string; amou
 
 /** Merchant registration message the merchant's device signs (proves control of the address). */
 export const merchantSignupMessage = (p: { label: string; displayName: string; address: Address; issuedAt: number }) =>
-  `WhitePay merchant sign-up\nhandle: ${p.label}\nname: ${p.displayName}\naddress: ${p.address}\nissued: ${p.issuedAt}`
+  `WondrPay merchant sign-up\nhandle: ${p.label}\nname: ${p.displayName}\naddress: ${p.address}\nissued: ${p.issuedAt}`
 
 export const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$/
 
@@ -230,12 +230,12 @@ export const stepUpSignal = (payer: Address, paymentRef: Hex) => `step-up:${getA
 
 /** Personal name claim message the user's device signs (proves control of the wallet). */
 export const nameClaimMessage = (p: { label: string; address: Address; issuedAt: number }) =>
-  `WhitePay name claim\nname: ${p.label}\naddress: ${p.address}\nissued: ${p.issuedAt}`
+  `WondrPay name claim\nname: ${p.label}\naddress: ${p.address}\nissued: ${p.issuedAt}`
 
-/** WhitePay's ENSv2 deployment on Ethereum Sepolia (parent whitepay.eth). */
+/** WondrPay's ENSv2 deployment on Ethereum Sepolia (parent wondrpay.eth). */
 export const ENS_WHITEPAY = {
-  parent: "whitepay.eth",
-  userRegistry: "0x7dF61f730b8f90668aD10363e9E086131422264d" as Address,
+  parent: "wondrpay.eth",
+  userRegistry: "0xd6cf033a6875456835CeE5F429f9e944a263a1E9" as Address,
   resolver: "0xc10Ffe23aada8a5cb09DDbe09259e251971844ea" as Address,
   app: (name: string) => `https://sepolia.app.ens.domains/${name}`,
   etherscan: (a: string) => `https://sepolia.etherscan.io/address/${a}`,

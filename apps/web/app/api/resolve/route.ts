@@ -1,4 +1,4 @@
-// Resolve who a payee is: an address, a merchant handle, or an ENS name (*.whitepay.eth).
+// Resolve who a payee is: an address, a merchant handle, or an ENS name (*.wondrpay.eth).
 // Order: ENS (if configured) -> Arkiv merchant directory -> plain address.
 import { isAddress, getAddress, type Address } from "viem"
 import { getMerchantByAddress, getMerchantByLabel, getPersonByAddress, config } from "@whitepay/server"
@@ -7,7 +7,8 @@ import { json, errorMessage } from "@/lib/json"
 export const runtime = "nodejs"
 
 export async function GET(req: Request) {
-  const q = (new URL(req.url).searchParams.get("q") ?? "").trim().toLowerCase()
+  // names from before the rename ("ravi.wondrpay.eth") resolve as the same label under the new parent
+  const q = (new URL(req.url).searchParams.get("q") ?? "").trim().toLowerCase().replace(/\.whitepay\.eth$/, `.${config.ensParent}`)
   if (!q) return json({ error: "pass ?q=" }, { status: 400 })
   try {
     if (isAddress(q)) {
@@ -32,7 +33,7 @@ export async function GET(req: Request) {
 
     const m = await getMerchantByLabel(label)
     if (m) return json({ address: m.address, name: m.ensName, displayName: m.displayName, kind: "merchant", source: "arkiv" })
-    return json({ error: `No WhitePay user called ${q}` }, { status: 404 })
+    return json({ error: `No WondrPay user called ${q}` }, { status: 404 })
   } catch (e) {
     return json({ error: errorMessage(e) }, { status: 502 })
   }

@@ -1,5 +1,5 @@
 "use client"
-// Developer view: how this store uses WhitePay, kept out of the shopper's way in a left drawer.
+// Developer view: how this store uses WondrPay, kept out of the shopper's way in a left drawer.
 import { useState } from "react"
 import { Badge, ButtonLink, CodeBlock, Drawer, Tabs } from "@whitepay/ui"
 import { LINES } from "@/lib/integration-lines"
@@ -9,17 +9,17 @@ export type Log = { at: number; src: "sdk" | "server" | "chain"; msg: string; to
 
 export const POINTS = [
   { n: "1", where: "Browser", title: "Load the SDK", marker: "①", code: `<script src="${SDK_SRC}"\n  integrity="${SDK_SRI.slice(0, 22)}…" crossorigin="anonymous" defer></script>`, why: "One tag, pinned with Subresource Integrity, so a modified SDK file is refused by the browser." },
-  { n: "2", where: "Browser", title: "Button and events", marker: "②", code: `<whitepay-button order-endpoint="/api/create-order"\n  payload='{"items":[{"sku":"chai-kit","qty":2}]}' />\n\ndocument.addEventListener("whitepay:paid", (e) => …)`, why: "A standard Web Component: works in React, Vue, Svelte, WordPress or plain HTML." },
-  { n: "3", where: "Server", title: "Sign the order", marker: "③", code: `const amount = sum(CATALOG[sku] × qty)   // server-side prices\nconst order = await createWhitePayOrder({\n  merchantKey: process.env.STORE_MERCHANT_PK, amount,\n  webhook: \`\${STORE_URL}/api/webhook\` })`, why: "The shop key signs amount, order id and deadline (EIP-712). The browser cannot change the price." },
-  { n: "4", where: "Server", title: "Verify the webhook", marker: "④", code: `const auth = await verifyWhitePayWebhook({ rawBody, headers })\nif (!auth.ok) return 401           // forged or replayed\nconst v = await verifyWhitePayPayment({ txHash, merchant, orderId })\nif (v.ok) fulfil(orderId)           // money confirmed on-chain`, why: "Signature, 5-minute replay window and de-duplication, then the payment itself is checked on Whitechain." },
-  { n: "5", where: "Server", title: "Confirm on the thank-you page", marker: "⑤", code: `GET /api/verify?tx=0x…&orderId=0x…\n→ { ok: true, payer, amount, block }`, why: "Trustless confirmation from the transaction hash, with no call to WhitePay." },
+  { n: "2", where: "Browser", title: "Button and events", marker: "②", code: `<wondrpay-button order-endpoint="/api/create-order"\n  payload='{"items":[{"sku":"chai-kit","qty":2}]}' />\n\ndocument.addEventListener("wondrpay:paid", (e) => …)`, why: "A standard Web Component: works in React, Vue, Svelte, WordPress or plain HTML." },
+  { n: "3", where: "Server", title: "Sign the order", marker: "③", code: `const amount = sum(CATALOG[sku] × qty)   // server-side prices\nconst order = await createWondrPayOrder({\n  merchantKey: process.env.STORE_MERCHANT_PK, amount,\n  webhook: \`\${STORE_URL}/api/webhook\` })`, why: "The shop key signs amount, order id and deadline (EIP-712). The browser cannot change the price." },
+  { n: "4", where: "Server", title: "Verify the webhook", marker: "④", code: `const auth = await verifyWondrPayWebhook({ rawBody, headers })\nif (!auth.ok) return 401           // forged or replayed\nconst v = await verifyWondrPayPayment({ txHash, merchant, orderId })\nif (v.ok) fulfil(orderId)           // money confirmed on-chain`, why: "Signature, 5-minute replay window and de-duplication, then the payment itself is checked on Whitechain." },
+  { n: "5", where: "Server", title: "Confirm on the thank-you page", marker: "⑤", code: `GET /api/verify?tx=0x…&orderId=0x…\n→ { ok: true, payer, amount, block }`, why: "Trustless confirmation from the transaction hash, with no call to WondrPay." },
 ]
 
 const SNIPPETS: Record<string, string> = {
-  HTML: `<script src="${SDK_SRC}"\n  integrity="${SDK_SRI}" crossorigin="anonymous" defer></script>\n<whitepay-button order-endpoint="/api/create-order" payload='{"sku":"chai-kit"}'></whitepay-button>`,
-  React: `useEffect(() => {\n  document.head.append(Object.assign(document.createElement("script"),\n    { src: "${SDK_SRC}", integrity: "${SDK_SRI}", crossOrigin: "anonymous" }))\n}, [])\n\nreturn <whitepay-button order-endpoint="/api/create-order" payload={JSON.stringify({ sku })} />`,
-  Vue: `<!-- compilerOptions.isCustomElement = (t) => t.startsWith("whitepay-") -->\n<whitepay-button order-endpoint="/api/create-order" :payload="JSON.stringify({ sku })" @whitepay:paid="onPaid" />`,
-  WordPress: `wp_enqueue_script("whitepay", "${SDK_SRC}", [], null, true);\nadd_shortcode("whitepay", fn($a) => '<whitepay-button order-endpoint="/wp-json/shop/v1/order" payload=\\'{"sku":"'.esc_attr($a["sku"]).'"}\\'></whitepay-button>');`,
+  HTML: `<script src="${SDK_SRC}"\n  integrity="${SDK_SRI}" crossorigin="anonymous" defer></script>\n<wondrpay-button order-endpoint="/api/create-order" payload='{"sku":"chai-kit"}'></wondrpay-button>`,
+  React: `useEffect(() => {\n  document.head.append(Object.assign(document.createElement("script"),\n    { src: "${SDK_SRC}", integrity: "${SDK_SRI}", crossOrigin: "anonymous" }))\n}, [])\n\nreturn <wondrpay-button order-endpoint="/api/create-order" payload={JSON.stringify({ sku })} />`,
+  Vue: `<!-- compilerOptions.isCustomElement = (t) => t.startsWith("whitepay-") -->\n<wondrpay-button order-endpoint="/api/create-order" :payload="JSON.stringify({ sku })" @wondrpay:paid="onPaid" />`,
+  WordPress: `wp_enqueue_script("whitepay", "${SDK_SRC}", [], null, true);\nadd_shortcode("whitepay", fn($a) => '<wondrpay-button order-endpoint="/wp-json/shop/v1/order" payload=\\'{"sku":"'.esc_attr($a["sku"]).'"}\\'></wondrpay-button>');`,
 }
 
 export const gh = (marker: string) => (LINES[marker] ? `${REPO}/${LINES[marker].file}#L${LINES[marker].line}` : REPO)
@@ -31,8 +31,8 @@ const SRC_TONE = { sdk: "highlight", server: "success", chain: "neutral" } as co
 export function DevPanel({ open, onClose, logs, inspect, setInspect }: { open: boolean; onClose: () => void; logs: Log[]; inspect: boolean; setInspect: (v: boolean) => void }) {
   const [snippet, setSnippet] = useState("HTML")
   return (
-    <Drawer open={open} onClose={onClose} side="left" theme="ink" title="Developer view" description="How this store uses WhitePay"
-      footer={<div className="wp-cluster"><ButtonLink href="/plain.html" variant="ghost" size="sm">Plain HTML version</ButtonLink><ButtonLink href="https://whitepay.vercel.app/developers" variant="ghost" size="sm">SDK docs</ButtonLink><ButtonLink href={REPO} variant="ghost" size="sm">Source</ButtonLink></div>}>
+    <Drawer open={open} onClose={onClose} side="left" theme="ink" title="Developer view" description="How this store uses WondrPay"
+      footer={<div className="wp-cluster"><ButtonLink href="/plain.html" variant="ghost" size="sm">Plain HTML version</ButtonLink><ButtonLink href="https://wondrpay.vercel.app/developers" variant="ghost" size="sm">SDK docs</ButtonLink><ButtonLink href={REPO} variant="ghost" size="sm">Source</ButtonLink></div>}>
       <label className="switch">
         <input type="checkbox" role="switch" checked={inspect} onChange={(e) => setInspect(e.target.checked)} />
         <span className="switch-track" aria-hidden><span /></span>
@@ -42,7 +42,7 @@ export function DevPanel({ open, onClose, logs, inspect, setInspect }: { open: b
         { id: "live", label: "Live log", badge: logs.length || undefined, content: (
           <div className="log" role="log" aria-live="polite" aria-label="Integration events">
             {logs.length === 0
-              ? <p className="wp-muted">Add something to the bag and pay with WhitePay. Events from the SDK, this store's server and Whitechain appear here.</p>
+              ? <p className="wp-muted">Add something to the bag and pay with WondrPay. Events from the SDK, this store's server and Whitechain appear here.</p>
               : logs.map((l, i) => (
                 <div key={i} className="log-line" data-tone={l.tone}>
                   <time>{clock(l.at)}</time><Badge tone={SRC_TONE[l.src]}>{l.src}</Badge><span>{l.msg}</span>

@@ -7,7 +7,7 @@
 //  - a random AES-GCM key is generated NON-EXTRACTABLE and kept in IndexedDB (its bytes can't be read)
 //  - the unlocked private key is stored only encrypted under it (localStorage), with a sliding expiry
 //  - the current tab also keeps a plain copy in sessionStorage (cleared when the tab closes)
-// External wallets store no secret at all: only "the WhitePay PIN passed at time T".
+// External wallets store no secret at all: only "the WondrPay PIN passed at time T".
 // "Lock" (endSession) wipes all of it.
 import type { Hex } from "viem"
 

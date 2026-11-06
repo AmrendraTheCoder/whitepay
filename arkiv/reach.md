@@ -6,14 +6,14 @@
 | **Shoppers / everyday payers** | Their payment history (Transactions, "Pay again"), verified-shop directory before paying, live 5-minute payment requests behind every shop QR |
 | **Merchants (small shops, freelancers, studios)** | Signed QR requests, a received-payments dashboard, public shop profile + verified badge |
 | **Accountants / auditors** | Receipts anyone can read and match to Whitechain tx hashes (CSV export planned on the same queries) |
-| **Other apps** | The receipt and directory entities are public and queryable (`arkiv/schema.md`), so wallets or accounting tools can read WhitePay data without asking us |
+| **Other apps** | The receipt and directory entities are public and queryable (`arkiv/schema.md`), so wallets or accounting tools can read WondrPay data without asking us |
 
 Target corridors (see `docs/BUSINESS.md`): **India** (UPI-style QR habits; inbound USD payments for freelancers and tourists paying local shops, settled via licensed ramps) and **Ukraine** (stablecoin-heavy usage, close to the WhiteBIT/Whitechain ecosystem). Non-UPI markets (Nigeria, Argentina, Turkey) are next.
 
 ## Can they try it today?
-Yes: **https://whitepay.vercel.app** (mobile-first PWA).
+Yes: **https://wondrpay.vercel.app** (mobile-first PWA).
 1. Create a wallet (PIN / fingerprint, no seed phrase).
-2. Pay a shop QR, or send to a name like `masala-corner.whitepay.eth`.
+2. Pay a shop QR, or send to a name like `masala-corner.wondrpay.eth`.
 3. Open Transactions to see receipts read from Arkiv.
 
 Everything runs on testnets: Whitechain Sepolia, Arkiv Rabdi, ENS Sepolia.

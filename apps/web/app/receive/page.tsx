@@ -42,9 +42,9 @@ export default function Receive() {
     )
 
   const share = async () => {
-    const text = `Pay me on WhitePay${amount ? ` (${amount} USDT)` : ""}`
+    const text = `Pay me on WondrPay${amount ? ` (${amount} USDT)` : ""}`
     try {
-      if (navigator.share) await navigator.share({ title: "WhitePay", text, url: link })
+      if (navigator.share) await navigator.share({ title: "WondrPay", text, url: link })
       else { await navigator.clipboard.writeText(link); setNote("Link copied") }
     } catch {}
   }

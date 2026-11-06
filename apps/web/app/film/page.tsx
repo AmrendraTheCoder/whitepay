@@ -1,5 +1,5 @@
 "use client"
-// WhitePay: the 3-minute motion film, built from the app's own UI language.
+// WondrPay: the 3-minute motion film, built from the app's own UI language.
 // Keys: space play/pause · ←/→ 5 s · 1-9,0 jump to scene · c captions · v voice · f fullscreen
 // URL:  ?rec=1 (no controls, no cursor, autoplay: screen-record at 3840×2160) · ?t=90 start at 1:30
 //       ?captions=0 · ?voice=1 (browser text-to-speech reads the voiceover)
@@ -98,7 +98,7 @@ export default function Film() {
         <div className="dots" />
         <SceneHost key={`${index}:${seekId}`} index={index} seekId={seekId} />
         {captions && <Captions />}
-        <div className="wm"><span className="wm-logo" />WhitePay</div>
+        <div className="wm"><span className="wm-logo" />WondrPay</div>
       </div>
 
       {!rec && (
@@ -119,7 +119,7 @@ export default function Film() {
           <button onClick={() => void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())} title="Fullscreen (f)">⛶</button>
         </div>
       )}
-      {!playing && time === 0 && !rec && <div className="film-start" onClick={() => clock.play()}><span>▶</span><b>WhitePay · 3-minute film</b><small>space to play · ←/→ seek · 1-0 scenes · v voice · f fullscreen</small></div>}
+      {!playing && time === 0 && !rec && <div className="film-start" onClick={() => clock.play()}><span>▶</span><b>WondrPay · 3-minute film</b><small>space to play · ←/→ seek · 1-0 scenes · v voice · f fullscreen</small></div>}
     </main>
   )
 }

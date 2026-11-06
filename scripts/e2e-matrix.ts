@@ -3,7 +3,7 @@
 //   merchant -> personal (P2P), merchant -> merchant (B2B by ENS name), merchant refund -> customer.
 // Every payer has 0 WBT; the relayer pays gas. Verifies balance deltas and that each side's
 // activity (/api/activity on the live site) shows the payment in the right direction.
-// Run: npx tsx --env-file=.env scripts/e2e-matrix.ts [baseUrl=https://whitepay.vercel.app]
+// Run: npx tsx --env-file=.env scripts/e2e-matrix.ts [baseUrl=https://wondrpay.vercel.app]
 import { formatUnits, getAddress, keccak256, parseSignature, parseUnits, toHex, type Address, type Hex } from "viem"
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
 import { receiveAuthTypedData, directNonce, ERC20_ABI } from "@whitepay/shared"
@@ -11,12 +11,12 @@ import {
   config, wc, createPaymentRequest, fetchRequest, verifyRequest, relayOrderPayment, relayDirectPayment, settleOnArkiv, resolveName,
 } from "@whitepay/server"
 
-const BASE = process.argv[2] ?? "https://whitepay.vercel.app"
+const BASE = process.argv[2] ?? "https://wondrpay.vercel.app"
 const P1 = privateKeyToAccount(process.env.CUSTOMER_PK as Hex) // personal customer
 const P2 = privateKeyToAccount(generatePrivateKey()) // fresh personal wallet (created for this run)
-const M1 = privateKeyToAccount(process.env.MERCHANT_PK as Hex) // business: chai-shop.whitepay.eth payout + refund key
-const M1_NAME = "chai-shop.whitepay.eth"
-const M2_NAME = "masala-corner.whitepay.eth" // business, receive-only here
+const M1 = privateKeyToAccount(process.env.MERCHANT_PK as Hex) // business: chai-shop.wondrpay.eth payout + refund key
+const M1_NAME = "chai-shop.wondrpay.eth"
+const M2_NAME = "masala-corner.wondrpay.eth" // business, receive-only here
 const u = (x: string) => parseUnits(x, 6)
 const fmt = (x: bigint) => formatUnits(x, 6)
 

@@ -12,6 +12,7 @@ import { getAddress, verifyMessage, type Address, type Hex } from "viem"
 import { WorldClaim, MerchantProfile, PersonProfile } from "@whitepay/shared/arkiv"
 import { REGISTRY_ABI, stepUpSignal, nameClaimMessage } from "@whitepay/shared"
 import { arkiv, wc } from "./clients"
+import { currentEnsName } from "./merchants"
 import { config } from "./config"
 
 // Actions must exist in the World Developer Portal (World App rejects unknown ones).
@@ -27,11 +28,11 @@ export const WORLD_ACTIONS = {
 } as const
 type Action = string
 export const ACTION_DESCRIPTIONS: Record<string, string> = {
-  "whitepay-name": "Claim your WhitePay name (one per person)",
-  "whitepay-shop": "Verify that a real person runs this WhitePay shop",
-  "whitepay-pay": "Confirm a large WhitePay payment",
+  "whitepay-name": "Claim your WondrPay name (one per person)",
+  "whitepay-shop": "Verify that a real person runs this WondrPay shop",
+  "whitepay-pay": "Confirm a large WondrPay payment",
 }
-export const describeAction = (a: string) => ACTION_DESCRIPTIONS[a] ?? "Confirm this WhitePay payment"
+export const describeAction = (a: string) => ACTION_DESCRIPTIONS[a] ?? "Confirm this WondrPay payment"
 
 const env = () => {
   const appId = process.env.WORLD_APP_ID
@@ -106,7 +107,7 @@ export async function verifyMerchantHuman(merchant: Address, result: IDKitResult
 
   const existing = await claimFor(nullifier)
   if (existing && getAddress(existing.address.value) !== merchant)
-    throw new Error("This person has already verified another WhitePay shop (one shop per human)")
+    throw new Error("This person has already verified another WondrPay shop (one shop per human)")
 
   const m = await wc().pub.readContract({ address: config.registry, abi: REGISTRY_ABI, functionName: "get", args: [merchant] })
   if (!m.active) throw new Error("Register the shop first")
@@ -131,7 +132,7 @@ export async function verifyMerchantHuman(merchant: Address, result: IDKitResult
   const prof = await a.pub.select({ $key: true, ensName: true }).from(MerchantProfile).ownedBy(a.owner).where(eq("address", addr(merchant))).limit(1).fetch()
   const pk = (prof.entities[0] as any)?.$key as Hex | undefined
   if (pk) await a.writer.patchEntity(MerchantProfile, pk, { set: { verified: true } }, { gas: 1_000_000n }).catch(() => {})
-  const ensName = (prof.entities[0] as any)?.ensName?.value as string | undefined
+  const ensName = currentEnsName((prof.entities[0] as any)?.ensName?.value as string | undefined) || undefined
   if (ensName && process.env.ENS_RESOLVER) {
     defer(async () => {
       const ens: any = await import("./ens").catch(() => null)
@@ -153,7 +154,7 @@ export async function getPersonByAddress(address: Address) {
     .select({ $key: true, label: true, ensName: true, ensIssued: true })
     .from(PersonProfile).ownedBy(a.owner).where(eq("address", addr(getAddress(address)))).limit(1).fetch()
   const e = page.entities[0] as any
-  return e ? { key: e.$key as Hex, label: e.label.value as string, ensName: e.ensName.value as string, ensIssued: !!e.ensIssued?.value } : null
+  return e ? { key: e.$key as Hex, label: e.label.value as string, ensName: currentEnsName(e.ensName.value as string), ensIssued: !!e.ensIssued?.value } : null
 }
 
 /** Personal ENS name (UPI VPA): one name per human. Requires a wallet signature AND a World ID proof
@@ -184,7 +185,7 @@ export async function claimPersonName(
   if (priorAddr && getAddress(priorAddr) !== address) {
     // Same human (same nullifier), different wallet: one World ID = one name, so MOVE it here.
     const old = await getPersonByAddress(getAddress(priorAddr))
-    if (!old) throw new Error("This World ID already has a WhitePay name on another wallet")
+    if (!old) throw new Error("This World ID already has a WondrPay name on another wallet")
     const claimKey = (prior.entities[0] as any).$key as Hex
     await a.writer.executeBatch(
       {

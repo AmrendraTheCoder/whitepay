@@ -3,7 +3,7 @@ import { Badge, Section, SectionHeader, type BadgeTone } from "@whitepay/ui"
 import { statusChecks } from "@/lib/site-stats"
 import { ROUTER_ADDRESS, REGISTRY_ADDRESS, USDT_ADDRESS, EXPLORER_URL, ENS_WHITEPAY } from "@whitepay/shared"
 
-export const metadata: Metadata = { title: "System status", description: "Live health of the WhitePay network: Whitechain, Arkiv, the gasless relayer and the checkout SDK.", alternates: { canonical: "/status" } }
+export const metadata: Metadata = { title: "System status", description: "Live health of the WondrPay network: Whitechain, Arkiv, the gasless relayer and the checkout SDK.", alternates: { canonical: "/status" } }
 export const dynamic = "force-dynamic"
 
 const TONE: Record<string, BadgeTone> = { ok: "success", degraded: "warning", down: "danger" }

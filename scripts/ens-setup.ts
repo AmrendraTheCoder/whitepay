@@ -1,6 +1,6 @@
-// One-time, idempotent ENSv2 setup on Ethereum Sepolia for WhitePay (safe to re-run; skips finished steps).
+// One-time, idempotent ENSv2 setup on Ethereum Sepolia for WondrPay (safe to re-run; skips finished steps).
 //   1. check ENS_ADMIN has Sepolia ETH
-//   2. pick the parent .eth name (ENS_PARENT, else whitepay.eth, else fallbacks)
+//   2. pick the parent .eth name (ENS_PARENT, else wondrpay.eth, else fallbacks)
 //   3. deploy ENS_ADMIN's PermissionedResolver + the parent's UserRegistry via VerifiableFactory
 //   4. register the parent via ETHRegistrar (MockUSDC, commit -> wait -> register), subregistry + resolver set at registration
 //   5. make sure ETHRegistry points at the UserRegistry and the UserRegistry knows its canonical parent
@@ -44,7 +44,7 @@ import {
 
 const DEMO_MERCHANT: Address = "0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10"
 const DEMO_LABEL = "chai-shop"
-const FALLBACK_LABELS = ["whitepay", "whitepayupi", "whitepay-app", "wpay-upi"]
+const FALLBACK_LABELS = ["wondrpay", "wondrpay-app", "wondrpayupi", "wondr-pay"]
 const ENV_PATH = path.resolve(import.meta.dirname, "../.env")
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -146,6 +146,7 @@ async function main() {
     const minAge = await pub.readContract({ address: C.ethRegistrar, abi: ethRegistrarAbi, functionName: "MIN_COMMITMENT_AGE" })
     log(`waiting >= ${minAge}s for the commitment to mature...`)
     while ((await pub.getBlock()).timestamp <= committedAt + minAge) await sleep(6_000)
+    await sleep(15_000) // margin: register is simulated against a block that can lag the one we checked
 
     await send(
       `ETHRegistrar.register(${parent})`,

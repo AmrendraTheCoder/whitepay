@@ -5,7 +5,7 @@ import { nameClaimMessage, LABEL_RE } from "@whitepay/shared"
 import { UnlockSheet } from "./components"
 import { WorldVerify } from "./world"
 
-/** UPI VPA, on ENS: claim <name>.whitepay.eth. One per human (World ID), proven wallet control (signature). */
+/** UPI VPA, on ENS: claim <name>.wondrpay.eth. One per human (World ID), proven wallet control (signature). */
 export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onClaimed: () => void }) {
   const [label, setLabel] = useState("")
   const [avail, setAvail] = useState<{ available: boolean; reason?: string | null } | null>(null)
@@ -30,11 +30,11 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
 
   return (
     <div className="card stack">
-      <h2>Claim your WhitePay name</h2>
-      <div className="sub">Friends pay <b>you.whitepay.eth</b> instead of a long address. One name per person, verified with World ID. If your World ID already has a name on another wallet, it moves to this wallet instead.</div>
+      <h2>Claim your WondrPay name</h2>
+      <div className="sub">Friends pay <b>you.wondrpay.eth</b> instead of a long address. One name per person, verified with World ID. If your World ID already has a name on another wallet, it moves to this wallet instead.</div>
       <div className="row gap-2">
         <input className="input" placeholder="ravi" value={label} autoCapitalize="none" onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
-        <span className="sub nowrap">.whitepay.eth</span>
+        <span className="sub nowrap">.wondrpay.eth</span>
       </div>
       <div className="sub min-line">
         {avail === null ? "" : avail.available ? <span className="text-ok">Available</span> : <span className="text-bad">{avail.reason}</span>}
@@ -54,14 +54,14 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
             return d
           }}
           onVerified={(d) => {
-            setMsg(d?.moved ? `Your World ID's name ${d.name} now points to this wallet` : `You are ${d?.name ?? label + ".whitepay.eth"}`)
+            setMsg(d?.moved ? `Your World ID's name ${d.name} now points to this wallet` : `You are ${d?.name ?? label + ".wondrpay.eth"}`)
             onClaimed()
           }}
           onDenied={(reason) => setMsg(`Name not claimed: ${reason}`)}
         />
       )}
       {msg && <div className="sub center">{msg}</div>}
-      {unlock && <UnlockSheet title="Sign name claim" subtitle={`${label}.whitepay.eth`} onUnlocked={sign} onCancel={() => setUnlock(false)} />}
+      {unlock && <UnlockSheet title="Sign name claim" subtitle={`${label}.wondrpay.eth`} onUnlocked={sign} onCancel={() => setUnlock(false)} />}
     </div>
   )
 }

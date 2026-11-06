@@ -9,7 +9,7 @@ import { DevPanel, gh, type Log } from "./dev-panel"
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      "whitepay-button": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { "order-endpoint"?: string; payload?: string; label?: string; mode?: "subscribe"; "data-items"?: string }
+      "wondrpay-button": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { "order-endpoint"?: string; payload?: string; label?: string; mode?: "subscribe"; "data-items"?: string }
     }
   }
 }
@@ -76,24 +76,24 @@ export default function Store() {
     toast.show({ message: `${BY_SKU[sku].name} added to your bag`, tone: "success", action: { label: "View bag", onClick: () => setBagOpen(true) } })
   }
 
-  // WhitePay checkout events (integration point 2)
+  // WondrPay checkout events (integration point 2)
   useEffect(() => {
-    customElements.whenDefined("whitepay-button").then(() => {
+    customElements.whenDefined("wondrpay-button").then(() => {
       setSdkReady(true)
-      push({ src: "sdk", msg: `SDK v${(window as { WhitePay?: { version: string } }).WhitePay?.version ?? "?"} loaded from ${new URL(SDK_SRC).host}, integrity verified`, tone: "ok" })
+      push({ src: "sdk", msg: `SDK v${(window as { WondrPay?: { version: string } }).WondrPay?.version ?? "?"} loaded from ${new URL(SDK_SRC).host}, integrity verified`, tone: "ok" })
     })
     const on = (name: string, f: (detail: any, e: Event) => void) => { const h = (e: Event) => f((e as CustomEvent).detail, e); document.addEventListener(name, h); return () => document.removeEventListener(name, h) }
     const offs = [
-      on("whitepay:created", (d, e) => {
+      on("wondrpay:created", (d, e) => {
         if (d.entityKey) {
           try { pending.current = JSON.parse((e.target as HTMLElement).dataset.items ?? "[]") } catch { pending.current = [] }
           push({ src: "sdk", msg: `Order created · request ${d.entityKey.slice(0, 10)}… · QR valid until ${new Date(d.deadline * 1000).toLocaleTimeString()}` })
         } else push({ src: "sdk", msg: `Subscription offer ${d.planKey?.slice(0, 10)}… signed by the store` })
       }),
-      on("whitepay:paid", (d: Paid) => { push({ src: "sdk", msg: `Paid ${Number(d.amount) / 1e6} USDT · tx ${d.txHash?.slice(0, 10)}…`, tone: "ok" }); setBagOpen(false); setPaid({ p: d, items: pending.current }) }),
-      on("whitepay:subscribed", (d: Sub) => { push({ src: "sdk", msg: `Subscribed · mandate ${d.mandateKey.slice(0, 10)}… · first ${Number(d.amount) / 1e6} USDT paid`, tone: "ok" }); setSub(d); toast.show({ message: "Welcome to Chai Club", tone: "success" }) }),
-      on("whitepay:expired", () => push({ src: "sdk", msg: "Payment window expired · request removed from Arkiv", tone: "bad" })),
-      on("whitepay:error", (d) => push({ src: "sdk", msg: `Error · ${d.message}`, tone: "bad" })),
+      on("wondrpay:paid", (d: Paid) => { push({ src: "sdk", msg: `Paid ${Number(d.amount) / 1e6} USDT · tx ${d.txHash?.slice(0, 10)}…`, tone: "ok" }); setBagOpen(false); setPaid({ p: d, items: pending.current }) }),
+      on("wondrpay:subscribed", (d: Sub) => { push({ src: "sdk", msg: `Subscribed · mandate ${d.mandateKey.slice(0, 10)}… · first ${Number(d.amount) / 1e6} USDT paid`, tone: "ok" }); setSub(d); toast.show({ message: "Welcome to Chai Club", tone: "success" }) }),
+      on("wondrpay:expired", () => push({ src: "sdk", msg: "Payment window expired · request removed from Arkiv", tone: "bad" })),
+      on("wondrpay:error", (d) => push({ src: "sdk", msg: `Error · ${d.message}`, tone: "bad" })),
     ]
     return () => offs.forEach((f) => f())
   }, [push, toast])
@@ -134,7 +134,7 @@ export default function Store() {
 
   return (
     <div className={inspect ? "inspecting" : undefined}>
-      <p className="announce">Pay in USDT with <b>WhitePay</b> · no gas · settles in about a second <Badge>Demo store</Badge></p>
+      <p className="announce">Pay in USDT with <b>WondrPay</b> · no gas · settles in about a second <Badge>Demo store</Badge></p>
 
       <header className="nav">
         <div className="wp-container nav-inner">
@@ -191,10 +191,10 @@ export default function Store() {
                         {qty ? <QuantityStepper value={qty} onChange={(n) => setQty(p.sku, n)} max={MAX_QTY} label={p.name} /> : <Button size="sm" onClick={() => add(p.sku)}>Add to bag</Button>}
                       </div>
                       <div className="checkout-slot">
-                        <Marker show={inspect} n="②" title="<whitepay-button>, one per product" />
+                        <Marker show={inspect} n="②" title="<wondrpay-button>, one per product" />
                         {sdkReady ? null : <Skeleton height={44} radius="pill" />}
-                        {/* ── WHITEPAY INTEGRATION ② ── the checkout button (the same element powers the bag) */}
-                        <whitepay-button hidden={!sdkReady} order-endpoint="/api/create-order" payload={JSON.stringify({ items: [{ sku: p.sku, qty: 1 }] })} data-items={JSON.stringify([{ sku: p.sku, qty: 1 }])} label={`Buy now · ${p.price} USDT`} />
+                        {/* ── WONDRPAY INTEGRATION ② ── the checkout button (the same element powers the bag) */}
+                        <wondrpay-button hidden={!sdkReady} order-endpoint="/api/create-order" payload={JSON.stringify({ items: [{ sku: p.sku, qty: 1 }] })} data-items={JSON.stringify([{ sku: p.sku, qty: 1 }])} label={`Buy now · ${p.price} USDT`} />
                       </div>
                     </div>
                   </li>
@@ -210,7 +210,7 @@ export default function Store() {
             <div className="wp-stack club-copy">
               <span className="wp-eyebrow">Chai Club</span>
               <h2 id="club-title" className="wp-title-2">A fresh blend every cycle. You stay in control.</h2>
-              <p className="wp-muted">Pay for the first box now. When the next one is due, WhitePay asks you to approve it with one tap, or switch on Autopay to approve once. No gas, and you can cancel any time in WhitePay.</p>
+              <p className="wp-muted">Pay for the first box now. When the next one is due, WondrPay asks you to approve it with one tap, or switch on Autopay to approve once. No gas, and you can cancel any time in WondrPay.</p>
               <ul className="wp-checklist">
                 <li><Icon name="check" size={18} /><span><b>0.10 USDT per box</b> (demo: every 2 minutes, 3 boxes)</span></li>
                 <li><Icon name="check" size={18} /><span>One-tap renewals, or Autopay</span></li>
@@ -222,7 +222,7 @@ export default function Store() {
                   <div className="checkout-slot club-cta">
                     <Marker show={inspect} n="②" title='the same button with mode="subscribe"' />
                     {sdkReady ? null : <Skeleton height={52} radius="pill" />}
-                    <whitepay-button hidden={!sdkReady} mode="subscribe" order-endpoint="/api/create-subscription" label="Subscribe · 0.10 USDT per box" />
+                    <wondrpay-button hidden={!sdkReady} mode="subscribe" order-endpoint="/api/create-subscription" label="Subscribe · 0.10 USDT per box" />
                   </div>
                 )}
             </div>
@@ -249,11 +249,11 @@ export default function Store() {
 
       <footer className="footer">
         <div className="wp-container footer-inner">
-          <p className="wp-muted">Chai &amp; Co. is a demo store that shows the WhitePay Checkout SDK. It uses test USDT on Whitechain Sepolia, so no real money or tea changes hands.</p>
+          <p className="wp-muted">Chai &amp; Co. is a demo store that shows the WondrPay Checkout SDK. It uses test USDT on Whitechain Sepolia, so no real money or tea changes hands.</p>
           <nav className="wp-cluster" aria-label="Footer">
             <ButtonLink href="/plain.html" variant="ghost" size="sm">Plain HTML checkout</ButtonLink>
-            <ButtonLink href="https://whitepay.vercel.app/developers" variant="ghost" size="sm">Checkout SDK</ButtonLink>
-            <ButtonLink href="https://whitepay.vercel.app" variant="ghost" size="sm">WhitePay</ButtonLink>
+            <ButtonLink href="https://wondrpay.vercel.app/developers" variant="ghost" size="sm">Checkout SDK</ButtonLink>
+            <ButtonLink href="https://wondrpay.vercel.app" variant="ghost" size="sm">WondrPay</ButtonLink>
           </nav>
         </div>
       </footer>
@@ -264,14 +264,14 @@ export default function Store() {
             <dl>
               <div><dt>Subtotal</dt><dd>{fmt(total)} USDT</dd></div>
               <div><dt>Shipping</dt><dd className="free">Free</dd></div>
-              <div><dt>Network fee</dt><dd className="free">None, paid by WhitePay</dd></div>
+              <div><dt>Network fee</dt><dd className="free">None, paid by WondrPay</dd></div>
               <div className="summary-total"><dt>Total</dt><dd>{fmt(total)} USDT</dd></div>
             </dl>
             <div className="checkout-slot">
               <Marker show={inspect} n="②" title="cart checkout: same button, items payload" />
-              <whitepay-button order-endpoint="/api/create-order" payload={JSON.stringify({ items: cart })} data-items={JSON.stringify(cart)} label={`Pay ${fmt(total)} USDT with WhitePay`} />
+              <wondrpay-button order-endpoint="/api/create-order" payload={JSON.stringify({ items: cart })} data-items={JSON.stringify(cart)} label={`Pay ${fmt(total)} USDT with WondrPay`} />
             </div>
-            <p className="secure"><Icon name="lock" size={14} /> The price is signed by our server. You approve in WhitePay.</p>
+            <p className="secure"><Icon name="lock" size={14} /> The price is signed by our server. You approve in WondrPay.</p>
           </div>
         )}>
         {cart.length === 0 ? (

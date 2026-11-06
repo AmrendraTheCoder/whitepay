@@ -1,4 +1,4 @@
-# WhitePay: business model and the road to real money
+# WondrPay: business model and the road to real money
 
 > Ideas and market notes, not legal or financial advice. Crypto rules in India, Ukraine and elsewhere change often; confirm with a lawyer and licensed partners before launch.
 
@@ -9,7 +9,7 @@
 |---|---|---|
 | Personal → Business (dynamic QR order, Arkiv request) | Pay at a shop | ✔ |
 | Personal → Personal (P2P) | Split dinner, family transfer | ✔ |
-| Personal → Business by ENS name | Pay `masala-corner.whitepay.eth` | ✔ |
+| Personal → Business by ENS name | Pay `masala-corner.wondrpay.eth` | ✔ |
 | Business → Personal | Cashback, freelancer payout | ✔ |
 | Business → Business (B2B) | Pay a supplier | ✔ |
 | Business refund → original customer (partial, capped on-chain) | Returns | ✔ |
@@ -17,8 +17,8 @@
 Balance deltas matched exactly, and both sides saw each payment in their activity.
 
 ## 2. The business side ("Stripe for stablecoin UPI")
-**For merchants (the paying client of WhitePay):**
-- **Checkout SDK / payment links / invoices:** `<whitepay-button merchant="shop.whitepay.eth">` for websites, payment links over WhatsApp, invoices with due dates (an Arkiv request with a longer TTL). Signed webhooks to the merchant's server. *This is the Whitechain "Operate" requirement: a separate demo app integrating in about 20 lines.*
+**For merchants (the paying client of WondrPay):**
+- **Checkout SDK / payment links / invoices:** `<wondrpay-button merchant="shop.wondrpay.eth">` for websites, payment links over WhatsApp, invoices with due dates (an Arkiv request with a longer TTL). Signed webhooks to the merchant's server. *This is the Whitechain "Operate" requirement: a separate demo app integrating in about 20 lines.*
 - **Dashboard:** live receipts (Arkiv), refunds (built), daily settlement report, CSV export for the accountant, multiple outlets per business.
 - **Staff roles:** ENSv2 Enhanced Access Control lets a cashier key edit display records but never the payout address. Separate terminal keys per counter.
 - **Subscriptions / autopay:** recurring pulls with signed EIP-3009/permit authorizations and a "cancel anytime" mandate, like UPI AutoPay.
@@ -39,10 +39,10 @@ Balance deltas matched exactly, and both sides saw each payment in their activit
 ## 3. Getting closer to real money
 The chain part is ready for mainnet: Whitechain mainnet (chain 1875) launched in October 2026. What's missing is the **fiat bridge** (on/off ramp) and **compliance**. Architecture:
 ```
-UPI / bank / card ──► licensed on-ramp partner (KYC) ──► real USDT on Whitechain mainnet ──► WhitePay wallet
-WhitePay wallet ──► off-ramp partner ──► INR/UAH to bank via UPI/IMPS/SEPA/card
+UPI / bank / card ──► licensed on-ramp partner (KYC) ──► real USDT on Whitechain mainnet ──► WondrPay wallet
+WondrPay wallet ──► off-ramp partner ──► INR/UAH to bank via UPI/IMPS/SEPA/card
 ```
-- WhitePay stays **non-custodial**: keys on the phone. Ramps are licensed partners that hold the fiat.
+- WondrPay stays **non-custodial**: keys on the phone. Ramps are licensed partners that hold the fiat.
 - **KYC ≠ World ID.** World ID proves a unique human. Ramps also need identity KYC; plan tiers (small limits without full KYC where the law allows).
 - Compliance needs: FATF travel rule for transfers above thresholds, sanctions screening, transaction monitoring (the velocity limits exist already).
 
@@ -52,7 +52,7 @@ WhitePay wallet ──► off-ramp partner ──► INR/UAH to bank via UPI/IMP
   1. **Inbound cross-border:** foreign clients pay Indian freelancers, agencies and exporters in USDT. They off-ramp to INR via an FIU-registered partner and receive it over UPI/IMPS.
   2. **Tourists:** visitors pay Indian merchants via QR in USDT, and the merchant gets **INR** through the partner. The merchant never holds crypto.
   3. **Remittances** into India.
-- **UPI integration:** an FIU-registered on-ramp offers "Pay with UPI" to buy USDT into a WhitePay wallet, and off-ramps pay out to UPI IDs. Only licensed banks and PSPs can connect to UPI directly, so a partner is required.
+- **UPI integration:** an FIU-registered on-ramp offers "Pay with UPI" to buy USDT into a WondrPay wallet, and off-ramps pay out to UPI IDs. Only licensed banks and PSPs can connect to UPI directly, so a partner is required.
 
 ### Ukraine
 - Whitechain is built by the **WhiteBIT / W Group** ecosystem, which has deep roots in Ukraine, a large user base and exchange liquidity. That's a natural ramp and liquidity partner.
@@ -61,8 +61,8 @@ WhitePay wallet ──► off-ramp partner ──► INR/UAH to bank via UPI/IMP
 - **Fit:** P2P and business payouts in USDT, freelancer income, cross-border payments to suppliers, with off-ramps to UAH cards and accounts via a licensed partner.
 
 ### Markets with no UPI-like rail (or with high inflation)
-- **Nigeria, Argentina, Turkey, Egypt:** dollar stablecoins as savings and payments. WhitePay's QR + name + no-gas UX fits street merchants.
-- **Brazil (Pix), Indonesia (QRIS), Thailand (PromptPay):** like UPI, QR rails exist. WhitePay can mirror their QR UX and bridge via local ramps for cross-border payments.
+- **Nigeria, Argentina, Turkey, Egypt:** dollar stablecoins as savings and payments. WondrPay's QR + name + no-gas UX fits street merchants.
+- **Brazil (Pix), Indonesia (QRIS), Thailand (PromptPay):** like UPI, QR rails exist. WondrPay can mirror their QR UX and bridge via local ramps for cross-border payments.
 - **Gulf → South Asia corridors:** worker remittances, settling instantly in USDT and off-ramping at the destination.
 
 ## 4. Roadmap to production

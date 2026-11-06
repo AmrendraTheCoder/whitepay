@@ -30,14 +30,14 @@ const makeArkiv = () => {
   return {
     pub: createArkivPublic({ chain, transport: http() }),
     writer: serialize(createArkivWallet({ chain, transport: http(), account: writer })),
-    /** every WhitePay entity is owned by this address; reads MUST filter on it */
+    /** every WondrPay entity is owned by this address; reads MUST filter on it */
     owner: writer.address,
   }
 }
 export const arkiv = () => (_arkiv ??= makeArkiv())
 
 /**
- * Every WhitePay Arkiv write comes from ONE account, so concurrent writes race for its nonce and one fails
+ * Every WondrPay Arkiv write comes from ONE account, so concurrent writes race for its nonce and one fails
  * ("Execution error without revert data"). Queue them per instance; reads are untouched.
  */
 function serialize<W extends object>(w: W): W {

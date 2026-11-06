@@ -1,5 +1,5 @@
 "use client"
-// GPay-style processing screen: the WhitePay mark draws itself inside a spinning gradient arc,
+// GPay-style processing screen: the WondrPay mark draws itself inside a spinning gradient arc,
 // one short line that changes per step, step dots, and a check burst when it's done.
 import "./processing.css"
 import { useEffect, useState } from "react"

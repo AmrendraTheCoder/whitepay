@@ -15,7 +15,7 @@ export function TopBar({ right, back = "/app" }: { right?: React.ReactNode; back
           </a>
         )}
         <img src="/icon.svg" alt="" />
-        WhitePay
+        WondrPay
       </div>
       {right}
     </div>
@@ -57,9 +57,9 @@ export function PinPad({ length = 6, onComplete, busy }: { length?: number; onCo
 }
 
 /** Bottom sheet: fingerprint/Face ID first (if set up), PIN fallback. Resolves to the unlocked account. */
-/** Payment confirmation sheet. EVERY wallet is guarded by WhitePay's own PIN / fingerprint first:
+/** Payment confirmation sheet. EVERY wallet is guarded by WondrPay's own PIN / fingerprint first:
  *  - device wallet: fingerprint (passkey PRF) or PIN decrypts the on-device key
- *  - external wallet (MetaMask extension / WalletConnect): fingerprint or WhitePay PIN, THEN the wallet signs */
+ *  - external wallet (MetaMask extension / WalletConnect): fingerprint or WondrPay PIN, THEN the wallet signs */
 export function UnlockSheet({
   title,
   subtitle,
@@ -173,13 +173,13 @@ export function UnlockSheet({
         ) : mode === "setpin" || mode === "confirmpin" ? (
           <>
             <div className="sub center">
-              {mode === "setpin" ? "Set a 6-digit WhitePay PIN for this wallet. You'll enter it before every payment." : "Confirm your WhitePay PIN"}
+              {mode === "setpin" ? "Set a 6-digit WondrPay PIN for this wallet. You'll enter it before every payment." : "Confirm your WondrPay PIN"}
             </div>
             <PinPad key={mode} onComplete={onSetPin} busy={busy} />
           </>
         ) : (
           <>
-            <div className="sub center">Enter your 6-digit WhitePay PIN</div>
+            <div className="sub center">Enter your 6-digit WondrPay PIN</div>
             {!locked && <PinPad onComplete={onPin} busy={busy} />}
           </>
         )}

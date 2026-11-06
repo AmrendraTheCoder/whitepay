@@ -22,7 +22,7 @@ World ID = prove unique human without revealing identity.
 - Explain the trust moment and why the chosen credential is the *minimum sufficient*.
 - Show success + one alternative path (cancel/ineligible/rejected). Same debrief.
 
-## Fit for WhitePay
+## Fit for WondrPay
 Human/agent approval on refunds or high-value payments; AI agent pays via x402 only if World Agent Pass vouches a human is behind it; one-per-human payment links/discounts.
 
 ## Resources

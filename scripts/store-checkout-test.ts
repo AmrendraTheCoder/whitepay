@@ -1,14 +1,14 @@
-// Pay a demo-store order end to end: store creates order -> customer pays gaslessly via WhitePay
-// -> WhitePay fires the store's webhook -> store verifies on-chain.
-// Run: npx tsx --env-file=.env scripts/store-checkout-test.ts [store=https://whitepay-demo-store.vercel.app] [sku=sticker-pack]
+// Pay a demo-store order end to end: store creates order -> customer pays gaslessly via WondrPay
+// -> WondrPay fires the store's webhook -> store verifies on-chain.
+// Run: npx tsx --env-file=.env scripts/store-checkout-test.ts [store=https://wondrpay-demo-store.vercel.app] [sku=sticker-pack]
 import { privateKeyToAccount } from "viem/accounts"
 import type { Hex } from "viem"
 import { receiveAuthTypedData } from "@whitepay/shared"
 import { config, fetchRequest, verifyRequest } from "@whitepay/server"
 
-const STORE = process.argv[2] ?? "https://whitepay-demo-store.vercel.app"
+const STORE = process.argv[2] ?? "https://wondrpay-demo-store.vercel.app"
 const SKU = process.argv[3] ?? "sticker-pack"
-const WP = "https://whitepay.vercel.app"
+const WP = "https://wondrpay.vercel.app"
 const payer = privateKeyToAccount(process.env.CUSTOMER_PK as Hex)
 
 async function main() {

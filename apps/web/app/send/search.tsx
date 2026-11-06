@@ -58,7 +58,7 @@ export function PayeeSearch({ initialQuery = "", onPick }: { initialQuery?: stri
       try {
         const r = await fetch(`/api/resolve?q=${encodeURIComponent(term)}`, { signal: ctl.signal })
         const d = await r.json()
-        if (r.status === 404) { setState("none"); setMsg(`No WhitePay user called “${term}”.`); return }
+        if (r.status === 404) { setState("none"); setMsg(`No WondrPay user called “${term}”.`); return }
         if (!r.ok) throw new Error(d.error)
         if (d.address?.toLowerCase() === me.current) { setState("none"); setMsg("That's your own wallet."); return }
         setHit(d); setState("found"); setMsg("")
@@ -135,7 +135,7 @@ export function PayeeSearch({ initialQuery = "", onPick }: { initialQuery?: stri
           <li className="ps-row ps-skel" role="presentation" aria-hidden><span className="skel circle" style={{ width: 44, height: 44 }} /><div className="grow"><span className="skel" style={{ width: "45%", height: 14 }} /><br /><span className="skel" style={{ width: "30%", height: 11, marginTop: 6 }} /></div></li>
         )}
         {(state === "none" || state === "invalid" || state === "error") && (
-          <li className={`ps-msg ${state === "error" ? "bad" : ""}`} role="presentation">{msg}{state === "none" && <span>Ask them for their WhitePay QR, or paste their 0x address.</span>}</li>
+          <li className={`ps-msg ${state === "error" ? "bad" : ""}`} role="presentation">{msg}{state === "none" && <span>Ask them for their WondrPay QR, or paste their 0x address.</span>}</li>
         )}
         {filteredRecents.length > 0 && <li className="ps-head" role="presentation">{q.trim() ? "From your recents" : "Recent"}</li>}
         {options.slice(hit ? 1 : 0).map((p, i) => {
@@ -147,8 +147,8 @@ export function PayeeSearch({ initialQuery = "", onPick }: { initialQuery?: stri
         ))}
         {recents?.length === 0 && !q && (
           <li className="ps-empty" role="presentation">
-            <b>Pay anyone on WhitePay</b>
-            <span>Type their name (like <i>ravi</i>), their full <i>ravi.whitepay.eth</i>, or paste a 0x address. People you pay show up here.</span>
+            <b>Pay anyone on WondrPay</b>
+            <span>Type their name (like <i>ravi</i>), their full <i>ravi.wondrpay.eth</i>, or paste a 0x address. People you pay show up here.</span>
           </li>
         )}
       </ul>

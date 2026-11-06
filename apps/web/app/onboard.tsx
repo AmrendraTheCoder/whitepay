@@ -9,7 +9,7 @@ import { wcConfigured } from "@/lib/walletconnect"
 
 // -------------------------------------------------------------- onboarding
 export function Onboard({ onDone, adding = false, business = false }: { onDone: () => void; adding?: boolean; business?: boolean }) {
-  // ext* steps: an external wallet was just connected and gets its own WhitePay PIN / fingerprint
+  // ext* steps: an external wallet was just connected and gets its own WondrPay PIN / fingerprint
   const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio" | "name">("intro")
   const [extAddr, setExtAddr] = useState("")
   const [first, setFirst] = useState("")
@@ -66,7 +66,7 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
 
   return (
     <main className="shell">
-      <div className="topbar"><span className="brand"><img src="/icon.svg" alt="" />WhitePay</span>{adding && <a className="chip" href="/you">Cancel</a>}</div>
+      <div className="topbar"><span className="brand"><img src="/icon.svg" alt="" />WondrPay</span>{adding && <a className="chip" href="/you">Cancel</a>}</div>
       {step === "intro" && (
         <>
           <div className="hero" style={{ minHeight: 260 }}>
@@ -88,7 +88,7 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
           </button>
           <div className="sub center">
             {wcConfigured()
-              ? "WhitePay stays open in this browser. MetaMask opens only to approve, then you come back here."
+              ? "WondrPay stays open in this browser. MetaMask opens only to approve, then you come back here."
               : "WalletConnect isn't configured on this server yet."}
           </div>
           {err && step === "intro" && <div className="err">{err}</div>}
@@ -105,7 +105,7 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
       )}
       {(step === "pin" || step === "confirm") && (
         <div className="stack mt-6">
-          <div className="title center">{step === "pin" ? "Set your WhitePay PIN" : "Confirm your PIN"}</div>
+          <div className="title center">{step === "pin" ? "Set your WondrPay PIN" : "Confirm your PIN"}</div>
           <div className="sub center">6 digits, like your UPI PIN. Used when fingerprint isn't available.</div>
           <PinPad key={step} onComplete={step === "pin" ? onFirst : onConfirm} />
           <div className="err">{err}</div>
@@ -129,8 +129,8 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
       )}
       {(step === "extpin" || step === "extconfirm") && (
         <div className="stack mt-6">
-          <div className="title center">{step === "extpin" ? "Set your WhitePay PIN" : "Confirm your PIN"}</div>
-          <div className="sub center">Connected {extAddr.slice(0, 6)}…{extAddr.slice(-4)}. WhitePay asks for this PIN before MetaMask signs any payment.</div>
+          <div className="title center">{step === "extpin" ? "Set your WondrPay PIN" : "Confirm your PIN"}</div>
+          <div className="sub center">Connected {extAddr.slice(0, 6)}…{extAddr.slice(-4)}. WondrPay asks for this PIN before MetaMask signs any payment.</div>
           <PinPad key={step} onComplete={step === "extpin" ? onExtFirst : onExtConfirm} />
           <div className="err">{err}</div>
         </div>
@@ -139,7 +139,7 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
         <div className="stack center mt-8">
           <div className="hero-icon">{Icon.finger(48)}</div>
           <div className="title">Confirm payments with your fingerprint?</div>
-          <div className="sub">Before MetaMask is asked to sign, WhitePay checks your fingerprint or Face ID. Your PIN always works too.</div>
+          <div className="sub">Before MetaMask is asked to sign, WondrPay checks your fingerprint or Face ID. Your PIN always works too.</div>
           {bioOk && <button className="btn btn-primary btn-big" onClick={enableExtBio} disabled={busy}>{busy ? <span className="spinner" /> : null} Enable fingerprint</button>}
           <button className="btn btn-ghost" onClick={finish}>{bioOk ? "Skip for now" : "Continue"}</button>
           <div className="err">{err}</div>
@@ -147,7 +147,7 @@ export function Onboard({ onDone, adding = false, business = false }: { onDone: 
       )}
       {step === "name" && (
         <div className="stack" style={{ marginTop: 18 }}>
-          <div style={{ textAlign: "center", fontSize: 22, fontWeight: 700 }}>Last step: your WhitePay name</div>
+          <div style={{ textAlign: "center", fontSize: 22, fontWeight: 700 }}>Last step: your WondrPay name</div>
           <div className="sub center">Verify you're a real person with World ID once, now. Payments never ask for it.</div>
           <ClaimName address={getWallet()!.address as `0x${string}`} onClaimed={() => setTimeout(onDone, 1200)} />
           <button className="btn btn-ghost" onClick={onDone}>Skip, use my address only</button>

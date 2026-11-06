@@ -1,31 +1,31 @@
-/*! WhitePay Checkout SDK v1.2.1 · USDT on Whitechain · MIT
+/*! WondrPay Checkout SDK v1.2.1 · USDT on Whitechain · MIT
  *
  * Works on ANY website (plain HTML, React, Vue, Svelte, WordPress, Shopify custom theme):
  *
- *   <script src="https://whitepay.vercel.app/sdk/v1/checkout.js" integrity="sha384-…" crossorigin="anonymous" defer></script>
- *   <whitepay-button order-endpoint="/api/create-order" payload='{"sku":"chai-kit"}' label="Pay 2.50 USDT"></whitepay-button>
- *   <script>document.addEventListener("whitepay:paid", (e) => showThankYou(e.detail))</script>
+ *   <script src="https://wondrpay.vercel.app/sdk/v1/checkout.js" integrity="sha384-…" crossorigin="anonymous" defer></script>
+ *   <wondrpay-button order-endpoint="/api/create-order" payload='{"sku":"chai-kit"}' label="Pay 2.50 USDT"></wondrpay-button>
+ *   <script>document.addEventListener("wondrpay:paid", (e) => showThankYou(e.detail))</script>
  *
- * Subscriptions (Autopay): <whitepay-button mode="subscribe" order-endpoint="/api/create-subscription" …>
- *   your endpoint returns createWhitePaySubscription(...) → QR to approve autopay → whitepay:subscribed {mandateKey, subscriber}
+ * Subscriptions (Autopay): <wondrpay-button mode="subscribe" order-endpoint="/api/create-subscription" …>
+ *   your endpoint returns createWondrPaySubscription(...) → QR to approve autopay → wondrpay:subscribed {mandateKey, subscriber}
  *
  * Attributes: order-endpoint (YOUR same-origin route that signs the order with @whitepay/checkout/server),
  *             payload (JSON sent to it, e.g. sku/cart id; the PRICE must come from your server), label, theme="dark".
- * Events (bubble, composed): whitepay:subscribed {planKey,mandateKey,subscriber,amount,cycles} (subscribe mode)
- *                            whitepay:created {entityKey,payUrl,deadline} · whitepay:paid {entityKey,orderId,txHash,explorer,amount}
- *                            whitepay:expired {entityKey} · whitepay:error {message}
+ * Events (bubble, composed): wondrpay:subscribed {planKey,mandateKey,subscriber,amount,cycles} (subscribe mode)
+ *                            wondrpay:created {entityKey,payUrl,deadline} · wondrpay:paid {entityKey,orderId,txHash,explorer,amount}
+ *                            wondrpay:expired {entityKey} · wondrpay:error {message}
  *
- * Security model: the SDK never handles keys or money. It renders the WhitePay QR for an order YOUR server
- * signed, then polls WhitePay for the result. Every value from the network is validated against a strict
+ * Security model: the SDK never handles keys or money. It renders the WondrPay QR for an order YOUR server
+ * signed, then polls WondrPay for the result. Every value from the network is validated against a strict
  * pattern and written with textContent / setAttribute only (no innerHTML with data), the order endpoint must
  * be same-origin, links are rel="noopener noreferrer", and "paid" in the browser is only a UI hint: fulfil
  * orders from the signed webhook + on-chain check on your server.
  */
 (() => {
   "use strict"
-  if (typeof window === "undefined" || customElements.get("whitepay-button")) return
-  const VERSION = "1.2.1"
-  const ORIGIN = (document.currentScript && new URL(document.currentScript.src).origin) || "https://whitepay.vercel.app"
+  if (typeof window === "undefined" || customElements.get("wondrpay-button")) return
+  const VERSION = "1.3.0"
+  const ORIGIN = (document.currentScript && new URL(document.currentScript.src).origin) || "https://wondrpay.vercel.app"
   const RE = {
     key: /^0x[0-9a-fA-F]{64}$/, uint: /^\d{1,30}$/, tx: /^0x[0-9a-fA-F]{64}$/,
     explorer: /^https:\/\/explorer\.testnet\.whitechain\.io\/tx\/0x[0-9a-fA-F]{64}$/,
@@ -76,7 +76,7 @@
     svg.append(p); return svg
   }
 
-  class WhitePayButton extends HTMLElement {
+  class WondrPayButton extends HTMLElement {
     static get observedAttributes() { return ["label"] }
     constructor() { super(); this.root = this.attachShadow({ mode: "open" }) }
     connectedCallback() {
@@ -88,14 +88,17 @@
       this.attributeChangedCallback()
       this.btn.addEventListener("click", () => this.start())
     }
-    attributeChangedCallback() { if (this._labelEl && !this.busy) this._labelEl.textContent = this.getAttribute("label") || "Pay with WhitePay" }
+    attributeChangedCallback() { if (this._labelEl && !this.busy) this._labelEl.textContent = this.getAttribute("label") || "Pay with WondrPay" }
     // frameworks (React 19, Vue, Lit) may set these as properties: reflect them to attributes
     get label() { return this.getAttribute("label") } set label(v) { v == null ? this.removeAttribute("label") : this.setAttribute("label", String(v)) }
     get payload() { return this.getAttribute("payload") } set payload(v) { v == null ? this.removeAttribute("payload") : this.setAttribute("payload", typeof v === "string" ? v : JSON.stringify(v)) }
     get mode() { return this.getAttribute("mode") } set mode(v) { v == null ? this.removeAttribute("mode") : this.setAttribute("mode", String(v)) }
     disconnectedCallback() { this.cleanup && this.cleanup() }
-    emit(name, detail) { this.dispatchEvent(new CustomEvent(`whitepay:${name}`, { detail, bubbles: true, composed: true })) }
-    fail(message) { this.emit("error", { message }); console.warn(`[WhitePay] ${message}`) }
+    emit(name, detail) {
+      for (const ns of ["wondrpay", "whitepay"]) // whitepay:* kept for sites integrated before the rename
+        this.dispatchEvent(new CustomEvent(`${ns}:${name}`, { detail, bubbles: true, composed: true }))
+    }
+    fail(message) { this.emit("error", { message }); console.warn(`[WondrPay] ${message}`) }
 
     async start() {
       if (this.busy) return
@@ -139,7 +142,7 @@
     }
 
     toast(msg) {
-      const t = h("div", { class: "sub bad", role: "alert", style: "margin-top:6px" }, `WhitePay: ${msg}`)
+      const t = h("div", { class: "sub bad", role: "alert", style: "margin-top:6px" }, `WondrPay: ${msg}`)
       this.root.append(t); setTimeout(() => t.remove(), 5000)
     }
 
@@ -148,15 +151,15 @@
       const status = h("div", { class: "status", "aria-live": "polite" }, h("span", { class: "spin" }), st)
       const close = h("button", { class: "x", "aria-label": "Close", type: "button" }, "×")
       const img = h("img", { alt: "Scan to pay", src: `${ORIGIN}/api/qr?data=${encodeURIComponent(o.payUrl)}` })
-      const card = h("div", { class: "card", role: "dialog", "aria-modal": "true", "aria-label": "Pay with WhitePay" },
-        h("div", { class: "top" }, h("span", {}, "WhitePay"), close),
+      const card = h("div", { class: "card", role: "dialog", "aria-modal": "true", "aria-label": "Pay with WondrPay" },
+        h("div", { class: "top" }, h("span", {}, "WondrPay"), close),
         h("div", { class: "amt" }, `${fmt(o.amount)} `, h("span", { class: "unit" }, "USDT")),
         h("span", { class: "pill" }, "0 gas · Whitechain"),
         h("div", { class: "qr" }, img),
-        h("div", { class: "sub" }, "Scan with your phone camera or WhitePay"),
+        h("div", { class: "sub" }, "Scan with your phone camera or WondrPay"),
         h("a", { class: "open", href: o.payUrl, target: "_blank", rel: "noopener noreferrer" }, "Pay on this device"),
         status,
-        h("div", { class: "foot" }, `WhitePay Checkout v${VERSION} · order signed by the shop · settled on-chain`))
+        h("div", { class: "foot" }, `WondrPay Checkout v${VERSION} · order signed by the shop · settled on-chain`))
       const back = h("div", { class: "back" }, card)
       this.root.append(back)
       close.focus()
@@ -190,15 +193,15 @@
       const st = h("span", {}, "Waiting for approval…")
       const status = h("div", { class: "status", "aria-live": "polite" }, h("span", { class: "spin" }), st)
       const close = h("button", { class: "x", "aria-label": "Close", type: "button" }, "×")
-      const card = h("div", { class: "card", role: "dialog", "aria-modal": "true", "aria-label": "Subscribe with WhitePay Autopay" },
-        h("div", { class: "top" }, h("span", {}, "WhitePay Autopay"), close),
+      const card = h("div", { class: "card", role: "dialog", "aria-modal": "true", "aria-label": "Subscribe with WondrPay Autopay" },
+        h("div", { class: "top" }, h("span", {}, "WondrPay Autopay"), close),
         h("div", { class: "amt" }, `${fmt(o.amount)} `, h("span", { class: "unit" }, "USDT")),
         h("div", { class: "sub" }, `${o.label} · ${o.cycles} payments · first one now`),
         h("span", { class: "pill" }, "Approve once · cancel anytime"),
         h("div", { class: "qr" }, h("img", { alt: "Scan to subscribe", src: `${ORIGIN}/api/qr?data=${encodeURIComponent(o.url)}` })),
         h("a", { class: "open", href: o.url, target: "_blank", rel: "noopener noreferrer" }, "Subscribe on this device"),
         status,
-        h("div", { class: "foot" }, `WhitePay Checkout v${VERSION} · each payment time-locked on-chain`))
+        h("div", { class: "foot" }, `WondrPay Checkout v${VERSION} · each payment time-locked on-chain`))
       const back = h("div", { class: "back" }, card)
       this.root.append(back); close.focus()
       let poll, done = false, fails = 0
@@ -247,6 +250,9 @@
       this.emit("paid", { entityKey: o.entityKey, orderId: o.orderId, txHash: tx, explorer, amount: o.amount })
     }
   }
-  customElements.define("whitepay-button", WhitePayButton)
-  window.WhitePay = Object.freeze({ version: VERSION, origin: ORIGIN })
+  customElements.define("wondrpay-button", WondrPayButton)
+  // pre-rename tag and global keep working for sites that integrated as WondrPay
+  if (!customElements.get("whitepay-button")) customElements.define("whitepay-button", class extends WondrPayButton {})
+  window.WondrPay = Object.freeze({ version: VERSION, origin: ORIGIN })
+  if (!window.WondrPay) window.WondrPay = window.WondrPay
 })()

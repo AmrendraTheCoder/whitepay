@@ -1,4 +1,4 @@
-// ENSv2 (Ethereum Sepolia) names for WhitePay users and merchants, e.g. chai-shop.whitepay.eth.
+// ENSv2 (Ethereum Sepolia) names for WondrPay users and merchants, e.g. chai-shop.wondrpay.eth.
 //
 // Layout (all owned by ENS_ADMIN):
 //   .eth ETHRegistry ── "whitepay" ──> UserRegistry proxy (ENS_USER_REGISTRY, via VerifiableFactory)
@@ -103,7 +103,7 @@ export const REGISTRY_ROLES = {
 /**
  * Roles a subname owner receives: may repoint their own resolver (self-custody exit), nothing else.
  * ROLE_CAN_TRANSFER_ADMIN is deliberately absent => transfers revert with TransferDisallowed (non-transferable).
- * ENS_ADMIN keeps ROLE_UNREGISTER/RENEW at the registry root => revocable + renewable by WhitePay.
+ * ENS_ADMIN keeps ROLE_UNREGISTER/RENEW at the registry root => revocable + renewable by WondrPay.
  */
 export const SUBNAME_OWNER_ROLES = REGISTRY_ROLES.SET_RESOLVER
 
@@ -133,7 +133,7 @@ export const ownedResolverSalt = (owner: Address, version = 0n) =>
 
 // ------------------------------------------------------------------ config + clients
 export const ensConfig = () => {
-  const parent = normalize(process.env.ENS_PARENT || "whitepay.eth")
+  const parent = normalize(process.env.ENS_PARENT || "wondrpay.eth")
   const optAddr = (name: string): Address | undefined => {
     const v = process.env[name]?.trim()
     if (!v) return undefined
@@ -178,8 +178,8 @@ const requireDeployed = () => {
 // ------------------------------------------------------------------ labels
 /** Brands, officials and confusables nobody may claim under our parent. */
 export const ENS_RESERVED_LABELS = new Set([
-  // WhitePay / platform
-  "whitepay", "white-pay", "wpay", "admin", "administrator", "root", "support", "help", "helpdesk", "official",
+  // WondrPay / platform
+  "whitepay", "white-pay", "wpay", "wondrpay", "wondr-pay", "wondr", "admin", "administrator", "root", "support", "help", "helpdesk", "official",
   "team", "staff", "security", "verify", "verified", "kyc", "billing", "payments", "pay", "wallet", "merchant",
   "merchants", "refund", "refunds", "api", "www", "mail", "app", "dev", "test", "null", "undefined", "system",
   "ens", "eth", "whitechain", "tether", "usdt", "usdc",
@@ -326,7 +326,7 @@ export async function getTexts(name: string, keys: readonly string[] = DEFAULT_T
   return Object.fromEntries(keys.map((k, i) => [k, vals[i]]))
 }
 
-/** Update one text record on a WhitePay name (e.g. verified=true after World ID). Admin-only. */
+/** Update one text record on a WondrPay name (e.g. verified=true after World ID). Admin-only. */
 export async function setText(name: string, key: string, value: string): Promise<Hash> {
   const c = requireDeployed()
   const { wallet } = ensAdmin()
@@ -341,7 +341,7 @@ export async function setText(name: string, key: string, value: string): Promise
   return hash
 }
 
-/** Point an existing WhitePay name at a different wallet (Whitechain coinType + ETH). Admin-only.
+/** Point an existing WondrPay name at a different wallet (Whitechain coinType + ETH). Admin-only.
  *  Used when one World ID moves its single personal name to another wallet it owns. */
 export async function setWalletAddress(name: string, address: Address): Promise<Hash> {
   const c = requireDeployed()

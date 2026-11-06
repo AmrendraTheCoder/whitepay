@@ -1,4 +1,4 @@
-// WhitePay security proxy: runs before every page and API request.
+// WondrPay security proxy: runs before every page and API request.
 //  Pages: fresh CSP nonce per request + hardening headers.
 //  API:   method allow-list, JSON-only writes (blocks form-based CSRF), 32 KB body cap,
 //         cross-site Origin rejected on wallet-signed writes, per-IP rate limits per route.

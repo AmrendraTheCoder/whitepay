@@ -1,9 +1,9 @@
-// Demo store security proxy: strict CSP (only this site + the WhitePay SDK origin), hardening headers,
+// Demo store security proxy: strict CSP (only this site + the WondrPay SDK origin), hardening headers,
 // per-IP rate limits so nobody can spam orders, JSON-only writes, body cap.
 import { NextResponse, type NextRequest } from "next/server"
 import { buildCsp, hardeningHeaders, rateLimit, clientIp, newNonce } from "@whitepay/shared/security"
 
-const WP = process.env.NEXT_PUBLIC_WHITEPAY_URL ?? "https://whitepay.vercel.app"
+const WP = process.env.NEXT_PUBLIC_WHITEPAY_URL ?? "https://wondrpay.vercel.app"
 const dev = process.env.NODE_ENV === "development"
 
 export function proxy(req: NextRequest) {

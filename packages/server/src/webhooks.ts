@@ -3,7 +3,7 @@
 //    (blocks localhost, RFC1918, link-local / cloud metadata 169.254.169.254, CGNAT, ULA, multicast).
 //    Checked when the order is created AND again right before each delivery (DNS rebinding).
 //  - Signed: EIP-191 signature over "whitepay-webhook:v1:<timestamp>:<keccak256(body)>" by a
-//    dedicated key; merchants verify with verifyWhitePayWebhook() and a 5-minute replay window.
+//    dedicated key; merchants verify with verifyWondrPayWebhook() and a 5-minute replay window.
 //  - No redirects followed, 5 s timeout, 3 attempts with backoff, response body never read.
 import { lookup } from "node:dns/promises"
 import { isIP } from "node:net"
@@ -63,7 +63,7 @@ export async function deliverWebhook(url: string, eventId: string, payload: Reco
         signal: AbortSignal.timeout(5000),
         headers: {
           "content-type": "application/json",
-          "user-agent": "WhitePay-Webhook/1",
+          "user-agent": "WondrPay-Webhook/1",
           "x-whitepay-event-id": eventId,
           "x-whitepay-timestamp": String(ts),
           "x-whitepay-signer": s.address,

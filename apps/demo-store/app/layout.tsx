@@ -10,8 +10,8 @@ const display = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], st
 const sans = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--f-sans", display: "swap" })
 
 export const metadata: Metadata = {
-  title: "Chai & Co. · Small-batch chai from Mumbai, paid with WhitePay",
-  description: "Demo merchant website integrating the WhitePay Checkout SDK: USDT on Whitechain, zero gas for shoppers.",
+  title: "Chai & Co. · Small-batch chai from Mumbai, paid with WondrPay",
+  description: "Demo merchant website integrating the WondrPay Checkout SDK: USDT on Whitechain, zero gas for shoppers.",
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -19,7 +19,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={`${display.variable} ${sans.variable}`}>
       <head>
-        {/* ── WHITEPAY INTEGRATION ① ── load the SDK: one script tag, pinned with Subresource Integrity */}
+        {/* ── WONDRPAY INTEGRATION ① ── load the SDK: one script tag, pinned with Subresource Integrity */}
         <script src={SDK_SRC} integrity={SDK_SRI} crossOrigin="anonymous" nonce={nonce} defer />
       </head>
       <body data-theme="chai"><Providers>{children}</Providers></body>

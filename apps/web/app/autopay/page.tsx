@@ -141,7 +141,7 @@ export default function Subscriptions() {
           <div className="sub center">
             {m.mode === "reminder"
               ? "Nothing was pre-approved, so there is nothing left that could be charged. The shop has been notified."
-              : "The subscription's contract is switched off on Whitechain: nobody, including WhitePay or the shop, can charge the remaining payments. The shop has been notified."}
+              : "The subscription's contract is switched off on Whitechain: nobody, including WondrPay or the shop, can charge the remaining payments. The shop has been notified."}
           </div>
           {txs[0] && <a className="chip" href={txs[0]} target="_blank" rel="noreferrer">Cancellation on Whitechain ↗</a>}
           <button className="btn btn-primary btn-big" onClick={() => setCancelled(null)}>Done</button>
@@ -204,8 +204,8 @@ export default function Subscriptions() {
         <div className="card empty-state">
           <span className="ic" aria-hidden>{Icon.repeat(28)}</span>
           <b>No active subscriptions</b>
-          <p className="sub m-0">Subscribe from a shop's WhitePay link or checkout and it will show up here.</p>
-          <a className="chip mt-2" href="https://whitepay-demo-store.vercel.app/#club" target="_blank" rel="noreferrer">Try the demo store</a>
+          <p className="sub m-0">Subscribe from a shop's WondrPay link or checkout and it will show up here.</p>
+          <a className="chip mt-2" href="https://wondrpay-demo-store.vercel.app/#club" target="_blank" rel="noreferrer">Try the demo store</a>
         </div>
       )}
 
@@ -316,7 +316,7 @@ function friendly(msg: string) {
   if (/window .* closed|skipped/.test(m)) return "This payment's window closed, so it was skipped. You'll be asked for the next one."
   if (/opens in/.test(m)) return `Too early: ${msg}`
   if (/reject|denied|cancel/.test(m)) return "Cancelled in your wallet. Nothing was charged."
-  if (/timed out|timeout|abort/.test(m)) return "WhitePay took too long to answer. Nothing changed; please try again."
-  if (/fetch|network|load failed/.test(m)) return "Couldn't reach WhitePay. Nothing changed; check your connection and try again."
+  if (/timed out|timeout|abort/.test(m)) return "WondrPay took too long to answer. Nothing changed; please try again."
+  if (/fetch|network|load failed/.test(m)) return "Couldn't reach WondrPay. Nothing changed; check your connection and try again."
   return msg
 }

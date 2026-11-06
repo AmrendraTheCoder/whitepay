@@ -8,8 +8,8 @@ import { createPublicClient, http } from "viem"
 import { termsFor, autopayPermitTypedData, cancelMandateTypedData, AUTOPAY_FACTORY, AUTOPAY_FACTORY_ABI, USDT_PERMIT_ABI } from "@whitepay/shared/autopay"
 import { whitechainSepolia, USDT_ADDRESS } from "@whitepay/shared"
 
-const STORE = process.argv[2] ?? "https://whitepay-demo-store.vercel.app"
-const WP = process.argv[3] ?? "https://whitepay.vercel.app"
+const STORE = process.argv[2] ?? "https://wondrpay-demo-store.vercel.app"
+const WP = process.argv[3] ?? "https://wondrpay.vercel.app"
 const sub = privateKeyToAccount(process.env.CUSTOMER_PK as Hex)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const t0 = Date.now(), ts = () => `+${Math.round((Date.now() - t0) / 1000)}s`.padEnd(6)

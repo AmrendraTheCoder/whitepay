@@ -1,6 +1,6 @@
-# WhitePay security model
+# WondrPay security model
 
-Run the live attack suite yourself: `scripts/security-check.sh` (27 checks against production WhitePay + the demo store).
+Run the live attack suite yourself: `scripts/security-check.sh` (27 checks against production WondrPay + the demo store).
 
 ## Money layer (on-chain, cannot be bypassed by any server bug)
 
@@ -15,8 +15,8 @@ Run the live attack suite yourself: `scripts/security-check.sh` (27 checks again
 ## Keys
 
 - Shoppers' keys never leave the phone: AES-GCM encrypted with a PIN (PBKDF2, 5-try lockout) or a passkey PRF secret. Unlocked once per tab session (15 idle minutes, `sessionStorage`, cleared on lock).
-- External wallets (MetaMask via WalletConnect) still approve every signature in the wallet; WhitePay adds its own PIN/fingerprint gate.
-- Shop keys stay on the shop's server (`createWhitePayOrder`). Server secrets live only in Vercel env vars; `.env` is git- and deploy-ignored.
+- External wallets (MetaMask via WalletConnect) still approve every signature in the wallet; WondrPay adds its own PIN/fingerprint gate.
+- Shop keys stay on the shop's server (`createWondrPayOrder`). Server secrets live only in Vercel env vars; `.env` is git- and deploy-ignored.
 
 ## Web layer (both apps, `proxy.ts` + `@whitepay/shared/security`)
 
@@ -34,15 +34,15 @@ Run the live attack suite yourself: `scripts/security-check.sh` (27 checks again
 
 - Versioned path + Subresource Integrity (sha384) on every embed: a modified file is refused by the browser.
 - No `innerHTML` with network data: every field is regex-validated, written with `textContent` / `setAttribute`; links are `noopener noreferrer`.
-- `order-endpoint` must be same-origin; the pay URL must be exactly `https://whitepay.vercel.app/pay?req=<32-byte key>`.
-- The `whitepay:paid` browser event is a UI hint only. Shops fulfil from the signed webhook + on-chain check.
+- `order-endpoint` must be same-origin; the pay URL must be exactly `https://wondrpay.vercel.app/pay?req=<32-byte key>`.
+- The `wondrpay:paid` browser event is a UI hint only. Shops fulfil from the signed webhook + on-chain check.
 
 ## Webhooks
 
 - **Signed:** EIP-191 signature by a dedicated key (`0x27d2F6770F18E1C0Eefc129124747407Ef44aBe1`, published at `/api/webhook-key`) over `whitepay-webhook:v1:<timestamp>:<keccak256(body)>`.
 - **Replay-proof:** rejected if older than 5 minutes; unique `x-whitepay-event-id` for de-duplication.
 - **SSRF-proof:** https on port 443, hostname only (no IP literals, no credentials), every resolved address must be public (blocks loopback, RFC1918, link-local / cloud metadata, CGNAT, ULA). Checked at order creation and again before every delivery (DNS rebinding); redirects are not followed; 5 s timeout; 3 attempts.
-- **Defence in depth:** the merchant SDK's `verifyWhitePayPayment` confirms `PaymentSettled` on Whitechain before fulfilment.
+- **Defence in depth:** the merchant SDK's `verifyWondrPayPayment` confirms `PaymentSettled` on Whitechain before fulfilment.
 
 ## Known limits (testnet hackathon build)
 
@@ -55,7 +55,7 @@ Run the live attack suite yourself: `scripts/security-check.sh` (27 checks again
 The subscriber signs **one** EIP-2612 `permit`. Its spender is a per-subscription `AutopayMandate` clone
 (`AutopayFactory` `0x00F61E008AAC480f3D81F959d659c43dDe72ac66`, `contracts/src/Autopay.sol`) whose address is
 derived from every term (subscriber, merchant, amount, period, start, grace, cycles, id). One wallet prompt = consent
-to exactly those terms. The app reads the clone address from the chain itself, never from the WhitePay server.
+to exactly those terms. The app reads the clone address from the chain itself, never from the WondrPay server.
 
 | Threat | Protection (enforced by the clone / token, tested in `contracts/test/Autopay.t.sol`) |
 |---|---|

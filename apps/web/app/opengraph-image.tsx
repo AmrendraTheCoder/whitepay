@@ -1,7 +1,7 @@
 // Social share card for every page (1200×630), rendered at the edge.
 import { ImageResponse } from "next/og"
 
-export const alt = "WhitePay: pay anyone in digital dollars. No gas, no seed phrase."
+export const alt = "WondrPay: pay anyone in digital dollars. No gas, no seed phrase."
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -12,7 +12,7 @@ export default function OG() {
         background: "radial-gradient(700px 420px at 85% 20%, #2448ff, transparent 70%), #05071a", color: "#eef0ff", fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 40, fontWeight: 800 }}>
           <div style={{ width: 64, height: 64, borderRadius: 16, background: "#2448ff", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 40 }}>W</div>
-          WhitePay
+          WondrPay
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           <div style={{ fontSize: 78, fontWeight: 800, lineHeight: 1, letterSpacing: -3, display: "flex", flexWrap: "wrap" }}>

@@ -1,4 +1,4 @@
-# WhitePay: End-to-End Build Guide
+# WondrPay: End-to-End Build Guide
 
 "GPay/UPI on Whitechain": pay a name (ENS) in USDT with no gas for the payer, merchant checkout with signed orders, collect requests, refunds and disputes, receipts on Arkiv, World ID for one-name-per-human and step-up checks.
 
@@ -17,7 +17,7 @@
 | Test USDT | "Faucet" | The faucet gives **WBT only** (0.5/24h, GitHub account ≥30 days old). ⚠️ How to get `0xcedf…` USDT is undocumented. **Ask the Whitechain booth.** |
 | Smart wallets | Use a provider | No bundler, paymaster or embedded-wallet provider is confirmed for 1874 (⚠️). EntryPoint v0.6/v0.7/v0.8, Permit2 and Multicall3 **are** deployed. **Decision: passkey/EOA + our own relayer**, no 3rd-party AA. |
 | ENSv2 | "Live" | ✅ Live on **Sepolia and mainnet** (blog dated 27 Oct 2026). The deployments page still has mixed wording. |
-| ENS resolver model | Permissioned Resolver per name | A **resolver belongs to an account**; EAC setter grants apply to every name that resolver serves. **Decision: the WhitePay backend owns one resolver and writes all user records.** |
+| ENS resolver model | Permissioned Resolver per name | A **resolver belongs to an account**; EAC setter grants apply to every name that resolver serves. **Decision: the WondrPay backend owns one resolver and writes all user records.** |
 | ENS registration | Pay in ETH | Pay in **USDC/DAI** (Sepolia has a `MockUSDC` anyone can mint). Commit, wait ≥60s, reveal. 5+ characters = $8/yr. |
 | World "Agent Pass" | An SDK | ⚠️ The docs never say "Agent Pass". auth.world.org is **World IdP** (OIDC + step-up). The "mocked proofs" claim is also undocumented. **Ask the World booth.** |
 | World IDKit | v2/v3 | **IDKit 4.x** (`@worldcoin/idkit` 4.6.0). Each request needs a backend-signed RP signature. Verify via `POST https://developer.world.org/api/v4/verify/{rp_id}`. |
@@ -50,7 +50,7 @@ Create **fresh** keys. Never reuse a personal wallet, and never paste a private 
 | `DEPLOYER` | Deploys and owns contracts on 1874 | WBT |
 | `RELAYER` (2–3 keys) | Submits gasless transactions | WBT (main ongoing cost) |
 | `ORDER_SIGNER` | Merchant backend signs orders (demo merchant) | None (signing only) |
-| `ENS_ADMIN` | Owns `whitepay.eth`, the subname registry and the resolver on Sepolia | Sepolia ETH + MockUSDC |
+| `ENS_ADMIN` | Owns `wondrpay.eth`, the subname registry and the resolver on Sepolia | Sepolia ETH + MockUSDC |
 | `ARKIV_WRITER` | Backend writer and owner of entities | tGLM |
 | `CUSTOMER_DEMO`, `MERCHANT_DEMO` | Demo actors | USDT (customer). The merchant needs none (gasless refunds) |
 
@@ -88,7 +88,7 @@ Create **fresh** keys. Never reuse a personal wallet, and never paste a private 
 | Merchant dashboard | Same Next.js app, `/merchant` route | Faster than a second app |
 | Backend | Next.js API routes (Node runtime) + a small Postgres or SQLite (Neon/Turso) | Nullifiers, orders, rate limits |
 | Relayer | Node worker inside the API (or a separate `apps/relayer`) with viem wallet clients | Our own gas sponsor |
-| Checkout SDK | `packages/checkout`: vanilla TS web component `<whitepay-button>` + React wrapper | "20 lines" integration |
+| Checkout SDK | `packages/checkout`: vanilla TS web component `<wondrpay-button>` + React wrapper | "20 lines" integration |
 | Demo store | `apps/demo-store` (Vite) using the SDK | A separate demo app, as required |
 | Wallet UX | Embedded EOA from a passkey-protected key (WebAuthn PRF), or plain MetaMask fallback | No AA provider confirmed on 1874 |
 | World | `@worldcoin/idkit` 4.x (+ `openid-client` if World IdP) | |
@@ -124,7 +124,7 @@ USDT_ADDRESS=0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7
 DEPLOYER_PK=  RELAYER_PKS=pk1,pk2  ORDER_SIGNER_PK=
 ROUTER_ADDRESS=  REGISTRY_ADDRESS=
 # ENS (Sepolia)
-SEPOLIA_RPC_URL=  ENS_ADMIN_PK=  ENS_PARENT=whitepay.eth
+SEPOLIA_RPC_URL=  ENS_ADMIN_PK=  ENS_PARENT=wondrpay.eth
 ENS_USER_REGISTRY=  ENS_RESOLVER=
 # World
 WORLD_APP_ID=  WORLD_RP_ID=  RP_SIGNING_KEY=  WORLD_ENV=staging
@@ -245,9 +245,9 @@ Sources: `/ensv2/tutorial-contract-developers/`, `/learn/deployments#sepolia-ens
 | UniversalResolver (proxy) | `0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe` |
 
 Steps (scripted in `scripts/ens-setup.ts`; the experimental `ens-cli` is an alternative, not on npm):
-1. **Register `whitepay.eth`** on https://sepolia.app.ens.domains, paid with MockUSDC. If the name is taken, choose a 5+ character fallback and update `ENS_PARENT`.
+1. **Register `wondrpay.eth`** on https://sepolia.app.ens.domains, paid with MockUSDC. If the name is taken, choose a 5+ character fallback and update `ENS_PARENT`.
 2. **Deploy the subname registry:** `VerifiableFactory.deployProxy(UserRegistryImpl, salt, initialize([(ENS_ADMIN, ALL_ROLES)]))`.
-   - `salt = keccak256(abi.encode(keccak256("UserRegistry"), namehash("whitepay.eth"), 0))`.
+   - `salt = keccak256(abi.encode(keccak256("UserRegistry"), namehash("wondrpay.eth"), 0))`.
    - Read the address from the `ProxyDeployed` event.
 3. **Link it to the parent:** `ETHRegistry.setSubregistry(uint256(labelhash("whitepay")), userRegistry)`.
 4. **Deploy one PermissionedResolver** owned by `ENS_ADMIN` via the factory (salt `keccak256(abi.encode(keccak256("OwnedResolver"), owner, 0))`).
@@ -328,15 +328,15 @@ Write `/arkiv/schema.md` from the table above.
 ## 10. Checkout SDK (the "20 lines" deliverable)
 ```html
 <script type="module" src="https://whitepay.app/sdk/checkout.js"></script>
-<whitepay-button merchant="chai-shop.whitepay.eth" order-endpoint="/api/create-order"></whitepay-button>
+<wondrpay-button merchant="chai-shop.wondrpay.eth" order-endpoint="/api/create-order"></wondrpay-button>
 <script>
-  document.querySelector('whitepay-button')
+  document.querySelector('wondrpay-button')
     .addEventListener('paid', e => fetch('/api/fulfill', { method:'POST', body: JSON.stringify(e.detail) }))
 </script>
 ```
 - **Merchant server:** a ~10-line `createOrder()` helper from `@whitepay/checkout/server` that signs the order.
 - **Webhook verification:** `verifyWebhook(req, WEBHOOK_SECRET)`.
-- **Payment link / QR format:** `whitepay://pay?to=<name>&amount=<n>&order=<id>&sig=<s>`, with a fallback to `https://whitepay.app/pay?...` and an EIP-681 `ethereum:` URI.
+- **Payment link / QR format:** `wondrpay://pay?to=<name>&amount=<n>&order=<id>&sig=<s>`, with a fallback to `https://whitepay.app/pay?...` and an EIP-681 `ethereum:` URI.
 
 ---
 
@@ -348,10 +348,10 @@ Write `/arkiv/schema.md` from the table above.
 | **1. Contracts** | 2–7 | Router, Registry, tests, deploy and **verify** on 1874 | Verified on the explorer; one real USDT `payOrder` tx link in README |
 | **2. Relayer + API** | 7–11 | Order signing, `/api/relay/pay`, policy, webhook | Customer pays with **0 WBT** in the wallet |
 | **3. Customer PWA** | 11–16 | Wallet onboarding, scan/pay-by-name, confirmation screen, history | Phone demo works end to end |
-| **4. ENS** | 16–20 | Parent name, registry, resolver, claim flow, resolution | `ravi.whitepay.eth` resolves to the 1874 address in the app |
+| **4. ENS** | 16–20 | Parent name, registry, resolver, claim flow, resolution | `ravi.wondrpay.eth` resolves to the 1874 address in the app |
 | **5. World** | 20–23 | Name-claim uniqueness, step-up for refunds and over-limit, failure paths | Denied path visibly blocks the action |
 | **6. Arkiv** | 23–27 | Indexer → entities, merchant dashboard, collect requests, disputes, CSV | Dashboard reads only from Arkiv + chain |
-| **7. SDK + demo store** | 27–30 | `<whitepay-button>`, demo store | Integration under ~20 lines |
+| **7. SDK + demo store** | 27–30 | `<wondrpay-button>`, demo store | Integration under ~20 lines |
 | **8. Polish + docs** | 30–34 | README, feedback files, `/arkiv/*.md`, World debrief, limits section | `submission-auditor` agent passes |
 | **9. Video + submit** | 34–36 | 2–4 min video showing customer, merchant, relayer and verification | Submitted with 3 prizes selected |
 
@@ -360,8 +360,8 @@ Write `/arkiv/schema.md` from the table above.
 ---
 
 ## 12. Demo script (2–4 min)
-1. **Customer onboarding:** World proof, then claim `ravi.whitepay.eth`. A second claim with the same human is rejected.
-2. **Demo store:** "Pay with WhitePay", phone scans the QR, verified merchant name and amount shown, approve. Settled on Whitechain with **no gas**, and the explorer link is shown.
+1. **Customer onboarding:** World proof, then claim `ravi.wondrpay.eth`. A second claim with the same human is rejected.
+2. **Demo store:** "Pay with WondrPay", phone scans the QR, verified merchant name and amount shown, approve. Settled on Whitechain with **no gas**, and the explorer link is shown.
 3. **Merchant dashboard (reads from Arkiv):** the receipt appears and the webhook fires.
 4. **Collect request:** a verified merchant sends an invoice with a 2-minute expiry. Show one paid and one expiring live.
 5. **Dispute:** dispute, then a partial refund needing World step-up. Show the cancelled step-up blocking the refund, then the approved one.

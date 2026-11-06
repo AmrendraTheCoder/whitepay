@@ -1,5 +1,5 @@
 "use client"
-// The ten scenes of the 3-minute WhitePay film. Time inside a scene is local seconds from its start.
+// The ten scenes of the 3-minute WondrPay film. Time inside a scene is local seconds from its start.
 // CSS animations use `--d` (delay inside the scene); the scene wrapper sets `--off` (playhead at mount),
 // so a scrub lands every animation on the right frame.
 import type { CSSProperties, ReactNode } from "react"
@@ -96,7 +96,7 @@ function HomeScreen({ s, at = 0, rings = true }: { s: number; at?: number; rings
       <div className="m-balance">
         <div className="lbl">USDT BALANCE <span className="neon">PERSONAL</span></div>
         <div className="big"><Num s={s} to={3.7} at={at + 0.3} /> <small>USDT</small></div>
-        <div className="row"><span className="lime-pill">0 gas</span><span>amrendra.whitepay.eth</span></div>
+        <div className="row"><span className="lime-pill">0 gas</span><span>amrendra.wondrpay.eth</span></div>
       </div>
       <div className="m-tiles">
         {["Scan any QR", "Pay anyone", "Receive", "Shop QR"].map((t, i) => <div key={t} className="a rise" style={d(at + 0.5 + i * 0.08)}><span className="sq" />{t}</div>)}
@@ -142,7 +142,7 @@ function S2Reveal() {
   return (
     <div className="sc sc-reveal">
       <div className="a pop" style={d(0.3)}><Logo size={170} draw /></div>
-      <div className="brand a rise" style={d(2.2)}>WhitePay</div>
+      <div className="brand a rise" style={d(2.2)}>WondrPay</div>
       <div className="tagline">
         {["Scan.", "Verify.", "Pay."].map((w, i) => <span key={w} className="a rise" style={d(3.4 + i * 0.7)}>{w}</span>)}
       </div>
@@ -158,7 +158,7 @@ function S2Reveal() {
 
 function S3Pay({ s }: { s: number }) {
   const beat = useBeat(s, [6, 10.5, 18, 20.5]) // 0 home · 1 scan · 2 checks · 3 fingerprint · 4 success
-  const checks = ["Created by WhitePay", "Amount untampered", "Signed by the merchant", "Still valid"]
+  const checks = ["Created by WondrPay", "Amount untampered", "Signed by the merchant", "Still valid"]
   return (
     <div className="sc sc-split">
       <Phone tilt={-6} className="a rise" style={d(0)}>
@@ -166,12 +166,12 @@ function S3Pay({ s }: { s: number }) {
         {beat === 1 && (
           <div className="m-scan">
             <div className="brackets"><QR size={210} seed={11} /><div className="sweep" /></div>
-            <div className="m-scan-t">Scan any WhitePay QR</div>
+            <div className="m-scan-t">Scan any WondrPay QR</div>
           </div>
         )}
         {(beat === 2 || beat === 3) && (
           <Off s={s} className="full"><div className="m-pay">
-            <div className="m-merchant"><Identicon seed="0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10" size={56} /><div><b>Chai Point, Bandra</b><span>chai-shop.whitepay.eth</span></div><span className="ok-badge">✓ Verified</span></div>
+            <div className="m-merchant"><Identicon seed="0xCF69aAdd6357Afd3C1b5EcFE3eecA134f49b6e10" size={56} /><div><b>Chai Point, Bandra</b><span>chai-shop.wondrpay.eth</span></div><span className="ok-badge">✓ Verified</span></div>
             <div className="m-amt">2.50 <small>USDT</small></div>
             <ul className="m-checks">{checks.map((c, i) => <li key={c} className="a slide" style={d(10.9 + i * 1.3)}><span className="tick">✓</span>{c}</li>)}</ul>
             <div className={`m-finger ${beat === 3 ? "press" : ""}`}><span className="fp" />{beat === 3 ? "Confirming…" : "Pay with fingerprint"}</div>
@@ -193,7 +193,7 @@ function S3Pay({ s }: { s: number }) {
         <div className="facts">
           <div className="fact a rise" style={d(11)}><b>4 checks</b><span>before you pay: real merchant, untampered amount</span></div>
           <div className="fact a rise" style={d(19)}><b>~4 s</b><span>fingerprint to receipt, settled in ~1 s</span></div>
-          <div className="fact a rise" style={d(21)}><b className="lime">0 gas</b><span>WhitePay covers the network fee</span></div>
+          <div className="fact a rise" style={d(21)}><b className="lime">0 gas</b><span>WondrPay covers the network fee</span></div>
         </div>
       </div>
     </div>
@@ -252,9 +252,9 @@ function S5Website({ s }: { s: number }) {
   return (
     <div className="sc sc-web">
       <div className="browser a rise" style={d(0)}>
-        <div className="bar"><i /><i /><i /><span>whitepay-demo-store.vercel.app</span></div>
+        <div className="bar"><i /><i /><i /><span>wondrpay-demo-store.vercel.app</span></div>
         <div className="store">
-          <div className="store-h"><b>☕ Chai &amp; Co.</b><span>pays with WhitePay</span></div>
+          <div className="store-h"><b>☕ Chai &amp; Co.</b><span>pays with WondrPay</span></div>
           <div className="products">
             {[["🫖", "Masala Chai Kit", "2.50"], ["👜", "Chai & Co. Tote", "1.20"], ["✨", "Sticker Pack", "0.40"]].map(([e, n, p], i) => (
               <div key={n} className="product"><div className="art">{e}</div><b>{n}</b><div className="price">{p} USDT</div><div className={`wp-btn ${i === 0 && beat === 0 ? "hover" : ""}`}>Pay {p} USDT</div></div>
@@ -263,7 +263,7 @@ function S5Website({ s }: { s: number }) {
           {beat === 3 && <Off s={s}><div className="srv a fade" style={d(10)}><span>server · /api/create-order</span><span>server · /api/webhook</span><span>server · /api/verify</span></div></Off>}
           {(beat === 1 || beat === 2) && (
             <div className="modal-back"><div className="modal">
-              {beat === 1 ? <><b>WhitePay</b><div className="m-amt">2.50 <small>USDT</small></div><QR size={170} seed={31} /><div className="m-wait"><span className="spin" />Waiting for payment</div></>
+              {beat === 1 ? <><b>WondrPay</b><div className="m-amt">2.50 <small>USDT</small></div><QR size={170} seed={31} /><div className="m-wait"><span className="spin" />Waiting for payment</div></>
                 : <><div className="ok-big">✓</div><b>Paid 2.50 USDT</b><span>Settled on Whitechain</span></>}
             </div></div>
           )}
@@ -273,7 +273,7 @@ function S5Website({ s }: { s: number }) {
       {beat === 3 && (
         <Off s={s}><div className="code a slide-l" style={d(11.5)}>
           <div className="code-h">Integration <b className="lime">≈ 20 lines</b></div>
-          <pre>{`① <script src=".../sdk/v1.2.0/checkout.js"\n     integrity="sha384-…" />\n② <whitepay-button order-endpoint="/api/create-order"\n     payload='{"sku":"chai-kit"}' />\n③ createWhitePayOrder({ merchantKey, amount })\n④ verifyWhitePayWebhook(req) → verifyWhitePayPayment(tx)`}</pre>
+          <pre>{`① <script src=".../sdk/v1.2.0/checkout.js"\n     integrity="sha384-…" />\n② <wondrpay-button order-endpoint="/api/create-order"\n     payload='{"sku":"chai-kit"}' />\n③ createWondrPayOrder({ merchantKey, amount })\n④ verifyWondrPayWebhook(req) → verifyWondrPayPayment(tx)`}</pre>
           <div className="code-f">Prices are signed by the shop. The browser can't change them.</div>
         </div></Off>
       )}
@@ -326,7 +326,7 @@ const ROWS = [
   ["Cross-border", "6%+ and days", "same as paying next door"],
   ["Chargebacks", "the shop loses", "refunds only to the payer, capped"],
   ["Receipts", "private, siloed", "permanent, verifiable on Arkiv"],
-  ["Identity", "a card number", "name.whitepay.eth + one human"],
+  ["Identity", "a card number", "name.wondrpay.eth + one human"],
   ["Open", "banking days", "24 / 7 / 365"],
 ]
 function S7Compare({ s }: { s: number }) {
@@ -336,7 +336,7 @@ function S7Compare({ s }: { s: number }) {
       <div className="kicker a fade" style={d(0)}>Web2 vs Web3</div>
       {beat === 0 ? (
         <div className="cmp">
-          <div className="cmp-h"><span /><span className="w2">Cards &amp; banks</span><span className="w3">WhitePay on Whitechain</span></div>
+          <div className="cmp-h"><span /><span className="w2">Cards &amp; banks</span><span className="w3">WondrPay on Whitechain</span></div>
           {ROWS.map(([k, a, b], i) => (
             <div key={k} className="cmp-r a flip" style={d(0.8 + i * 2.2)}><span className="k">{k}</span><span className="w2">{a}</span><span className="w3"><i>✓</i>{b}</span></div>
           ))}
@@ -345,14 +345,14 @@ function S7Compare({ s }: { s: number }) {
         <Off s={s} className="cmp-charts">
           <div className="bars-h">
             <div className="ch-t">Cost on a $100 payment</div>
-            {[["Card rails", 3.5, "$1.50–3.50", "grey"], ["Cross-border transfer", 6, "≈ $6.00", "grey"], ["WhitePay", 0.08, "$0 for the payer", "wp"]].map(([l, v, t, c], i) => (
+            {[["Card rails", 3.5, "$1.50–3.50", "grey"], ["Cross-border transfer", 6, "≈ $6.00", "grey"], ["WondrPay", 0.08, "$0 for the payer", "wp"]].map(([l, v, t, c], i) => (
               <div key={l as string} className="hb"><span>{l}</span><div className="track"><div className={`fill ${c} a grow-x`} style={d(18 + i * 0.5, { width: `${((v as number) / 6) * 100}%` })} /></div><b className={c === "wp" ? "lime" : ""}>{t}</b></div>
             ))}
           </div>
           <div className="settle">
             <div className="ch-t">Time until the money arrives</div>
             <div className="tl">
-              {[["~1 s", "WhitePay", 4], ["T+1 to T+3", "Card payout", 72], ["1–3 days", "Bank transfer", 94]].map(([v, l, x], i) => (
+              {[["~1 s", "WondrPay", 4], ["T+1 to T+3", "Card payout", 72], ["1–3 days", "Bank transfer", 94]].map(([v, l, x], i) => (
                 <div key={l as string} className={`tl-m a pop ${i === 0 ? "wp" : ""}`} style={d(20 + i * 0.6, { left: `${x}%` })}><b>{v}</b><span>{l}</span></div>
               ))}
               <div className="tl-axis"><span>seconds</span><span>hours</span><span>days</span></div>
@@ -485,7 +485,7 @@ function S10Close({ s }: { s: number }) {
       <div className="close-copy">
         <div className="tagline big">{["Scan.", "Verify.", "Pay.", "Everywhere."].map((w, i) => <span key={w} className={`a rise ${i === 3 ? "lime" : ""}`} style={d(0.5 + i * 0.5)}>{w}</span>)}</div>
         <div className="partners a fade" style={d(3)}><span>Whitechain</span><span>ENS</span><span>Arkiv</span><span>World ID</span></div>
-        <div className="url a fade" style={d(3.6)}>whitepay.vercel.app</div>
+        <div className="url a fade" style={d(3.6)}>wondrpay.vercel.app</div>
         <div className="sub-c a fade" style={d(4.2)}>Built at ETHGlobal</div>
       </div>
     </div>
@@ -495,24 +495,24 @@ function S10Close({ s }: { s: number }) {
 export const SCENES: Scene[] = [
   { id: "problem", title: "The problem", start: 0, end: 12, render: (s) => <S1Problem s={s} />,
     vo: "Every day, billions of small payments lose money on the way. Fees on the sender, fees on the shop, and days of waiting for the money to land." },
-  { id: "reveal", title: "WhitePay", start: 12, end: 24, render: () => <S2Reveal />,
-    vo: "This is WhitePay. Digital dollars that move like a text message. Scan, verify, pay. No gas, no seed phrase, no waiting." },
+  { id: "reveal", title: "WondrPay", start: 12, end: 24, render: () => <S2Reveal />,
+    vo: "This is WondrPay. Digital dollars that move like a text message. Scan, verify, pay. No gas, no seed phrase, no waiting." },
   { id: "pay", title: "Paying a shop", start: 24, end: 50, render: (s) => <S3Pay s={s} />,
-    vo: "At the counter, scan the shop's code. WhitePay checks it before you pay: created by WhitePay, amount untouched, signed by the real merchant, still valid. Touch the fingerprint sensor, and it's done. Settled on Whitechain in about a second, with a permanent receipt on Arkiv. You never paid a cent in gas." },
+    vo: "At the counter, scan the shop's code. WondrPay checks it before you pay: created by WondrPay, amount untouched, signed by the real merchant, still valid. Touch the fingerprint sensor, and it's done. Settled on Whitechain in about a second, with a permanent receipt on Arkiv. You never paid a cent in gas." },
   { id: "merchant", title: "For the shop", start: 50, end: 68, render: (s) => <S4Merchant s={s} />,
     vo: "For the shop, the QR appears in half a second. Money arrives in seconds, not days, at no card fee. Refunds can only go back to the person who paid, and the books export to CSV in one tap." },
   { id: "website", title: "Any website", start: 68, end: 90, render: (s) => <S5Website s={s} />,
     vo: "Any website can accept it. One script tag, one button, one server call, and a signed webhook that the shop verifies on-chain. Prices are signed by the shop, so nobody can change them in the browser." },
   { id: "subs", title: "Subscriptions", start: 90, end: 108, render: (s) => <S6Subs s={s} />,
-    vo: "Subscriptions, done right. You approve only today's payment. When the next one is due, the ring around your avatar runs out and WhitePay asks you. One tap to pay, one tap to cancel. Nothing is charged behind your back." },
+    vo: "Subscriptions, done right. You approve only today's payment. When the next one is due, the ring around your avatar runs out and WondrPay asks you. One tap to pay, one tap to cancel. Nothing is charged behind your back." },
   { id: "compare", title: "Web2 vs Web3", start: 108, end: 135, render: (s) => <S7Compare s={s} />,
-    vo: "Compare that to card rails: a few percent per sale, money that lands days later, chargebacks the shop pays for. On WhitePay, settlement is final in a second, cross-border costs the same as paying next door, and every receipt can be checked by anyone." },
+    vo: "Compare that to card rails: a few percent per sale, money that lands days later, chargebacks the shop pays for. On WondrPay, settlement is final in a second, cross-border costs the same as paying next door, and every receipt can be checked by anyone." },
   { id: "growth", title: "Growth", start: 135, end: 160, render: (s) => <S8Growth s={s} />,
     vo: "Every new user is new activity on Whitechain. More shops bring more customers. More customers bring more shops. Each payment is a real on-chain transaction and a real receipt on Arkiv: more fees for validators, more USDT moving on Whitechain, and a network that gets more useful the bigger it gets." },
   { id: "global", title: "Global", start: 160, end: 172, render: (s) => <S9Global s={s} />,
     vo: "And because it's a digital dollar, borders stop mattering. A worker in Dubai can pay a shop in Mumbai the same way they pay the one downstairs, in seconds, without losing a slice on the way." },
   { id: "close", title: "Close", start: 172, end: 180, render: (s) => <S10Close s={s} />,
-    vo: "WhitePay. Scan, verify, pay. Everywhere." },
+    vo: "WondrPay. Scan, verify, pay. Everywhere." },
 ]
 
 /** payment-success moments that get the chime (absolute seconds) */

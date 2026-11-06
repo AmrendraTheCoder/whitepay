@@ -27,5 +27,5 @@ export const config = {
   maxGasPrice: 50_000_000_000n, // 50 gwei; Whitechain min base fee is 5 gwei
   explorer: EXPLORER_URL,
   arkivExplorer: "https://rabdi.explorer.arkiv.network",
-  ensParent: process.env.ENS_PARENT || "whitepay.eth",
+  ensParent: process.env.ENS_PARENT || "wondrpay.eth",
 }

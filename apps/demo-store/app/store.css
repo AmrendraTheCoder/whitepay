@@ -47,14 +47,14 @@ body { margin: 0; overflow-x: clip; }
 
 /* checkout button slots: the SDK's ::part(button) adopts the store's look */
 .checkout-slot { position: relative; margin-top: var(--space-2); }
-.checkout-slot whitepay-button:not([hidden]) { display: block; }
-.checkout-slot whitepay-button::part(button) { width: 100%; height: 44px; font-size: var(--text-sm); box-shadow: none; }
-.product .checkout-slot whitepay-button::part(button) { background: transparent; color: var(--c-text); box-shadow: inset 0 0 0 1px var(--c-border-strong); }
-.product .checkout-slot whitepay-button::part(button):hover { background: var(--c-surface-2); }
-.club-cta whitepay-button::part(button) { height: 52px; font-size: var(--text-md); background: var(--c-text); color: var(--c-bg); }
-.summary whitepay-button::part(button) { height: 52px; font-size: var(--text-md); }
+.checkout-slot wondrpay-button:not([hidden]) { display: block; }
+.checkout-slot wondrpay-button::part(button) { width: 100%; height: 44px; font-size: var(--text-sm); box-shadow: none; }
+.product .checkout-slot wondrpay-button::part(button) { background: transparent; color: var(--c-text); box-shadow: inset 0 0 0 1px var(--c-border-strong); }
+.product .checkout-slot wondrpay-button::part(button):hover { background: var(--c-surface-2); }
+.club-cta wondrpay-button::part(button) { height: 52px; font-size: var(--text-md); background: var(--c-text); color: var(--c-bg); }
+.summary wondrpay-button::part(button) { height: 52px; font-size: var(--text-md); }
 .marker { position: absolute; z-index: 2; top: calc(-1 * var(--space-3)); right: calc(-1 * var(--space-2)); width: 24px; height: 24px; border-radius: 50%; background: #2448ff; color: #fff; font: var(--weight-bold) var(--text-xs) var(--font-body); display: grid; place-items: center; text-decoration: none; }
-.inspecting .checkout-slot whitepay-button { outline: 2px dashed #2448ff; outline-offset: 4px; border-radius: var(--radius-pill); }
+.inspecting .checkout-slot wondrpay-button { outline: 2px dashed #2448ff; outline-offset: 4px; border-radius: var(--radius-pill); }
 
 /* club */
 .club { display: grid; grid-template-columns: .8fr 1.2fr; gap: var(--space-12); align-items: center; }

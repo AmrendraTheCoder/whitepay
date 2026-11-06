@@ -25,7 +25,7 @@ export function WorldVerify({
   onDenied,
   className = "btn btn-primary",
 }: {
-  /** name = personal WhitePay name, shop = verified merchant, pay = step-up for one large payment */
+  /** name = personal WondrPay name, shop = verified merchant, pay = step-up for one large payment */
   purpose: "name" | "shop" | "pay"
   paymentRef?: string
   signal: string

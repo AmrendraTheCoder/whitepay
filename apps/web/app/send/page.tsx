@@ -59,7 +59,7 @@ function Send() {
       <main className="shell">
         <TopBar />
         <div className="card stack">
-          <h2>Set up WhitePay first</h2>
+          <h2>Set up WondrPay first</h2>
           <a className="btn btn-primary" href="/app">Create wallet</a>
         </div>
       </main>
@@ -172,7 +172,7 @@ function Send() {
               done={phase === "finishing"}
             />
           )}
-          <div className="sub center">Network fee: 0. WhitePay covers the gas.</div>
+          <div className="sub center">Network fee: 0. WondrPay covers the gas.</div>
         </>
       )}
       {unlock && payee && (
@@ -190,7 +190,7 @@ function friendlyPayError(msg: string) {
   if (/authorization is used|already paid|orderalreadypaid/.test(m)) return "This payment was already made. Nothing more was charged."
   if (/expired|orderexpired/.test(m)) return "This payment request expired. Ask for a new QR code."
   if (/rate|too many/.test(m)) return "Too many attempts. Wait a minute and try again."
-  if (/daily limit/.test(m)) return "You've reached today's WhitePay spending limit."
+  if (/daily limit/.test(m)) return "You've reached today's WondrPay spending limit."
   if (/reject|denied|cancel/.test(m)) return "Cancelled. Nothing was charged."
   if (/fetch|network/.test(m)) return "Network problem: nothing was charged. Check your connection and try again."
   return msg

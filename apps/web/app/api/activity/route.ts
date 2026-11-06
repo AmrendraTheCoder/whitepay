@@ -1,4 +1,4 @@
-// Unified activity for ANY wallet: WhitePay receipts (Arkiv: names, kind, receipt) merged with every
+// Unified activity for ANY wallet: WondrPay receipts (Arkiv: names, kind, receipt) merged with every
 // on-chain USDT transfer (Whitechain explorer), so swaps, MetaMask sends and direct transfers show too.
 import { getAddress, isAddress, type Address } from "viem"
 import { listReceipts, config } from "@whitepay/server"
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     ])
 
     const rows = new Map<string, ActivityRow>()
-    // 1) WhitePay receipts (richest data)
+    // 1) WondrPay receipts (richest data)
     for (const r of receipts) {
       const incoming = String(r.merchant.value).toLowerCase() === lc
       const tx = String(r.wcTxHash.value)
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
         key: `${tx}:${t.log_index ?? 0}`,
         direction: incoming ? "in" : "out",
         counterparty: other,
-        counterpartyName: viaRouter ? (t.method === "refund" || t.method === "refundDirect" ? "Refund" : "WhitePay payment") : undefined,
+        counterpartyName: viaRouter ? (t.method === "refund" || t.method === "refundDirect" ? "Refund" : "WondrPay payment") : undefined,
         amount: BigInt(t.total.value).toString(),
         at: Math.floor(new Date(t.timestamp).getTime() / 1000),
         kind: viaRouter ? (t.method === "refund" || t.method === "refundDirect" ? "refund" : "whitepay") : "transfer",

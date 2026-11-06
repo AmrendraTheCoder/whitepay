@@ -1,5 +1,5 @@
 "use client"
-// WalletConnect v2: connect MetaMask mobile (or any WC wallet) while WhitePay stays in Chrome.
+// WalletConnect v2: connect MetaMask mobile (or any WC wallet) while WondrPay stays in Chrome.
 // Chrome shows the WalletConnect modal -> the wallet app opens only to approve -> back to Chrome.
 // Every later signature request travels over the same session; the page never leaves Chrome.
 import { whitechainSepolia } from "@whitepay/shared"
@@ -31,7 +31,7 @@ export async function wcProvider(): Promise<Provider> {
       "wallet_switchEthereumChain", "wallet_addEthereumChain",
     ],
     metadata: {
-      name: "WhitePay",
+      name: "WondrPay",
       description: "Scan, verify, pay in USDT on Whitechain. No gas.",
       url: location.origin,
       icons: [`${location.origin}/icon.svg`],

@@ -1,4 +1,4 @@
-// Public: the address that signs WhitePay webhooks (merchants pin it in verifyWhitePayWebhook).
+// Public: the address that signs WondrPay webhooks (merchants pin it in verifyWondrPayWebhook).
 import { webhookSignerAddress } from "@whitepay/server"
 import { json, CORS } from "@/lib/json"
 

@@ -1,4 +1,4 @@
-// Issue a <label>.whitepay.eth name to an existing wallet (e.g. merchants registered before ENS was live).
+// Issue a <label>.wondrpay.eth name to an existing wallet (e.g. merchants registered before ENS was live).
 // Run: npx tsx --env-file=.env scripts/ens-issue.ts <label> <address> [displayName] [kind=merchant|person]
 import { getAddress } from "viem"
 import { issueSubname, resolveName, getTexts } from "@whitepay/server"

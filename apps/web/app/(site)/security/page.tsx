@@ -1,19 +1,19 @@
 import type { Metadata } from "next"
 import { ButtonLink, Card, CodeBlock, Grid, Section, SectionHeader, type IconName } from "@whitepay/ui"
 
-export const metadata: Metadata = { title: "Security", description: "How WhitePay protects your money: rules enforced on-chain, keys that never leave your phone, signed webhooks, a strict web security layer and a public test suite.", alternates: { canonical: "/security" } }
+export const metadata: Metadata = { title: "Security", description: "How WondrPay protects your money: rules enforced on-chain, keys that never leave your phone, signed webhooks, a strict web security layer and a public test suite.", alternates: { canonical: "/security" } }
 
 const LAYERS: { id: string; title: string; icon: IconName; items: [string, string][] }[] = [
   { id: "money", title: "Money rules, enforced on-chain", icon: "lock", items: [
     ["Exact amounts only", "Shops sign merchant, amount, order id and deadline (EIP-712). The payment router settles only that, once."],
     ["No replays", "USDT authorizations carry single-use nonces, so a payment can never be submitted twice."],
-    ["No front-running", "Payments use receiveWithAuthorization: only the WhitePay router can execute them."],
+    ["No front-running", "Payments use receiveWithAuthorization: only the WondrPay router can execute them."],
     ["Safe refunds", "Only the shop's payout wallet can refund, only to the original payer, never more than was paid."],
   ] },
   { id: "keys", title: "Your keys", icon: "key", items: [
     ["Never leave the phone", "AES-GCM encrypted with a passkey (fingerprint or Face ID) or a PBKDF2-hardened PIN with lockout."],
     ["Unlock once per session", "Stays unlocked for 15 idle minutes in that tab only, and locks when you close it."],
-    ["MetaMask too", "External wallets still approve every signature, with WhitePay's PIN or fingerprint check in front."],
+    ["MetaMask too", "External wallets still approve every signature, with WondrPay's PIN or fingerprint check in front."],
   ] },
   { id: "web", title: "Web layer", icon: "shield", items: [
     ["Strict CSP", "A fresh nonce on every request with 'strict-dynamic', no framing, and HSTS preload."],

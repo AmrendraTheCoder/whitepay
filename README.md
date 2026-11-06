@@ -1,10 +1,10 @@
-# WhitePay
+# WondrPay
 
-**UPI-style stablecoin payments on Whitechain.** Pay a name like `chai-shop.whitepay.eth` in USDT, with no gas, no seed phrase and no chain knowledge. Merchants get a drop-in checkout, signed orders, collect requests, refunds and an accountant export.
+**UPI-style stablecoin payments on Whitechain.** Pay a name like `chai-shop.wondrpay.eth` in USDT, with no gas, no seed phrase and no chain knowledge. Merchants get a drop-in checkout, signed orders, collect requests, refunds and an accountant export.
 
 > Built at ETHGlobal Mumbai (Nov 2026). Work in progress. See [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md).
 
-**Live demo: https://whitepay.vercel.app** (mobile-first; open on a phone for the camera scanner and fingerprint)
+**Live demo: https://wondrpay.vercel.app** (mobile-first; open on a phone for the camera scanner and fingerprint)
 
 ## Live on Whitechain Sepolia (chain 1874)
 
@@ -15,12 +15,12 @@
 | USDT (official test token) | [`0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7`](https://explorer.testnet.whitechain.io/address/0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7) |
 
 **USDT payment settled in the main flow:** [`0x1c9057fc…c362f`](https://explorer.testnet.whitechain.io/tx/0x1c9057fc24477b69f37e8da80b2c1e1bf80908a55a84e908139e07cac86c362f)
-- 1 USDT from a customer wallet holding **0 WBT** to `chai-shop.whitepay.eth`.
+- 1 USDT from a customer wallet holding **0 WBT** to `chai-shop.wondrpay.eth`.
 - Settled through `PaymentRouter.payOrder` with a merchant-signed order.
-- Gas was paid by the WhitePay relayer.
+- Gas was paid by the WondrPay relayer.
 
 ## Why onchain stablecoin settlement on Whitechain
-A UPI or card payment settles in one country's currency, in bank batches, through licensed intermediaries, and the receipt lives in a private bank database. WhitePay settles each payment atomically in USDT on Whitechain:
+A UPI or card payment settles in one country's currency, in bank batches, through licensed intermediaries, and the receipt lives in a private bank database. WondrPay settles each payment atomically in USDT on Whitechain:
 - A client in Dubai can pay a studio in Mumbai in seconds.
 - There is no "pending" state and no chargeback-style settlement risk.
 - Refunds are capped and verifiable by anyone from the transaction hash.
@@ -44,7 +44,7 @@ node scripts/first-payment.mjs 1   # reproduces the flow above (needs .env)
 A payment in progress is a `whitepay.request` entity that lives for its TTL: 5 min for a merchant QR, 30 min max for invoices. It is either **completed** (patched to `paid` and linked to a `whitepay.receipt`) or **depleted** (it expires and vanishes). The same deadline is enforced on-chain.
 
 Before paying, the payer's app trusts the entity only if all four checks pass:
-1. `$owner` is the WhitePay writer.
+1. `$owner` is the WondrPay writer.
 2. The fields re-hash to the signed order digest.
 3. The merchant signature matches the `MerchantRegistry` signer on Whitechain.
 4. The request is still pending and before its deadline.
@@ -53,7 +53,7 @@ Before paying, the payer's app trusts the entity only if all four checks pass:
 - Request entity: `0x9eb6f2fc66b0135ab418fbd8c9ca792c20fb51d6b27b2831c60ed4481c8e405e`
 - Settled on Whitechain: [`0x355d8505…370cb`](https://explorer.testnet.whitechain.io/tx/0x355d8505a99317c41a2ec3156a9b578a217fb8772c27a974a2de6c728e8370cb)
 - Receipt entity: `0x75346a3d7fe9d743d2597d0e2123ef93c9ba9d7273aac05bba2de71112ef637b`
-- Rejected as expected: tampered amount, forged signature, entity not owned by WhitePay, paying twice (Arkiv status and on-chain `OrderAlreadyPaid`), and an expired request (gone from Arkiv, `OrderExpired` on-chain).
+- Rejected as expected: tampered amount, forged signature, entity not owned by WondrPay, paying twice (Arkiv status and on-chain `OrderAlreadyPaid`), and an expired request (gone from Arkiv, `OrderExpired` on-chain).
 
 **Arkiv writer wallet:** `0x4D5910272479420d1383100b3986d5fc9d5D658F`
 
@@ -71,7 +71,7 @@ npm install && npm run dev        # http://localhost:3000 (reads the root .env)
 | `/` customer | Create a device wallet: a 6-digit PIN plus optional fingerprint/Face ID (WebAuthn passkey with PRF). The key is encrypted on the device; no seed phrase. Shows USDT balance and payment history **read from Arkiv** |
 | `/scan` | Camera QR scanner, or paste a payment link |
 | `/pay?req=<entityKey>` | Fetches the request from Arkiv and shows the 4 verification checks, merchant badge and expiry countdown. Fingerprint or PIN unlocks the key, the device re-hashes the order and signs EIP-3009, then the relayer settles. Expired or already-paid requests are refused |
-| `/merchant` | **Sign up a shop**: business name and a handle (`<handle>.whitepay.eth`, with an availability check and reserved names). The phone signs the request, the shop is registered in `MerchantRegistry` on Whitechain, and its profile is published to Arkiv. Then: enter an amount and the **order is signed on the merchant's own device**, giving a QR valid for 5 min. The screen flips to "Received" live and lists receipts from Arkiv |
+| `/merchant` | **Sign up a shop**: business name and a handle (`<handle>.wondrpay.eth`, with an availability check and reserved names). The phone signs the request, the shop is registered in `MerchantRegistry` on Whitechain, and its profile is published to Arkiv. Then: enter an amount and the **order is signed on the merchant's own device**, giving a QR valid for 5 min. The screen flips to "Received" live and lists receipts from Arkiv |
 | `/receive` | Personal QR (UPI "show my QR"), with an optional fixed amount, Share and Copy link |
 | `/send` | Pay a person by QR, handle or address. The signature binds recipient + memo (`payDirect`), with no gas |
 
@@ -89,9 +89,9 @@ Earlier test with the demo merchant:
 `scripts/p2p-send.ts` sends a gasless person-to-person payment (`payDirect`) to any address.
 
 ## Names on ENSv2 (Ethereum Sepolia)
-`whitepay.eth` is registered on ENSv2 Sepolia with its own **UserRegistry** (`0x7dF61f730b8f90668aD10363e9E086131422264d`) and **PermissionedResolver** (`0xc10Ffe23aada8a5cb09DDbe09259e251971844ea`). Each name stores the holder's **Whitechain address under coinType 2147485522** (ENSIP-11 for chain 1874), plus `display`, `kind` and `verified` text records.
-- **Shops** get `<handle>.whitepay.eth` automatically at sign-up. Live examples: `chai-shop.whitepay.eth`, `masala-corner.whitepay.eth`.
-- **People** claim `<name>.whitepay.eth` from the home screen: a wallet signature plus World ID, one name per human.
+`wondrpay.eth` is registered on ENSv2 Sepolia with its own **UserRegistry** (`0x7dF61f730b8f90668aD10363e9E086131422264d`) and **PermissionedResolver** (`0xc10Ffe23aada8a5cb09DDbe09259e251971844ea`). Each name stores the holder's **Whitechain address under coinType 2147485522** (ENSIP-11 for chain 1874), plus `display`, `kind` and `verified` text records.
+- **Shops** get `<handle>.wondrpay.eth` automatically at sign-up. Live examples: `chai-shop.wondrpay.eth`, `masala-corner.wondrpay.eth`.
+- **People** claim `<name>.wondrpay.eth` from the home screen: a wallet signature plus World ID, one name per human.
 - **Paying** a name resolves it live through ENS (`/api/resolve`, `getEnsAddress` with coinType 1874).
 - Scripts: `scripts/ens-setup.ts` (one-time setup), `scripts/ens-issue.ts`, `scripts/ens-check.ts <name>`.
 

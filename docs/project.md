@@ -1,4 +1,4 @@
-# WhitePay: "GPay on Whitechain"
+# WondrPay: "GPay on Whitechain"
 
 A UPI/GPay-style payments app: pay a **name** (not an address) in **USDT on Whitechain**, with payment history in **Arkiv**, and **World ID** human verification for sensitive actions. No bill splitting (Whitechain rules exclude bill splitters).
 
@@ -6,7 +6,7 @@ A UPI/GPay-style payments app: pay a **name** (not an address) in **USDT on Whit
 | Layer | Sponsor | What it does in the app | Target sub-track |
 |---|---|---|---|
 | Money | **Whitechain** | USDT payments on chain 1874: merchant QR checkout, payment requests, refunds, receipts. Gasless for the payer (relayer pays WBT) | **Operate** (primary), **Scale** angle |
-| Names | **ENS** | Every user/merchant gets a subname (`ravi.whitepay.eth`, `chai-shop.whitepay.eth`) under our ENSv2 registry; resolver holds their Whitechain address and payment prefs | **Best Use of ENSv2** |
+| Names | **ENS** | Every user/merchant gets a subname (`ravi.wondrpay.eth`, `chai-shop.wondrpay.eth`) under our ENSv2 registry; resolver holds their Whitechain address and payment prefs | **Best Use of ENSv2** |
 | Data | **Arkiv** | Payment requests (expire on due date), receipts, merchant profiles as wallet-owned entities; history and merchant dashboard read from Arkiv | **Build on Arkiv (from scratch)** |
 | Trust | **World** | Agent Pass / IDKit check before: claiming a name, payments above a limit, issuing a refund. Denied path blocks the action | **Agent Pass** or **IDKit** |
 
@@ -26,8 +26,8 @@ sign Order (EIP-712) ──►   create entity, status=pending,
                            expiry = TTL (5 min P2M QR,
                            ≤30 min invoices)
 show dynamic QR  ───────────────────────────────────────────►  scan → fetch entity by key
-  whitepay://pay?req=<entityKey>                                 VERIFY (all must pass):
-                                                                  1. $owner == WhitePay backend writer
+  wondrpay://pay?req=<entityKey>                                 VERIFY (all must pass):
+                                                                  1. $owner == WondrPay backend writer
                                                                   2. digest recomputed from fields == stored digest
                                                                   3. merchant sig recovers to MerchantRegistry signer (on-chain read)
                                                                   4. status == pending, not expired
@@ -46,15 +46,15 @@ receiptRef=<key>
 - **TTL is enforced twice:** by Arkiv expiry (the entity disappears) and by the on-chain order `deadline` (the payment reverts).
 - **Lifetimes:** 5 min for a merchant dynamic QR, 30 min max for invoices/collect requests, about 6 months for receipts (Arkiv maximum).
 - **P2P is push only.** You show your QR or name and the payer chooses to pay (`payDirect`). Only verified merchants may *send* collect requests (anti-scam).
-- **Static QR:** a shop sticker encodes `chai-shop.whitepay.eth`. The payer enters the amount, and the backend creates the order on demand.
+- **Static QR:** a shop sticker encodes `chai-shop.wondrpay.eth`. The payer enters the amount, and the backend creates the order on demand.
 - **Auth:**
   - A passkey (biometric) unlocks the device-held key.
   - The PIN is a rate-limited fallback.
   - World ID is the step-up above the limit and for refunds.
 
 ## Core user flows (demo script)
-1. **Onboard**: user verifies with World ID → claims `name.whitepay.eth` (one name per human) → embedded wallet, no seed phrase.
-2. **Customer pays merchant**: scan QR / type `chai-shop.whitepay.eth` → ENS resolves to Whitechain address → signs a gasless USDT authorization → relayer settles on Whitechain → receipt entity written to Arkiv.
+1. **Onboard**: user verifies with World ID → claims `name.wondrpay.eth` (one name per human) → embedded wallet, no seed phrase.
+2. **Customer pays merchant**: scan QR / type `chai-shop.wondrpay.eth` → ENS resolves to Whitechain address → signs a gasless USDT authorization → relayer settles on Whitechain → receipt entity written to Arkiv.
 3. **Merchant view**: dashboard reads payments from Arkiv (filter by date/status), issues a (partial) refund (World check gates it), exports CSV for the accountant.
 4. **Payment request**: merchant creates a request/invoice → Arkiv entity expiring on its due date → customer pays via link.
 5. **Failure paths**: World verification denied → refund/name claim blocked; expired request → cannot be paid.

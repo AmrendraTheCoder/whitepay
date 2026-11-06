@@ -1,16 +1,16 @@
-# UPI-Inspired Architecture for WhitePay
+# UPI-Inspired Architecture for WondrPay
 
 Source: NPCI *UPI Procedural Guidelines v1.5* (July 2016), 62 pages, read in full. It is old, and UPI has changed since, so treat it as design inspiration rather than current rules.
 
-## 1. Role mapping: UPI → WhitePay
-| UPI role | What it does in UPI | WhitePay equivalent |
+## 1. Role mapping: UPI → WondrPay
+| UPI role | What it does in UPI | WondrPay equivalent |
 |---|---|---|
 | **NPCI / UPI switch** | Routes ReqPay/RespPay messages, resolves addresses, coordinates settlement | **PaymentRouter contract** on Whitechain (1874) |
-| **VPA `name@psp`** | Human-readable payment address | **ENS subname `name.whitepay.eth`** |
-| **PSP handle (`@okaxis`)** | Namespace owned by one PSP | Parent name `whitepay.eth` (other apps can run their own parent) |
+| **VPA `name@psp`** | Human-readable payment address | **ENS subname `name.wondrpay.eth`** |
+| **PSP handle (`@okaxis`)** | Namespace owned by one PSP | Parent name `wondrpay.eth` (other apps can run their own parent) |
 | **NPCI Mapper / PSP local mapper** | Address → account resolution | **ENS resolver** (address record for chain 1874 + text records) |
 | **Issuer / remitter bank** | Holds money, validates the PIN, debits | User's **smart account / embedded wallet** holding USDT |
-| **Payer PSP app** | Front end, device binding, first factor | **WhitePay PWA** |
+| **Payer PSP app** | Front end, device binding, first factor | **WondrPay PWA** |
 | **NPCI Common Library** | The only place a PIN is ever entered | **Passkey / secure enclave**: keys never touch our app code or the merchant's |
 | **Acquirer + Reference ID** | Merchant gets a Reference ID bound to an amount; the PSP validates it before paying | **Server-signed EIP-712 Order** (merchant, amount, orderId, expiry), checked by the router |
 | **Merchant whitelist ("address verified" icon)** | Anti-phishing for large merchants | **Verified-merchant registry**: ENS text record + World-verified owner → badge in app |
@@ -33,7 +33,7 @@ Source: NPCI *UPI Procedural Guidelines v1.5* (July 2016), 62 pages, read in ful
    - Ours: show the ENS name, a World-verified badge and the resolved address before any payment or collect approval.
    - Never show a masked or unnamed requester. UPI declines masked collect requests.
 4. **Standard deep link + QR spec.** UPI's `upi://pay?pa=…&am=…` lets any app pay any merchant.
-   - Ours: publish `whitepay://pay?to=chai-shop.whitepay.eth&amount=…&order=…`, compatible with EIP-681 (`ethereum:` URI) so any wallet can pay.
+   - Ours: publish `wondrpay://pay?to=chai-shop.wondrpay.eth&amount=…&order=…`, compatible with EIP-681 (`ethereum:` URI) so any wallet can pay.
    - The QR must show name, address and amount (mandatory in UPI's checklist).
 5. **Transaction status + dispute from history.** UPI mandates "check status" and "raise complaint" against a transaction ID.
    - Ours: history (read from Arkiv) → tap a payment → status (onchain confirmation) → "Raise dispute" creates an Arkiv entity → merchant refunds with one click.
@@ -57,8 +57,8 @@ Source: NPCI *UPI Procedural Guidelines v1.5* (July 2016), 62 pages, read in ful
 
 ### Nice to have
 11. **Embedded vs independent mode.** UPI's PSP SDK can run inside a merchant app or as a standalone app.
-    - Ours: `@whitepay/checkout` widget (embedded, ~20 lines) and the WhitePay PWA (independent).
-    - A "Pay with WhitePay" button opens a chooser.
+    - Ours: `@whitepay/checkout` widget (embedded, ~20 lines) and the WondrPay PWA (independent).
+    - A "Pay with WondrPay" button opens a chooser.
 12. **Daily settlement report.** UPI sends members a daily settlement report plus raw files for reconciliation.
     - Ours: a merchant "Daily settlement" view and CSV built from onchain events, cross-checked against Arkiv receipts. This is the accountant export.
 13. **Merchant category code (MCC).** Store a category in the merchant's ENS text record, for analytics and for spotting a person who is really running a shop (UPI does this to enforce merchant rules).
@@ -69,10 +69,10 @@ Source: NPCI *UPI Procedural Guidelines v1.5* (July 2016), 62 pages, read in ful
 ## 3. Lesson from UPI's later history
 UPI's **P2P collect requests became a major fraud vector**: scammers send a "collect" and the victim approves, thinking they're receiving money. NPCI has since moved to restrict or retire P2P collect (reported for 2025; verify the details before citing).
 
-So in WhitePay, **collect requests are allowed only from verified merchants**, never P2P. The approval screen says "You are **PAYING** X USDT to …" in large type.
+So in WondrPay, **collect requests are allowed only from verified merchants**, never P2P. The approval screen says "You are **PAYING** X USDT to …" in large type.
 
 ## 4. Where onchain beats UPI (use in the README "why Whitechain" line)
-| UPI limitation | WhitePay on Whitechain |
+| UPI limitation | WondrPay on Whitechain |
 |---|---|
 | Domestic INR only; cross-border is limited | USDT works across borders; a Dubai client can pay a Mumbai studio |
 | Net settlement in cycles; settlement risk managed via a guarantee fund | Each payment settles atomically onchain; no "pending" state |

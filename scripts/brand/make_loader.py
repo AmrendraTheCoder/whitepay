@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-WhitePay loader: one timeline -> Lottie JSON (main + reduced-motion), 2x PNG sequence, MP4 previews.
+WondrPay loader: one timeline -> Lottie JSON (main + reduced-motion), 2x PNG sequence, MP4 previews.
 
 Spec (docs/LOADER_PROMPT.md):
   512x512 canvas, transparent. Rounded tile #2448FF (radius 120/512 of the tile) with a soft blue glow
@@ -144,9 +144,9 @@ def lottie(reduced=False):
                      {"ty": "el", "nm": "circle", "d": 1, "p": static([dx, dy]), "s": static([dr * 2, dr * 2])},
                      {"ty": "fl", "nm": "lime", "c": static(rgba(LIME)), "o": static(100), "r": 1},
                  ])]}
-    return {"v": "5.12.1", "fr": FPS, "ip": 0, "op": op, "w": 512, "h": 512, "nm": "WhitePay loader" + (" (reduced)" if reduced else ""),
+    return {"v": "5.12.1", "fr": FPS, "ip": 0, "op": op, "w": 512, "h": 512, "nm": "WondrPay loader" + (" (reduced)" if reduced else ""),
             "ddd": 0, "assets": [], "layers": [dot_layer, w_layer, tile_layer], "markers": [],
-            "meta": {"g": "WhitePay make_loader.py", "d": "Brand loader. Ease cubic-bezier(.65,0,.35,1)."}}
+            "meta": {"g": "WondrPay make_loader.py", "d": "Brand loader. Ease cubic-bezier(.65,0,.35,1)."}}
 
 # ------------------------------------------------------------------ renderer (same timeline)
 SEG = list(zip(W_PATH, W_PATH[1:]))
@@ -211,14 +211,14 @@ def render(t, size=1024, reduced=False, ss=2):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    for reduced, name in ((False, "whitepay-loader.json"), (True, "whitepay-loader-reduced.json")):
+    for reduced, name in ((False, "wondrpay-loader.json"), (True, "wondrpay-loader-reduced.json")):
         with open(os.path.join(OUT, name), "w") as f:
             json.dump(lottie(reduced), f, separators=(",", ":"))
     # 2x PNG sequence (1024x1024, 60 fps, one loop)
     png_dir = os.path.join(OUT, "png@2x")
     os.makedirs(png_dir, exist_ok=True)
     for i in range(FRAMES):
-        render(i / FPS).save(os.path.join(png_dir, f"whitepay-loader_{i:03d}.png"), optimize=True)
+        render(i / FPS).save(os.path.join(png_dir, f"wondrpay-loader_{i:03d}.png"), optimize=True)
     # 3 s MP4 previews (loop continues past 1.8 s) on dark and light
     for bg, tag in (("#0A0C19", "dark"), ("#F4F6FD", "light")):
         tmp = os.path.join(OUT, f".frames-{tag}")
@@ -229,7 +229,7 @@ def main():
             Image.alpha_composite(canvas, frame).convert("RGB").save(os.path.join(tmp, f"{i:03d}.png"))
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS), "-i", os.path.join(tmp, "%03d.png"),
                         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-movflags", "+faststart",
-                        os.path.join(OUT, f"whitepay-loader-preview-{tag}.mp4")], check=True)
+                        os.path.join(OUT, f"wondrpay-loader-preview-{tag}.mp4")], check=True)
         for f in os.listdir(tmp): os.remove(os.path.join(tmp, f))
         os.rmdir(tmp)
     print("done:", sorted(os.listdir(OUT)))

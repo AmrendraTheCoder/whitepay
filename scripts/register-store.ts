@@ -1,4 +1,4 @@
-// Register the demo store's shop (the separate app that integrates the WhitePay checkout SDK).
+// Register the demo store's shop (the separate app that integrates the WondrPay checkout SDK).
 // Run: npx tsx --env-file=.env scripts/register-store.ts [label] [displayName]
 import { type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
@@ -6,7 +6,7 @@ import { merchantSignupMessage } from "@whitepay/shared"
 import { registerMerchant, getMerchantByAddress } from "@whitepay/server"
 
 async function main() {
-  const [label = "demo-store", displayName = "WhitePay Demo Store"] = process.argv.slice(2)
+  const [label = "demo-store", displayName = "WondrPay Demo Store"] = process.argv.slice(2)
   const shop = privateKeyToAccount(process.env.STORE_MERCHANT_PK as Hex)
   const existing = await getMerchantByAddress(shop.address)
   if (existing) return console.log("already registered:", existing.ensName, shop.address)

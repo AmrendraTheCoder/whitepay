@@ -29,13 +29,13 @@ type DeviceWallet = {
   createdAt: number
 }
 /** A wallet whose keys live elsewhere (MetaMask extension or a WalletConnect app).
- *  WhitePay still guards every payment with its OWN PIN / fingerprint before asking it to sign. */
+ *  WondrPay still guards every payment with its OWN PIN / fingerprint before asking it to sign. */
 type InjectedWallet = {
   kind: "injected" | "walletconnect"
   address: `0x${string}`
   label?: string
   createdAt: number
-  pinCheck?: { salt: string; hash: string } // PBKDF2 verifier of the WhitePay PIN (never the PIN)
+  pinCheck?: { salt: string; hash: string } // PBKDF2 verifier of the WondrPay PIN (never the PIN)
   passkeyId?: string // WebAuthn credential used as a user-verification gate
 }
 type Stored = DeviceWallet | InjectedWallet
@@ -78,7 +78,7 @@ export type WalletInfo = {
   address: `0x${string}`
   kind: "device" | "injected" | "walletconnect"
   hasPasskey: boolean
-  /** every wallet must have a WhitePay PIN before it can pay */
+  /** every wallet must have a WondrPay PIN before it can pay */
   hasPin: boolean
   label: string
 }
@@ -215,8 +215,8 @@ export async function enablePasskey(pin: string) {
   const cred = (await navigator.credentials.create({
     publicKey: {
       challenge: rand(32) as BufferSource,
-      rp: { name: "WhitePay" },
-      user: { id: rand(16) as BufferSource, name: `whitepay-${account.address.slice(2, 8)}`, displayName: "WhitePay wallet" },
+      rp: { name: "WondrPay" },
+      user: { id: rand(16) as BufferSource, name: `whitepay-${account.address.slice(2, 8)}`, displayName: "WondrPay wallet" },
       pubKeyCredParams: [
         { type: "public-key", alg: -7 },
         { type: "public-key", alg: -257 },
@@ -366,7 +366,7 @@ export async function externalSigner(w: WalletInfo): Promise<Signer> {
   return guardedSigner(w.address, client, "walletconnect")
 }
 
-// ------------------------------------------ WhitePay PIN / fingerprint for external wallets
+// ------------------------------------------ WondrPay PIN / fingerprint for external wallets
 function extEntry(address: string): InjectedWallet {
   const w = load().list.find((x) => same(x.address, address))
   if (!w || w.kind === "device") throw new Error("Not an external wallet")
@@ -377,7 +377,7 @@ async function pinHash(pin: string, salt: Uint8Array) {
   const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: salt as BufferSource, iterations: PBKDF2_ITERS, hash: "SHA-256" }, base, 256)
   return b64(bits)
 }
-/** Set the WhitePay PIN that guards payments from an external wallet. */
+/** Set the WondrPay PIN that guards payments from an external wallet. */
 export async function setExternalPin(address: string, pin: string) {
   if (!validPin(pin)) throw new Error("PIN must be 6 digits")
   const w = extEntry(address)
@@ -385,10 +385,10 @@ export async function setExternalPin(address: string, pin: string) {
   replace({ ...w, pinCheck: { salt: b64(salt), hash: await pinHash(pin, salt) } })
   rememberSession(w.address)
 }
-/** Check the WhitePay PIN (same 5-tries lockout as device wallets). */
+/** Check the WondrPay PIN (same 5-tries lockout as device wallets). */
 export async function verifyExternalPin(address: string, pin: string) {
   const w = extEntry(address)
-  if (!w.pinCheck) throw new Error("Set a WhitePay PIN for this wallet first")
+  if (!w.pinCheck) throw new Error("Set a WondrPay PIN for this wallet first")
   const wait = pinLockout(w.address)
   if (wait) throw new Error(`Too many wrong PINs. Try again in ${Math.ceil(wait / 60000)} min`)
   if ((await pinHash(pin, unb64(w.pinCheck.salt))) === w.pinCheck.hash) { localStorage.removeItem(LOCK(w.address)); rememberSession(w.address); return }
@@ -404,8 +404,8 @@ export async function enableExternalPasskey(address: string, pin: string) {
   const cred = (await navigator.credentials.create({
     publicKey: {
       challenge: rand(32) as BufferSource,
-      rp: { name: "WhitePay" },
-      user: { id: rand(16) as BufferSource, name: `whitepay-${w.address.slice(2, 8)}`, displayName: "WhitePay payments" },
+      rp: { name: "WondrPay" },
+      user: { id: rand(16) as BufferSource, name: `whitepay-${w.address.slice(2, 8)}`, displayName: "WondrPay payments" },
       pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
       authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "preferred" },
       timeout: 60_000,

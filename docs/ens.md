@@ -9,8 +9,8 @@ ENS = universal pointer for addresses/identity; ENSv2 now live on Ethereum mainn
 ## Qualification
 ENSv2 central (not cosmetic); demo functional, no hard-coded values; live demo link in showcase; open-source on GitHub.
 
-## Fit for WhitePay
-Merchant subnames (`acme.whitepay.eth`), per-invoice/agent subnames with Permissioned Resolver holding payment text records (USDT address, chain 1874, webhook), expiring subnames for payment links, revocable agent identities (ENSIP-25/26).
+## Fit for WondrPay
+Merchant subnames (`acme.wondrpay.eth`), per-invoice/agent subnames with Permissioned Resolver holding payment text records (USDT address, chain 1874, webhook), expiring subnames for payment links, revocable agent identities (ENSIP-25/26).
 
 ## Resources
 - ENSv2 overview https://docs.ens.domains/ensv2/overview/

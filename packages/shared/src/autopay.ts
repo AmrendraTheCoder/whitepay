@@ -1,9 +1,9 @@
-// WhitePay Autopay (UPI AutoPay-style subscriptions), shared by app, server and SDK.
+// WondrPay Autopay (UPI AutoPay-style subscriptions), shared by app, server and SDK.
 //
 //  Plan     merchant signs the terms (EIP-712 "SubscriptionPlan"): amount, period, number of cycles.
 //  Mandate  the subscriber approves ONCE (PIN / fingerprint) and signs one EIP-3009
 //           ReceiveWithAuthorization per cycle. Cycle i can only execute inside its own window
-//           [dueAt_i - EARLY, dueAt_i + grace], only through the WhitePay router (to = router),
+//           [dueAt_i - EARLY, dueAt_i + grace], only through the WondrPay router (to = router),
 //           only to that merchant, only that amount. The USDT contract enforces all of it.
 //  Due      one Arkiv entity per upcoming cycle. Its Arkiv expiry is the countdown. When the timer
 //           hits 0 the keeper pays that cycle, deletes the entity and creates the next one:
@@ -163,4 +163,4 @@ export const cancelMandateTypedData = (mandate: Address, subscriptionId: Hex) =>
 // its own window). Unpaid by the end of the window = skipped, never charged later.
 export type SubscriptionMode = "reminder" | "autopay"
 /** EIP-191 message the subscriber signs to stop a reminder subscription */
-export const reminderCancelMessage = (mandateKey: Hex) => `WhitePay: cancel subscription ${mandateKey.toLowerCase()}`
+export const reminderCancelMessage = (mandateKey: Hex) => `WondrPay: cancel subscription ${mandateKey.toLowerCase()}`

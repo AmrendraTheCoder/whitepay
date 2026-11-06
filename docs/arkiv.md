@@ -22,5 +22,5 @@ Web3 database / DB-chain. Entities: wallet-owned, SQL-like queryable, expire whe
 - Node tooling: never publish slow-query shapes publicly (send privately at Arkiv booth).
 - Swarm: `/arkiv/swarm.md` — what on Swarm vs Arkiv, field holding ref, entity key↔ref link, postage batch ID + buyer wallet + Bee node, upload/read files, run steps, video timestamp, friction. Never put an encrypted Swarm reference (contains key) in a public entity unencrypted.
 
-## Fit for WhitePay
+## Fit for WondrPay
 Invoices/payment links as expiring entities (expiry = due date), receipts index queryable by merchant/customer/status, accountant export via queries; receipt PDFs on Swarm referenced from entity. Keep money settlement on Whitechain, not Arkiv.

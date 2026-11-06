@@ -1,7 +1,7 @@
 import { cached } from "./cache"
 // Merchant sign-up (UPI: merchant onboarding by the acquiring PSP).
 //  1. The merchant's device signs a sign-up message (proves it controls the address; non-custodial).
-//  2. WhitePay registers it in MerchantRegistry on Whitechain: payout = signer = the merchant's own key.
+//  2. WondrPay registers it in MerchantRegistry on Whitechain: payout = signer = the merchant's own key.
 //  3. A public profile is written to Arkiv (the merchant directory payers see before paying).
 //  4. If ENS is configured, the merchant gets <label>.<parent> on ENSv2 Sepolia.
 // New merchants start UNVERIFIED; the verified badge is granted after World ID (see world.ts).
@@ -14,8 +14,11 @@ import { LABEL_RE, REGISTRY_ABI, merchantSignupMessage } from "@whitepay/shared"
 import { arkiv, wc } from "./clients"
 import { config } from "./config"
 
+/** Profiles written before the rename store "<label>.wondrpay.eth"; the same label is re-issued under the current parent. */
+export const currentEnsName = (n?: string) => (n ? n.replace(/\.whitepay\.eth$/, `.${config.ensParent}`) : "")
+
 export const RESERVED_LABELS = new Set([
-  "admin", "support", "help", "whitepay", "wallet", "pay", "payments", "official", "team", "security",
+  "admin", "support", "help", "whitepay", "wondrpay", "wondr", "wallet", "pay", "payments", "official", "team", "security",
   "paytm", "gpay", "googlepay", "phonepe", "bhim", "upi", "npci", "rbi", "sbi", "hdfc", "icici", "axis",
   "google", "amazon", "flipkart", "apple", "meta", "binance", "coinbase", "tether", "usdt", "whitechain",
   "government", "gov", "president", "pm", "police", "income-tax", "refund", "customer-care",
@@ -36,8 +39,8 @@ const v = (x: any) => (x && typeof x === "object" && "value" in x ? x.value : x)
 const toView = (e: any): MerchantView => ({
   address: getAddress(v(e.address)),
   label: v(e.label),
-  ensName: v(e.ensName),
-  displayName: v(e.displayName),
+  ensName: currentEnsName(v(e.ensName)),
+  displayName: String(v(e.displayName) ?? "").replace(/\bWhitePay\b/g, "WondrPay"), // profiles saved before the rename
   category: v(e.category),
   verified: !!v(e.verified),
   registeredAt: Number(v(e.registeredAt)),

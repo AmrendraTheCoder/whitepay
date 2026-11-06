@@ -10,7 +10,7 @@ async function main() {
   const [label, address] = process.argv.slice(2)
   const owner = getAddress(address)
   if (await getPersonByAddress(owner)) return console.log("already in directory")
-  const ensName = `${label}.${process.env.ENS_PARENT || "whitepay.eth"}`
+  const ensName = `${label}.${process.env.ENS_PARENT || "wondrpay.eth"}`
   const onEns = await resolveName(ensName)
   if (onEns?.toLowerCase() !== owner.toLowerCase()) throw new Error(`${ensName} resolves to ${onEns}, not ${owner}`)
   const r = await arkiv().writer.createEntity(PersonProfile,

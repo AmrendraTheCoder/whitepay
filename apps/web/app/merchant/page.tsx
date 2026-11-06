@@ -63,7 +63,7 @@ export default function MerchantPage() {
     return (
       <main className="shell with-nav">
         <TopBar />
-        <div className="card stack"><h2>Merchant mode</h2><div className="sub">Create a WhitePay wallet first. It becomes your shop's payout and signing key.</div></div>
+        <div className="card stack"><h2>Merchant mode</h2><div className="sub">Create a WondrPay wallet first. It becomes your shop's payout and signing key.</div></div>
         <a className="btn btn-primary" href="/app">Create wallet</a>
       </main>
     )
@@ -75,7 +75,7 @@ export default function MerchantPage() {
         <div className="card stack">
           <span className="badge badge-brand" style={{ alignSelf: "flex-start" }}>Personal account</span>
           <div className="title">This wallet is personal</div>
-          <div className="sub">{personalName} is your personal WhitePay name. Shops use a separate <b>business wallet</b> so personal and shop money, names and history never mix, like Google Pay and Google Pay for Business.</div>
+          <div className="sub">{personalName} is your personal WondrPay name. Shops use a separate <b>business wallet</b> so personal and shop money, names and history never mix, like Google Pay and Google Pay for Business.</div>
           <a className="btn btn-primary btn-big" href="/add?type=business">Create a business wallet</a>
           <div className="sub center">Already have one? Switch wallets in <a href="/you" className="text-brand strong">You</a>.</div>
         </div>
@@ -128,7 +128,7 @@ function Signup({ address, account, setAccount, onDone }: {
         <TopBar back={null} />
         <div className="card stack center">
           <SuccessCheck />
-          <div className="title">{label}.whitepay.eth is yours</div>
+          <div className="title">{label}.wondrpay.eth is yours</div>
           <div className="sub">Last step: prove a real, unique person runs this shop with World ID (one verified shop per human). Customers see the Verified badge before they pay. You only do this once; payments never ask for it.</div>
           <WorldVerify
             purpose="shop"
@@ -157,7 +157,7 @@ function Signup({ address, account, setAccount, onDone }: {
       <TopBar back={null} right={<a className="chip" href="/app">Customer mode</a>} />
       <div className="card stack">
         <div className="title">Accept USDT payments</div>
-        <div className="sub">Your shop gets a WhitePay name and a QR. Customers pay with no gas; money lands in this wallet ({short(address)}) instantly.</div>
+        <div className="sub">Your shop gets a WondrPay name and a QR. Customers pay with no gas; money lands in this wallet ({short(address)}) instantly.</div>
       </div>
       <div className="card stack">
         <h2>Business name</h2>
@@ -166,10 +166,10 @@ function Signup({ address, account, setAccount, onDone }: {
         <div className="row gap-2">
           <input className="input" placeholder="chai-point" value={label} autoCapitalize="none"
             onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
-          <span className="sub nowrap">.whitepay.eth</span>
+          <span className="sub nowrap">.wondrpay.eth</span>
         </div>
         <div className="sub min-line">
-          {avail === null ? "" : avail.available ? <span className="text-ok">{label}.whitepay.eth is available</span> : <span className="text-bad">{avail.reason === "taken" ? "Already taken" : avail.reason}</span>}
+          {avail === null ? "" : avail.available ? <span className="text-ok">{label}.wondrpay.eth is available</span> : <span className="text-bad">{avail.reason === "taken" ? "Already taken" : avail.reason}</span>}
         </div>
         <h2>Category (optional)</h2>
         <input className="input" placeholder="Food & beverage" value={category} onChange={(e) => setCategory(e.target.value)} maxLength={60} />
@@ -179,7 +179,7 @@ function Signup({ address, account, setAccount, onDone }: {
       </button>
       <div className="err">{err}</div>
       <div className="sub center">New shops start unverified. Verify with World ID to get the Verified badge.</div>
-      {unlock && <UnlockSheet title="Sign shop registration" subtitle={`${label}.whitepay.eth`} onUnlocked={submit} onCancel={() => setUnlock(false)} />}
+      {unlock && <UnlockSheet title="Sign shop registration" subtitle={`${label}.wondrpay.eth`} onUnlocked={submit} onCancel={() => setUnlock(false)} />}
     </main>
   )
 }
@@ -408,7 +408,7 @@ function Dashboard({ merchant, account, setAccount, onChange }: { merchant: Merc
   )
 }
 
-/** Refund a QR payment back to the customer who paid it. The shop signs on this device; WhitePay pays the gas. */
+/** Refund a QR payment back to the customer who paid it. The shop signs on this device; WondrPay pays the gas. */
 function RefundSheet({ row, account, setAccount, onClose }: {
   row: Row; account: PrivateKeyAccount | null; setAccount: (a: PrivateKeyAccount) => void; onClose: (done: boolean) => void
 }) {

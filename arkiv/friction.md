@@ -1,4 +1,4 @@
-# Arkiv friction log (what we hit while building WhitePay)
+# Arkiv friction log (what we hit while building WondrPay)
 
 | # | Issue | Expected | What happened | How to reproduce |
 |---|---|---|---|---|

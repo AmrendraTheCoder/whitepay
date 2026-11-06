@@ -13,9 +13,9 @@ export const NAV = [
 
 export function Logo() {
   return (
-    <Link href="/" className="site-logo" aria-label="WhitePay home">
+    <Link href="/" className="site-logo" aria-label="WondrPay home">
       <img src="/icon.svg" alt="" width={28} height={28} />
-      <span>WhitePay</span>
+      <span>WondrPay</span>
     </Link>
   )
 }
@@ -46,7 +46,7 @@ export function SiteHeader() {
 
 const COLS = [
   { title: "Product", links: [["Open the app", "/app"], ["Autopay", "/#autopay"], ["Pricing", "/pricing"], ["Status", "/status"]] },
-  { title: "Business", links: [["Accept payments", "/business"], ["Checkout SDK", "/developers"], ["Demo store", "https://whitepay-demo-store.vercel.app"], ["Subscriptions", "/business#subscriptions"]] },
+  { title: "Business", links: [["Accept payments", "/business"], ["Checkout SDK", "/developers"], ["Demo store", "https://wondrpay-demo-store.vercel.app"], ["Subscriptions", "/business#subscriptions"]] },
   { title: "Developers", links: [["Documentation", "/developers"], ["Webhooks", "/developers#webhooks"], ["GitHub", "https://github.com/AmrendraTheCoder/whitepay"], ["Contracts", "/status#contracts"]] },
   { title: "Company", links: [["Security", "/security"], ["Terms", "/terms"], ["Privacy", "/privacy"], ["Contact", "https://github.com/AmrendraTheCoder/whitepay/issues"]] },
 ] as const
@@ -71,7 +71,7 @@ export function SiteFooter() {
           ))}
         </div>
         <div className="site-footer-bottom">
-          <span>© 2026 WhitePay · Built for ETHGlobal Mumbai</span>
+          <span>© 2026 WondrPay · Built for ETHGlobal Mumbai</span>
           <span>Whitechain · ENS · Arkiv · World ID</span>
         </div>
       </div>

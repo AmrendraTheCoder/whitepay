@@ -1,4 +1,4 @@
-# WhitePay – Project Context (ETHGlobal Mumbai, Nov 2026)
+# WondrPay – Project Context (ETHGlobal Mumbai, Nov 2026)
 
 Master index. Per-sponsor detail lives in `docs/`. Agents live in `.claude/agents/`.
 

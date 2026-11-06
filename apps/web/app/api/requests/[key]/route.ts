@@ -13,7 +13,7 @@ export const runtime = "nodejs"
 
 export async function GET(_req: Request, ctx: { params: Promise<{ key: string }> }) {
   const { key } = await ctx.params
-  if (!isHex(key) || key.length !== 66) return json({ state: "invalid", reason: "not a WhitePay request key" }, { status: 400 })
+  if (!isHex(key) || key.length !== 66) return json({ state: "invalid", reason: "not a WondrPay request key" }, { status: 400 })
   // every open checkout polls every 2 s: answer identical polls within 1.5 s from one shared lookup
   const body = await cached(`status:${key.toLowerCase()}`, 1_500, () => status(key as Hex))
   return json(body, body.state === "error" ? { status: 502 } : undefined)
@@ -47,7 +47,7 @@ async function status(key: Hex): Promise<Record<string, any>> {
       verifiedMerchant: v.verifiedMerchant,
       merchantDisplayName: profile?.displayName,
       checks: [
-        { label: "Created by WhitePay", detail: `Arkiv owner ${short(arkiv().owner)}` },
+        { label: "Created by WondrPay", detail: `Arkiv owner ${short(arkiv().owner)}` },
         { label: "Amount untampered", detail: "fields match the signed order" },
         { label: "Signed by the merchant", detail: "matches the on-chain registry" },
         { label: "Still valid", detail: "pending, before its deadline" },

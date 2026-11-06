@@ -1,6 +1,6 @@
 "use client"
 // Subscription payment reminders (reminder mode): poll for payments waiting for approval, show them in the
-// app and raise a system notification once per payment while WhitePay is open (foreground or background tab).
+// app and raise a system notification once per payment while WondrPay is open (foreground or background tab).
 import { useEffect, useState } from "react"
 
 export type DueRow = { key: string; title: string; merchantName?: string; merchant: string; amount: string; nextCycle: number; cycles: number; payBy: number; nextDueAt: number }

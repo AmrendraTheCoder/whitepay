@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Attack / hardening checks against a live WhitePay (and optional store). Usage: scripts/security-check.sh [base] [store]
-B=${1:-https://whitepay.vercel.app}; S=${2:-https://whitepay-demo-store.vercel.app}
+# Attack / hardening checks against a live WondrPay (and optional store). Usage: scripts/security-check.sh [base] [store]
+B=${1:-https://wondrpay.vercel.app}; S=${2:-https://wondrpay-demo-store.vercel.app}
 pass=0; fail=0
 t() { local name="$1" want="$2" got="$3"; if [[ "$got" == $want ]]; then echo "  ✔ $name ($got)"; pass=$((pass+1)); else echo "  ✘ $name: wanted $want, got $got"; fail=$((fail+1)); fi; }
 code() { curl -s -o /dev/null -w "%{http_code}" "$@"; }
@@ -42,6 +42,6 @@ if [[ -n "$S" ]]; then
   t "store: unsigned webhook rejected" "401" "$(code -X POST $S/api/webhook -H 'content-type: application/json' -d '{"event":"payment.settled","txHash":"0x00","orderId":"0x00","amount":"1"}')"
   ts=$(( $(date +%s) - 3600 ))
   t "store: replayed (1h old) webhook rejected" "401" "$(code -X POST $S/api/webhook -H 'content-type: application/json' -H "x-whitepay-timestamp: $ts" -H "x-whitepay-signature: 0x$(printf 'd%.0s' {1..130})" -d '{}')"
-  t "store: plain.html CSP" "*script-src 'self' https://whitepay.vercel.app*" "$(hdr $S/plain.html content-security-policy)"
+  t "store: plain.html CSP" "*script-src 'self' https://wondrpay.vercel.app*" "$(hdr $S/plain.html content-security-policy)"
 fi
 echo; echo "$pass passed, $fail failed"; [[ $fail == 0 ]]
