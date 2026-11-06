@@ -13,7 +13,7 @@ export function Logo() {
       <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden>
         <defs><linearGradient id="ksl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ff8a00" /><stop offset=".55" stopColor="#ff3d6e" /><stop offset="1" stopColor="#7b2ff7" /></linearGradient></defs>
         <rect width="40" height="40" rx="12" fill="url(#ksl)" />
-        <path d="M13 9v22M13 21l12-12M17 18l10 13" stroke="#fff" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M11 31L20 9l9 22M14.6 23.5h10.8" stroke="#fff" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </svg>
       <span>amaron</span>
     </Link>
