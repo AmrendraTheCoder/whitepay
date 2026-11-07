@@ -1,4 +1,5 @@
 "use client"
+import "./you.css"
 import { useEffect, useState } from "react"
 import { Icon, avatarColor, prettyName, useWalletData, AccountBadge, LogoLoader, Identicon } from "../ui"
 import { PinPad, UnlockSheet } from "../components"
