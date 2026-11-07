@@ -4,7 +4,8 @@ import { isHex, type Hex } from "viem"
 import { PinPad } from "./components"
 import { Icon } from "./ui"
 import { getWallet, createWallet, enablePasskey, passkeySupported, connectInjectedWallet, hasInjectedWallet, connectWalletConnect, setExternalPin, enableExternalPasskey } from "@/lib/wallet"
-import { wcConfigured } from "@/lib/walletconnect"
+import { wcConfigured, wcWalletLink } from "@/lib/walletconnect"
+import { hasSavedPin, adoptSavedPin, approvePinSave, savePinEverywhere } from "@/lib/pin-sync"
 
 // -------------------------------------------------------------- onboarding
 export function Onboard({ onDone, adding = false, business = false, resumeExternal }: {
@@ -13,7 +14,7 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
   resumeExternal?: string
 }) {
   // ext* steps: an external wallet was just connected and gets its own WondrPay PIN / fingerprint
-  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio" | "welcome">(resumeExternal ? "extpin" : "intro")
+  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extenter" | "extpin" | "extconfirm" | "extsave" | "extbio" | "welcome">(resumeExternal ? "extpin" : "intro")
   const [known, setKnown] = useState("") // username this wallet already has
   const [extAddr, setExtAddr] = useState(resumeExternal ?? "")
   const [showExternal, setShowExternal] = useState(false) // MetaMask options are tucked away: new people create a wallet
@@ -26,6 +27,9 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
   const [busy, setBusy] = useState(false)
   const [injected, setInjected] = useState(false)
   const [mobile, setMobile] = useState(false)
+  const [enterKey, setEnterKey] = useState(0) // resets the "enter your PIN" pad after a wrong try
+  const [resetting, setResetting] = useState(false) // forgot the saved PIN: setting a new one
+  const [isWc, setIsWc] = useState(false)
   // developer helper (import a raw test key): only on localhost or with ?dev=1, never shown to real people
   const [devTools, setDevTools] = useState(false)
   useEffect(() => {
@@ -33,6 +37,12 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
     setMobile(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
     setDevTools(/^(localhost|127\.0\.0\.1)$/.test(location.hostname) || new URLSearchParams(location.search).get("dev") === "1")
   }, [])
+  // a MetaMask wallet resumed without a PIN on this device: if it already has a WondrPay PIN, ask for THAT one
+  useEffect(() => {
+    if (!resumeExternal) return
+    setIsWc(getWallet()?.kind === "walletconnect")
+    void hasSavedPin(resumeExternal).then((saved) => { if (saved) setStep("extenter") })
+  }, [resumeExternal])
   // No World ID or name step here: people get into the app first. The WondrPay name is claimed later from Home
   // (one tap, with World ID); World ID is only asked where it matters (name, cashback, refunds, large payments).
   const finish = () => (known ? (setStep("welcome"), setTimeout(onDone, 1600)) : onDone())
@@ -52,7 +62,9 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
       if (name) setKnown(name)
       const hasPin = getWallet()?.address?.toLowerCase() === addr.toLowerCase() && getWallet()?.hasPin
       if (hasPin) { if (name) { setStep("welcome"); setTimeout(onDone, 1600) } else finish(); return }
-      setStep("extpin")
+      setIsWc(via === "walletconnect")
+      // this wallet already has a WondrPay PIN (set on another device): ask for that PIN once, never a new one
+      setStep((await hasSavedPin(addr)) ? "extenter" : "extpin")
     } catch (e) {
       const m = (e as Error).message
       setErr(/reject|denied|closed|4001/i.test(m) ? "Connection cancelled" : m.split("\n")[0])
@@ -61,8 +73,22 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
   const onExtFirst = useCallback((p: string) => { setFirst(p); setStep("extconfirm"); setErr("") }, [])
   const onExtConfirm = useCallback(async (p: string) => {
     if (p !== first) { setErr("PINs didn't match. Try again."); setStep("extpin"); return }
-    try { await setExternalPin(extAddr, p); setPin(p); setStep("extbio") } catch (e) { setErr((e as Error).message); setStep("extpin") }
+    // works on this device now; the next step saves it (with one wallet approval) so every device asks the same PIN
+    try { await setExternalPin(extAddr, p); setPin(p); setErr(""); setStep("extsave") } catch (e) { setErr((e as Error).message); setStep("extpin") }
   }, [first, extAddr])
+  /** the remembered PIN: checked against the saved one, then used on this device too */
+  const onExtEnter = useCallback(async (p: string) => {
+    setBusy(true); setErr("")
+    try { await adoptSavedPin(extAddr, p); setPin(p); setStep("extbio") }
+    catch (e) { setErr((e as Error).message); setEnterKey((k) => k + 1) }
+    finally { setBusy(false) }
+  }, [extAddr])
+  const savePin = async () => {
+    setBusy(true); setErr("")
+    try { await savePinEverywhere(extAddr, pin, await approvePinSave(extAddr)); setStep("extbio") }
+    catch (e) { const m = (e as Error).message; setErr(/reject|denied|4001/i.test(m) ? "Not saved: you declined in your wallet. You can try again or skip." : m.split("\n")[0]) }
+    finally { setBusy(false) }
+  }
   const enableExtBio = async () => {
     setBusy(true); setErr("")
     try { await enableExternalPasskey(extAddr, pin); finish() } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
@@ -167,9 +193,29 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
           <div className="err">{err}</div>
         </div>
       )}
+      {step === "extenter" && (
+        <div className="stack mt-6">
+          <div className="title center">Enter your WondrPay PIN</div>
+          <div className="sub center">{known ? <><b>{known}</b> already has a WondrPay PIN. </> : "This wallet already has a WondrPay PIN. "}Enter the same PIN you use on your other devices.</div>
+          <PinPad key={`enter-${enterKey}`} onComplete={onExtEnter} busy={busy} error={err} label="your PIN" />
+          <div className="err">{err}</div>
+          <button className="chip self-center" onClick={() => { setResetting(true); setErr(""); setStep("extpin") }}>Forgot your PIN? Set a new one</button>
+        </div>
+      )}
+      {step === "extsave" && (
+        <div className="stack center mt-8">
+          <div className="hero-icon">{Icon.shield(48)}</div>
+          <div className="title">{resetting ? "Save your new PIN" : "Use this PIN everywhere"}</div>
+          <div className="sub">Approve once in MetaMask (a free signature, no gas). Then any phone or browser where you connect this wallet asks for this same PIN.{resetting ? " Your old PIN stops working." : ""}</div>
+          <button className="btn btn-primary btn-big" onClick={savePin} disabled={busy}>{busy ? <span className="spinner" /> : null} Approve in MetaMask</button>
+          {isWc && busy && <a className="btn btn-ghost" href={wcWalletLink()}>Open MetaMask</a>}
+          <button className="btn btn-ghost" onClick={() => { setErr(""); setStep("extbio") }} disabled={busy}>Skip, only this device</button>
+          <div className="err">{err}</div>
+        </div>
+      )}
       {(step === "extpin" || step === "extconfirm") && (
         <div className="stack mt-6">
-          <div className="title center">{step === "extpin" ? "Set your WondrPay PIN" : "Confirm your PIN"}</div>
+          <div className="title center">{step === "extpin" ? (resetting ? "Set a new WondrPay PIN" : "Set your WondrPay PIN") : "Confirm your PIN"}</div>
           <div className="sub center">{resumeExternal && step === "extpin" ? "One step left before you can use WondrPay. " : ""}Connected {extAddr.slice(0, 6)}…{extAddr.slice(-4)}. WondrPay asks for this PIN before MetaMask signs any payment.</div>
           <PinPad key={step} onComplete={step === "extpin" ? onExtFirst : onExtConfirm} error={err} label={step === "extpin" ? "new PIN" : "PIN again"} />
           <div className="err">{err}</div>

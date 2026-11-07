@@ -249,6 +249,11 @@ export const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$/
 export const stepUpSignal = (payer: Address, paymentRef: Hex) => `step-up:${getAddress(payer)}:${paymentRef.toLowerCase()}`
 
 /** Personal name claim message the user's device signs (proves control of the wallet). */
+/** Signed by an external wallet (MetaMask) to save its WondrPay PIN so the same PIN works on any device.
+ *  The PIN itself never leaves the device: only a slow hash of it does, and the server keys that again. */
+export const pinSaveMessage = (p: { address: Address; issuedAt: number }) =>
+  `WondrPay PIN\nSave my WondrPay PIN for this wallet so I can use it on my other devices.\naddress: ${p.address}\nissued: ${p.issuedAt}`
+
 export const nameClaimMessage = (p: { label: string; address: Address; issuedAt: number }) =>
   `WondrPay name claim\nname: ${p.label}\naddress: ${p.address}\nissued: ${p.issuedAt}`
 

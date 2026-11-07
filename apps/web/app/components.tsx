@@ -8,6 +8,7 @@ import { paySecurity } from "@/lib/security"
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
 import { restoreSession } from "@/lib/session"
 import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout, isExternal, externalSigner, verifyExternalPin, verifyExternalPasskey, setExternalPin, type WalletInfo } from "@/lib/wallet"
+import { hasSavedPin, adoptSavedPin } from "@/lib/pin-sync"
 
 // World ID widget only loads when a payment actually needs the scan
 const WorldVerify = dynamic(() => import("./world").then((m) => m.WorldVerify), { ssr: false })
@@ -192,7 +193,7 @@ export function UnlockSheet({
   // unlocked earlier (this tab or another one, e.g. after coming back from MetaMask)? then no PIN again.
   // undefined = still checking (an async decrypt for device wallets, a few ms)
   const [session, setSession] = useState<{ address: string; pk?: `0x${string}` } | null | undefined>(undefined)
-  type Mode = "passkey" | "pin" | "setpin" | "confirmpin" | "wallet" | "world"
+  type Mode = "passkey" | "pin" | "setpin" | "confirmpin" | "enterpin" | "wallet" | "world"
   const [mode, setMode] = useState<Mode>("pin")
   const [firstPin, setFirstPin] = useState("")
   const [err, setErr] = useState("")
@@ -240,6 +241,8 @@ export function UnlockSheet({
       const s = !fresh && raw && (external || raw.pk) ? raw : null // a device wallet is unlocked only if we have its key
       const m: Mode = external && s ? "wallet" : external && !w?.hasPin ? "setpin" : w?.hasPasskey ? "passkey" : "pin"
       setSession(s); setMode(m)
+      // no PIN on this device, but this wallet saved one on another device: ask for THAT PIN, not a new one
+      if (m === "setpin" && w) void hasSavedPin(w.address).then((saved) => { if (live && saved) setMode("enterpin") })
       // (an effect may only return a cleanup function, so never `return onUnlocked(...)` here)
       if (s?.pk && !external) { finish(privateKeyToAccount(s.pk)); return }
       if (s && external) { void tryWallet(); return }
@@ -261,6 +264,13 @@ export function UnlockSheet({
     } finally {
       setBusy(false)
     }
+  }
+
+  const [enterKey, setEnterKey] = useState(0)
+  const onEnterPin = async (pin: string) => {
+    setBusy(true); setErr("")
+    try { await adoptSavedPin(w!.address, pin); setMode("wallet"); setBusy(false); void tryWallet() }
+    catch (e) { setErr((e as Error).message); setEnterKey((k) => k + 1); setBusy(false) }
   }
 
   const onSetPin = async (pin: string) => {
@@ -321,6 +331,11 @@ export function UnlockSheet({
           <button className="btn btn-primary btn-big" onClick={() => tryPasskey()} disabled={busy}>
             {busy ? <span className="spinner" /> : null} Confirm with fingerprint
           </button>
+        ) : mode === "enterpin" ? (
+          <>
+            <div className="sub center">Enter your WondrPay PIN: the same one you use on your other devices.</div>
+            <PinPad key={`enter-${enterKey}`} onComplete={onEnterPin} busy={busy} error={err} label="your PIN" />
+          </>
         ) : mode === "setpin" || mode === "confirmpin" ? (
           <>
             <div className="sub center">
