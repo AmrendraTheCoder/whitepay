@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react"
 import { isHex, type Hex } from "viem"
 import { PinPad } from "./components"
 import { Icon } from "./ui"
-import { ClaimName } from "./claim-name"
 import { getWallet, createWallet, enablePasskey, passkeySupported, connectInjectedWallet, hasInjectedWallet, connectWalletConnect, setExternalPin, enableExternalPasskey } from "@/lib/wallet"
 import { wcConfigured } from "@/lib/walletconnect"
 
@@ -14,7 +13,7 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
   resumeExternal?: string
 }) {
   // ext* steps: an external wallet was just connected and gets its own WondrPay PIN / fingerprint
-  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio" | "name" | "welcome">(resumeExternal ? "extpin" : "intro")
+  const [step, setStep] = useState<"intro" | "pin" | "confirm" | "bio" | "extpin" | "extconfirm" | "extbio" | "welcome">(resumeExternal ? "extpin" : "intro")
   const [known, setKnown] = useState("") // username this wallet already has
   const [extAddr, setExtAddr] = useState(resumeExternal ?? "")
   const [showExternal, setShowExternal] = useState(false) // MetaMask options are tucked away: new people create a wallet
@@ -26,11 +25,19 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
   const [bioOk, setBioOk] = useState(false)
   const [busy, setBusy] = useState(false)
   const [injected, setInjected] = useState(false)
-  useEffect(() => { passkeySupported().then(setBioOk); setInjected(hasInjectedWallet()) }, [])
-  // World ID happens once, here at account creation: personal wallets claim their name now
-  // (shops verify in shop signup). Payments never ask for World ID.
-  // a wallet that already has a WondrPay name doesn't need the name step again
-  const finish = () => (business || known ? (known ? (setStep("welcome"), setTimeout(onDone, 1600)) : onDone()) : setStep("name"))
+  const [mobile, setMobile] = useState(false)
+  // developer helper (import a raw test key): only on localhost or with ?dev=1, never shown to real people
+  const [devTools, setDevTools] = useState(false)
+  useEffect(() => {
+    passkeySupported().then(setBioOk); setInjected(hasInjectedWallet())
+    setMobile(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
+    setDevTools(/^(localhost|127\.0\.0\.1)$/.test(location.hostname) || new URLSearchParams(location.search).get("dev") === "1")
+  }, [])
+  // No World ID or name step here: people get into the app first. The WondrPay name is claimed later from Home
+  // (one tap, with World ID); World ID is only asked where it matters (name, cashback, refunds, large payments).
+  const finish = () => (known ? (setStep("welcome"), setTimeout(onDone, 1600)) : onDone())
+  /** MetaMask's own in-app browser: MetaMask is injected there, so no WalletConnect and no app switching */
+  const inMetaMask = () => `https://metamask.app.link/dapp/${location.host}${location.pathname}${location.search}`
 
   /** Connect MetaMask without leaving Chrome: extension if present (desktop), otherwise WalletConnect. */
   const connect = async (via: "extension" | "walletconnect") => {
@@ -92,32 +99,43 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
             Your key stays on this phone, encrypted and unlocked only by your fingerprint or a 6-digit PIN, just like UPI.
           </div>
           <button className="btn btn-primary btn-big" onClick={() => setStep("pin")}>{adding ? "Create another wallet" : "Create my wallet"}</button>
-          <div className="sub center">Takes 20 seconds: set a 6-digit PIN, optionally your fingerprint. No seed phrase.</div>
+          <div className="sub center">Takes 20 seconds: set a 6-digit PIN, optionally your fingerprint. No seed phrase, no sign-up.</div>
           {!showExternal ? (
             <button className="chip self-center" onClick={() => setShowExternal(true)} aria-expanded={false}>I already use MetaMask</button>
           ) : (
             <div className="card stack" role="region" aria-label="Use MetaMask">
               <div className="sub">Use your MetaMask wallet with WondrPay. You'll still set a WondrPay PIN (and fingerprint, if you like) right after connecting: it's asked before MetaMask signs any payment.</div>
-              {injected && (
-                <button className="btn btn-ghost" onClick={() => connect("extension")} disabled={busy}>
-                  {busy ? <span className="spinner" /> : null} Connect browser extension (MetaMask)
+              {injected ? (
+                <button className="btn btn-primary" onClick={() => connect("extension")} disabled={busy}>
+                  {busy ? <span className="spinner" /> : null} {mobile ? "Connect MetaMask" : "Connect browser extension (MetaMask)"}
+                </button>
+              ) : mobile ? (
+                <>
+                  <a className="btn btn-primary" href={inMetaMask()}>Open WondrPay in MetaMask</a>
+                  <div className="sub center">Most reliable on phones: WondrPay opens inside the MetaMask app and connects directly.</div>
+                </>
+              ) : null}
+              {!injected && (
+                <button className="btn btn-ghost" onClick={() => connect("walletconnect")} disabled={busy || !wcConfigured()}>
+                  {busy ? <span className="spinner" /> : null} {mobile ? "Or connect with WalletConnect" : "Connect MetaMask app (WalletConnect QR)"}
                 </button>
               )}
-              <button className="btn btn-ghost" onClick={() => connect("walletconnect")} disabled={busy || !wcConfigured()}>
-                {busy ? <span className="spinner" /> : null} Connect MetaMask app (WalletConnect)
-              </button>
-              <div className="sub center">
-                {wcConfigured()
-                  ? "WondrPay stays open in this browser. MetaMask opens only to approve, then you come back here."
-                  : "WalletConnect isn't configured on this server yet."}
-              </div>
+              {!injected && (
+                <div className="sub center">
+                  {wcConfigured()
+                    ? "WondrPay stays open in this browser. MetaMask opens only to approve, then you come back here."
+                    : "WalletConnect isn't configured on this server yet."}
+                </div>
+              )}
             </div>
           )}
           {err && step === "intro" && <div className="err">{err}</div>}
-          <button className="chip self-center" onClick={() => setShowImport((s) => !s)}>
-            {showImport ? "Hide" : "Use an existing test key"}
-          </button>
-          {showImport && (
+          {devTools && (
+            <button className="chip self-center" onClick={() => setShowImport((s) => !s)}>
+              {showImport ? "Hide" : "Use an existing test key"}
+            </button>
+          )}
+          {devTools && showImport && (
             <div className="card stack">
               <div className="sub">Paste a test private key (it is encrypted with your PIN and never leaves this device).</div>
               <input className="input mono" placeholder="0x…" value={importPk} onChange={(e) => setImportPk(e.target.value)} autoComplete="off" />
@@ -173,14 +191,6 @@ export function Onboard({ onDone, adding = false, business = false, resumeExtern
           <div className="title">Welcome back</div>
           <div style={{ fontSize: 20, fontWeight: 800 }}>{known}</div>
           <div className="sub">This wallet is already linked to your WondrPay name. Nothing to verify.</div>
-        </div>
-      )}
-      {step === "name" && (
-        <div className="stack" style={{ marginTop: 18 }}>
-          <div style={{ textAlign: "center", fontSize: 22, fontWeight: 700 }}>Last step: your WondrPay name</div>
-          <div className="sub center">Verify you're a real person with World ID once, now. Payments never ask for it.</div>
-          <ClaimName address={getWallet()!.address as `0x${string}`} onClaimed={() => setTimeout(onDone, 1200)} />
-          <button className="btn btn-ghost" onClick={onDone}>Skip, use my address only</button>
         </div>
       )}
     </main>

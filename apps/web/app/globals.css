@@ -684,3 +684,9 @@ html[data-nav-dir="back"] .shell.with-nav { animation: tab-in-back .28s cubic-be
 @keyframes pin-pulse { 50% { opacity: .45; } }
 @keyframes pin-shake { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-8px); } 40%, 60% { transform: translateX(8px); } }
 @media (prefers-reduced-motion: reduce) { .pin .dots.shake, .pin .dots span.on, .pin.busy .dots span.on { animation: none; } .pin .pinpad button { transition: none; } }
+
+/* Home: claim-your-name prompt (the name step moved out of onboarding) */
+.claim-card { gap: 12px; align-items: center; text-decoration: none; color: inherit; }
+.claim-card .ic { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--brand-soft); }
+.claim-card .grow { flex: 1; min-width: 0; }
+.claim-card .chev { color: var(--muted); }

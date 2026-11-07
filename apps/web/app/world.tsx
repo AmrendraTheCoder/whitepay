@@ -43,6 +43,8 @@ export function WorldVerify({
   onDenied,
   address,
   onRepeat,
+  before,
+  disabled,
   className = "btn btn-primary",
 }: {
   /** name = personal WondrPay name, shop = verified merchant, pay = step-up for one large payment */
@@ -58,6 +60,9 @@ export function WorldVerify({
   address?: string
   /** World refused a repeat one-time proof: ask the backend to pass an already-verified person instead */
   onRepeat?: () => Promise<any>
+  /** runs on the tap, before World ID opens (e.g. sign the claim in the same tap); throwing cancels with that message */
+  before?: () => Promise<void>
+  disabled?: boolean
   className?: string
 }) {
   const [ctx, setCtx] = useState<Ctx | null>(null)
@@ -73,6 +78,7 @@ export function WorldVerify({
     if (busy) return
     setBusy(true)
     try {
+      if (before) await before()
       // never spin forever: a dropped connection or a stale page gets a clear message within 15 s
       const r = await fetch(`/api/world/context?purpose=${purpose}${paymentRef ? `&ref=${paymentRef}` : ""}${address ? `&address=${address}` : ""}`, { signal: AbortSignal.timeout(15_000), cache: "no-store" })
         .catch((e) => { throw new Error((e as Error).name === "TimeoutError" ? "World ID took too long to start. Check your connection and try again." : "Couldn't reach WondrPay. Check your connection, reload the page and try again.") })
@@ -125,7 +131,7 @@ export function WorldVerify({
 
   return (
     <>
-      <button className={className} onClick={start} disabled={busy}>
+      <button className={className} onClick={start} disabled={busy || disabled}>
         {busy ? <><span className="spinner" /> Opening World ID…</> : <><span aria-hidden>◎</span> {label}</>}
       </button>
       {ctx && (ctx.mode === "session" ? (

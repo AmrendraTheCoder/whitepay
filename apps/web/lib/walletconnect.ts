@@ -40,10 +40,34 @@ export async function wcProvider(): Promise<Provider> {
   return provider
 }
 
+/** WalletConnect's relay refuses sites that aren't on the project's allowed-domains list ("origin not allowed"):
+ *  then no pairing link is ever made, the QR stays blank and MetaMask can't open. Detect that instead of hanging. */
+const BLOCKED = () => `MetaMask couldn't be reached: WalletConnect hasn't allowed this site (${location.host}) yet. ` +
+  "On a phone, open WondrPay inside the MetaMask app instead; on a computer, use the MetaMask browser extension."
+async function connectWatched(p: Provider) {
+  let uri = false
+  const onUri = () => { uri = true }
+  p.on("display_uri", onUri)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const watchdog = new Promise<never>((_, rej) => { timer = setTimeout(() => { if (!uri) rej(new Error(BLOCKED())) }, 12_000) })
+  try {
+    await Promise.race([p.connect(), watchdog])
+  } catch (e) {
+    if (!uri) {
+      try { (p as any).modal?.close?.() } catch {}
+      provider = null // the relay transport is dead: start from scratch next time
+    }
+    throw e
+  } finally {
+    clearTimeout(timer)
+    ;(p as any).removeListener?.("display_uri", onUri)
+  }
+}
+
 /** Open the WalletConnect modal and return the connected address. */
 export async function wcConnect(): Promise<string> {
   const p = await wcProvider()
-  if (!p.session) await p.connect()
+  if (!p.session) await connectWatched(p)
   const a = p.accounts?.[0]
   if (!a) throw new Error("No account was shared over WalletConnect")
   return a
@@ -62,7 +86,7 @@ export async function wcEnsureSession(): Promise<Provider> {
   const p = await wcProvider()
   const expiry = Number((p.session as any)?.expiry ?? 0) * 1000
   if (p.session && expiry && expiry < Date.now() + 60_000) await p.disconnect().catch(() => {}) // expired: start fresh
-  if (!p.session) await p.connect()
+  if (!p.session) await connectWatched(p)
   if (!hasWhitechain(p.session)) {
     // Whitechain is only an OPTIONAL chain (MetaMask may refuse a connection that requires an unknown chain):
     // ask MetaMask to add it, which also adds it to this connection

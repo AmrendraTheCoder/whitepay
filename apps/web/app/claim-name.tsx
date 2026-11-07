@@ -1,35 +1,29 @@
 "use client"
 import { useEffect, useRef, useState } from "react"
-import type { PrivateKeyAccount } from "viem/accounts"
+import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
 import { nameClaimMessage, linkAccountMessage, LABEL_RE } from "@whitepay/shared"
 import { listWallets, type WalletInfo } from "@/lib/wallet"
+import { restoreSession } from "@/lib/session"
 import { UnlockSheet } from "./components"
 import { WorldVerify } from "./world"
+
+const same = (a?: string, b?: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase()
+/** the server accepts claims signed in the last 10 min: re-sign when older than this */
+const FRESH_S = 8 * 60
 
 /** UPI VPA, on ENS: <name>.wondrpay.eth. ONE username per person, shared by up to 5 of their wallets;
  *  a wallet never gets a second username. A wallet that already has a name (e.g. reconnected after it
  *  was removed from this phone) just shows it. Another wallet of yours is added to your existing name,
- *  approved by your verified wallet on this device (no second World ID scan). */
+ *  approved by your verified wallet on this device (no second World ID scan).
+ *  One tap: the claim is signed in the same tap that opens World ID (silently when this wallet is already
+ *  unlocked; otherwise the PIN / fingerprint, or MetaMask, asks once). */
 export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onClaimed: () => void }) {
   const [label, setLabel] = useState("")
   const [avail, setAvail] = useState<{ available: boolean; reason?: string | null } | null>(null)
   const [unlock, setUnlock] = useState(false)
-  const [signed, setSigned] = useState<{ issuedAt: number; signature: string } | null>(null)
-  // The claim is signed in step 1, but World ID (step 2) can take minutes and the server only accepts
-  // claims signed in the last 10 min. Keep the unlocked signer so the claim is re-signed with a fresh
-  // timestamp at the moment it is submitted; a retry can then never reuse a stale signature.
   const signer = useRef<PrivateKeyAccount | null>(null)
-  const fresh = async () => {
-    const acct = signer.current
-    if (!acct) return signed
-    const issuedAt = Math.floor(Date.now() / 1000)
-    const signature = await acct.signMessage({ message: nameClaimMessage({ label, address: acct.address, issuedAt }) })
-    const next = { issuedAt, signature }
-    setSigned(next)
-    return next
-  }
-  // the server rejected an old signature: drop it so the next attempt starts from step 1
-  const expired = (m: string) => { if (/expired/i.test(m)) { setSigned(null); signer.current = null } }
+  const signed = useRef<{ issuedAt: number; signature: string; label: string } | null>(null)
+  const waiting = useRef<{ res: (a: PrivateKeyAccount) => void; rej: (e: Error) => void } | null>(null)
   const [msg, setMsg] = useState("")
   // another wallet on this device that already passed World ID: it can vouch for this one
   const [sponsor, setSponsor] = useState<(WalletInfo & { name?: string }) | null>(null)
@@ -51,7 +45,7 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
   }, [address])
   useEffect(() => {
     let live = true
-    const others = listWallets().filter((w) => w.address.toLowerCase() !== address.toLowerCase())
+    const others = listWallets().filter((w) => !same(w.address, address))
     void (async () => {
       for (const w of others) {
         const st = await fetch(`/api/world/status?address=${w.address}`).then((r) => r.json()).catch(() => null)
@@ -64,12 +58,48 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
     return () => { live = false }
   }, [address])
 
+  useEffect(() => {
+    setAvail(null)
+    if (!label) return
+    if (!LABEL_RE.test(label)) { setAvail({ available: false, reason: "3-32 chars: a-z, 0-9, hyphen" }); return }
+    const t = setTimeout(() => fetch(`/api/names?label=${label}`).then((r) => r.json()).then(setAvail).catch(() => {}), 350)
+    return () => clearTimeout(t)
+  }, [label])
+
+  /** this wallet's signer: silently if it's unlocked on this device, else one PIN / fingerprint (or MetaMask) prompt */
+  const getSigner = async (): Promise<PrivateKeyAccount> => {
+    if (signer.current && same(signer.current.address, address)) return signer.current
+    const w = listWallets().find((x) => same(x.address, address))
+    if (w?.kind === "device") {
+      const s = await restoreSession(address).catch(() => null)
+      if (s?.pk) return (signer.current = privateKeyToAccount(s.pk))
+    }
+    return new Promise((res, rej) => { waiting.current = { res, rej }; setUnlock(true) })
+  }
+  /** a claim signature for the current label, re-signed when it would be too old for the server */
+  const claimSig = async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const c = signed.current
+    if (c && c.label === label && now - c.issuedAt < FRESH_S) return c
+    const acct = await getSigner()
+    const signature = await acct.signMessage({ message: nameClaimMessage({ label, address: acct.address, issuedAt: now }) })
+    return (signed.current = { issuedAt: now, signature, label })
+  }
+  // the server rejected an old signature: drop it so the next attempt signs again
+  const expired = (m: string) => { if (/expired/i.test(m)) signed.current = null }
+
+  const joinLabel = sponsor && !useWorld && sponsor.name ? sponsor.name.split(".")[0] : null
+  useEffect(() => { if (joinLabel) setLabel(joinLabel) }, [joinLabel])
+
+  const startLink = async () => {
+    setMsg("")
+    try { await claimSig(); setCosign(true) } catch (e) { setMsg((e as Error).message) }
+  }
   const link = async (from: PrivateKeyAccount) => {
     setCosign(false)
-    if (!signed) return
     setBusy(true); setMsg("")
     try {
-      const claim = (await fresh())!
+      const claim = await claimSig()
       const fromSignature = await from.signMessage({ message: linkAccountMessage({ from: from.address, to: address, label, issuedAt: claim.issuedAt }) })
       const r = await fetch("/api/names", { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ label, address, issuedAt: claim.issuedAt, signature: claim.signature, from: from.address, fromSignature }) })
@@ -79,25 +109,6 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
       onClaimed()
     } catch (e) { const m = (e as Error).message; expired(m); setMsg(`Name not claimed: ${m}`) } finally { setBusy(false) }
   }
-
-  useEffect(() => {
-    setAvail(null); setSigned(null); signer.current = null
-    if (!label) return
-    if (!LABEL_RE.test(label)) { setAvail({ available: false, reason: "3-32 chars: a-z, 0-9, hyphen" }); return }
-    const t = setTimeout(() => fetch(`/api/names?label=${label}`).then((r) => r.json()).then(setAvail).catch(() => {}), 350)
-    return () => clearTimeout(t)
-  }, [label])
-
-  const sign = async (acct: PrivateKeyAccount) => {
-    setUnlock(false)
-    signer.current = acct
-    const issuedAt = Math.floor(Date.now() / 1000)
-    const signature = await acct.signMessage({ message: nameClaimMessage({ label, address: acct.address, issuedAt }) })
-    setSigned({ issuedAt, signature })
-  }
-
-  const joinLabel = sponsor && !useWorld && sponsor.name ? sponsor.name.split(".")[0] : null
-  useEffect(() => { if (joinLabel) setLabel(joinLabel) }, [joinLabel])
 
   if (own === undefined) return <div className="card stack"><span className="skel" style={{ width: 200, height: 18 }} /></div>
   if (own)
@@ -125,23 +136,22 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
           </div>
         </>
       )}
-      {!signed ? (
-        <button className="btn btn-ghost" disabled={!joinLabel && !avail?.available} onClick={() => setUnlock(true)}>1. Sign with fingerprint / PIN</button>
-      ) : sponsor && !useWorld ? (
+      {joinLabel ? (
         <>
-          <button className="btn btn-primary" disabled={busy} onClick={() => setCosign(true)}>
-            {busy ? <span className="spinner" /> : null} 2. Approve from {sponsor!.name ?? sponsor!.label}
+          <button className="btn btn-primary" disabled={busy} onClick={() => void startLink()}>
+            {busy ? <span className="spinner" /> : null} Approve from {sponsor!.name ?? sponsor!.label}
           </button>
           <button className="chip" onClick={() => setUseWorld(true)}>Verify with World ID instead</button>
-          <div className="sub center">A World ID that already verified a WondrPay name can't scan again, so World App will show “Failed”. Approving from your verified wallet needs no scan.</div>
         </>
       ) : (
         <WorldVerify
           purpose="name"
           signal={address}
-          label="2. Verify with World ID & claim"
+          label="Claim with World ID"
+          disabled={!avail?.available}
+          before={async () => { await claimSig() }}
           verify={async (proof) => {
-            const claim = (await fresh())!
+            const claim = await claimSig()
             const r = await fetch("/api/names", { method: "POST", headers: { "content-type": "application/json" },
               body: JSON.stringify({ label, address, issuedAt: claim.issuedAt, signature: claim.signature, result: proof }) })
             const d = await r.json()
@@ -157,7 +167,11 @@ export function ClaimName({ address, onClaimed }: { address: `0x${string}`; onCl
       )}
       {msg && <div className="sub center">{msg}</div>}
       {cosign && sponsor && <UnlockSheet wallet={sponsor} title="Approve new account" subtitle={`add this wallet to ${sponsor.name ?? sponsor.label}`} onUnlocked={link} onCancel={() => setCosign(false)} />}
-      {unlock && <UnlockSheet title="Sign name claim" subtitle={`${label}.wondrpay.eth`} onUnlocked={sign} onCancel={() => setUnlock(false)} />}
+      {unlock && (
+        <UnlockSheet title="Confirm it's you" subtitle={`to claim ${label}.wondrpay.eth`}
+          onUnlocked={(a) => { setUnlock(false); signer.current = a; waiting.current?.res(a); waiting.current = null }}
+          onCancel={() => { setUnlock(false); waiting.current?.rej(new Error("Cancelled")); waiting.current = null }} />
+      )}
     </div>
   )
 }

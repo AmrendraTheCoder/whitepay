@@ -64,6 +64,14 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
 
       <DueBanner address={wallet.address} />
 
+      {name === null && account !== "business" && (
+        <a className="card row claim-card" href="/you#claim">
+          <span className="ic">{Icon.id()}</span>
+          <div className="grow"><div className="strong">Claim your WondrPay name</div><div className="sub">Friends pay you.wondrpay.eth instead of a long address. One tap with World ID.</div></div>
+          <span className="chev">{Icon.chev()}</span>
+        </a>
+      )}
+
       <div className="tiles">
         <a className="tile" href="/scan"><div className="sq">{Icon.scan()}</div><span>Scan any QR code</span></a>
         <a className="tile" href="/send"><div className="sq">{Icon.pay()}</div><span>Pay anyone</span></a>
@@ -72,7 +80,6 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
       </div>
 
       <div className="chips">
-        <a className="chip-card" href="/money"><span className="ic">{Icon.balance()}</span><div><div className="t1">USDT balance</div><div className="t2">Check</div></div></a>
         <a className="chip-card" href="/transactions"><span className="ic">{Icon.history()}</span><div><div className="t1">Transactions</div><div className="t2">See all</div></div></a>
         <a className="chip-card" href="/you"><span className="ic">{Icon.id()}</span><div><div className="t1">WondrPay ID</div><div className="t2 link">{name ? "View" : "Claim"}</div></div></a>
       </div>
@@ -102,7 +109,6 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
       <div className="section-title">Manage your money</div>
       <div className="menu-list">
         <a className="menu-row" href="/transactions"><span className="ic">{Icon.history()}</span>See transaction history<span className="chev">{Icon.chev()}</span></a>
-        <a className="menu-row" href="/money"><span className="ic">{Icon.balance()}</span>Check USDT balance<span className="chev">{Icon.chev()}</span></a>
         <a className="menu-row" href="/money#add"><span className="ic">{Icon.bolt(24)}</span>Add money<span className="chev">{Icon.chev()}</span></a>
         <a className="menu-row" href="/receive"><span className="ic">{Icon.receive(24)}</span>Your QR code<span className="chev">{Icon.chev()}</span></a>
       </div>

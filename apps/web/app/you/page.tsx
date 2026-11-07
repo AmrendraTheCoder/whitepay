@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { Icon, avatarColor, prettyName, useWalletData, AccountBadge, LogoLoader, Identicon } from "../ui"
 import { PinPad, UnlockSheet } from "../components"
+import { ClaimName } from "../claim-name"
 import { paySecurity, setPaySecurity, looser, WORLD_THRESHOLDS, type PaySecurity } from "@/lib/security"
 import {
   enablePasskey, passkeySupported, removeWallet, listWallets, setActiveWallet, type WalletInfo,
@@ -57,15 +58,25 @@ export default function You() {
 
   return (
     <main className="shell with-nav">
-      <div className="profile-hero">
+      {/* fluid card: sizes follow the card's own width (container queries), the QR sits beside the text instead of over it,
+          and on very narrow phones it drops below as a full-width button */}
+      <div className="profile-hero ph2">
         <div className="hero-top"><span className="hero-ident"><Identicon seed={wallet.address} size={52} /></span><AccountBadge account={account} /></div>
-        <div className="nm">{name === undefined ? <span className="skel" style={{ width: 200, height: 34 }} /> : account === "business" && displayName ? displayName : name ? prettyName(name) : wallet.label}</div>
-        <div className="id">{account === "business" ? "Shop ID" : "WondrPay ID"}: {name === undefined ? <span className="skel" style={{ width: 160, height: 16 }} /> : <b>{name ?? "not claimed yet"}</b>}</div>
-        <button className="addr chip" style={{ background: "rgba(255,255,255,.14)", border: 0, color: "#fff" }}
-          onClick={() => { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1400) }}>
-          {copied ? "Copied" : <>{short(wallet.address)} <span style={{ opacity: .7 }}>· {wallet.kind === "walletconnect" ? "MetaMask app" : wallet.kind === "injected" ? "browser extension" : "this device"}</span> <span aria-hidden style={{ opacity: .8 }}>⧉</span></>}
-        </button>
-        <a className="qrbtn" href="/receive" aria-label="My QR code">{Icon.receive(44)}</a>
+        <div className="ph2-body">
+          <div className="ph2-info">
+            <div className="nm">{name === undefined ? <span className="skel" style={{ width: 200, height: 34 }} /> : account === "business" && displayName ? displayName : name ? prettyName(name) : wallet.label}</div>
+            <div className="id">{account === "business" ? "Shop ID" : "WondrPay ID"}: {name === undefined ? <span className="skel" style={{ width: 160, height: 16 }} /> : <b>{name ?? "not claimed yet"}</b>}</div>
+            <button className="addr" aria-label={`Copy wallet address ${wallet.address}`}
+              onClick={() => { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1400) }}>
+              {copied ? <span className="ph2-addr">Copied</span> : <>
+                <span className="ph2-addr">{short(wallet.address)}</span>
+                <span className="ph2-kind">{wallet.kind === "walletconnect" ? "MetaMask app" : wallet.kind === "injected" ? "Browser extension" : "This device"}</span>
+                <span aria-hidden className="ph2-copy">⧉</span>
+              </>}
+            </button>
+          </div>
+          <a className="qrbtn" href="/receive" aria-label="My QR code">{Icon.receive(44)}<span className="ph2-qrl">My QR code</span></a>
+        </div>
       </div>
 
       {account === "new" && (
@@ -78,6 +89,13 @@ export default function You() {
           <div><div className="strong">Business account</div><div className="sub">Show QR, see payments, refunds and CSV export</div></div>
           <span className="chev">{Icon.chev()}</span>
         </a>
+      )}
+
+      {name === null && account !== "business" && (
+        <section id="claim">
+          <div className="section-title">Your WondrPay name</div>
+          <ClaimName address={wallet.address as `0x${string}`} onClaimed={() => setTimeout(() => reload(), 1200)} />
+        </section>
       )}
 
       {name && (
