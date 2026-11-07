@@ -4,9 +4,16 @@ import { useEffect, useState } from "react"
 import { Gift } from "./art"
 import "./rewards.css"
 
+const HIDE = "whitepay.rewards.hidden"
+/** the person chose "Hide rewards from Home" (a new card still shows the row) */
+export const rewardsHidden = () => { try { return localStorage.getItem(HIDE) === "1" } catch { return false } }
+export const setRewardsHidden = (h: boolean) => { try { if (h) localStorage.setItem(HIDE, "1"); else localStorage.removeItem(HIDE) } catch {} }
+
 export function RewardsEntry({ address }: { address: string }) {
   const [fresh, setFresh] = useState(0)
   const [offers, setOffers] = useState<number | null>(null)
+  const [hidden, setHidden] = useState(false)
+  useEffect(() => setHidden(rewardsHidden()), [])
   useEffect(() => {
     let live = true
     fetch(`/api/rewards?owner=${address}`).then((r) => r.json()).then((d) => {
@@ -16,7 +23,10 @@ export function RewardsEntry({ address }: { address: string }) {
     }).catch(() => {})
     return () => { live = false }
   }, [address])
+  if (hidden && !fresh) return null
   return (
+    <>
+    <div className="section-title">Offers &amp; rewards</div>
     <div className="rw-home">
       <a href="/rewards">
         <span className="ic cards"><Gift size={26} /></span>
@@ -28,5 +38,6 @@ export function RewardsEntry({ address }: { address: string }) {
         <div><div className="t1">Offers</div><div className="t2">{offers ? `${offers} shop${offers > 1 ? "s" : ""}` : "From shops"}</div></div>
       </a>
     </div>
+    </>
   )
 }

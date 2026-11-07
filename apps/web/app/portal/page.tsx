@@ -8,7 +8,7 @@ import { siteApprovalMessage } from "@whitepay/shared"
 import { getWallet, type WalletInfo } from "@/lib/wallet"
 import { UnlockSheet } from "../components"
 import { Icon, Identicon } from "../ui"
-import { CodeBlock, CopyField, Field, StepState, Steps } from "./kit"
+import { CodeBlock, CopyField, Field, type StepState } from "./kit"
 import { SiteHealth } from "./health"
 import { PaymentLinks } from "./links"
 import { Team } from "./team"
@@ -21,6 +21,16 @@ type Site = { siteId: string; name: string; domains: string[]; webhook?: string;
 type Pending =
   | { kind: "create"; siteId: string; name: string; domains: string[]; webhook?: string }
   | { kind: "rotate" | "revoke"; site: Site }
+
+/** what this business is setting up: decides which steps the timeline shows and which tools stay tucked away */
+type Goal = "code" | "plugin" | "links"
+const GOALS: { id: Goal; title: string; sub: string }[] = [
+  { id: "code", title: "My own website", sub: "I (or my developer) write code" },
+  { id: "plugin", title: "WooCommerce / Shopify", sub: "Install a plugin, no code" },
+  { id: "links", title: "Payment links only", sub: "Share a link or QR, no website" },
+]
+const goalKey = (shop: string) => `whitepay.portal.goal.${shop.toLowerCase()}`
+type TStep = { id: string; title: string; state: StepState; summary?: React.ReactNode; body: React.ReactNode }
 
 const randomId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("")
 const when = (t: number) => new Date(t * 1000).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
@@ -41,6 +51,16 @@ export default function Portal() {
   const [shop, setShop] = useState<string | null>(null)
   const [memberships, setMemberships] = useState<{ merchant: string; shopName?: string; ensName?: string }[]>([])
   const [ownShop, setOwnShop] = useState(false)
+  const [goal, setGoalState] = useState<Goal | null>(null)
+  const [opened, setOpened] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    if (!shop) return
+    try { const g = localStorage.getItem(goalKey(shop)) as Goal | null; setGoalState(g && GOALS.some((x) => x.id === g) ? g : null) } catch { setGoalState(null) }
+  }, [shop])
+  const setGoal = (g: Goal | null) => {
+    setGoalState(g); setOpened({})
+    try { if (shop) { if (g) localStorage.setItem(goalKey(shop), g); else localStorage.removeItem(goalKey(shop)) } } catch {}
+  }
 
   useEffect(() => setWallet(getWallet()), [])
 
@@ -79,12 +99,6 @@ export default function Portal() {
   const role: "owner" | "developer" = !wallet || !shop || shop.toLowerCase() === wallet.address.toLowerCase() ? "owner" : "developer"
 
   const active = useMemo(() => (sites ?? []).filter((s) => s.status === "active"), [sites])
-  const step: StepState[] = [
-    wallet ? "done" : "current",
-    !wallet ? "todo" : merchant ? "done" : "current",
-    !merchant ? "todo" : active.length ? "done" : "current",
-    active.length ? "current" : "todo",
-  ]
 
   const startCreate = (e: React.FormEvent) => {
     e.preventDefault(); setErr("")
@@ -118,6 +132,146 @@ export default function Portal() {
     } finally { setBusy("") }
   }
 
+  // ---------------------------------------------------------------- step bodies (shown inside the timeline)
+  const walletBody = wallet === undefined ? <div className="skel" style={{ height: 64 }} /> : wallet ? (
+    <>
+      <div className="pt-row">
+        <Identicon seed={wallet.address} size={44} />
+        <div className="pt-grow">
+          <b>{wallet.label}</b>
+          <CopyField label={role === "owner" ? "Payout address" : "Your wallet (teammate)"} value={wallet.address} mono />
+        </div>
+      </div>
+      <p className="pt-fine">Want shop money separate? <a href="/you">Add another wallet</a> and switch to it, then reopen this page.</p>
+    </>
+  ) : (
+    <>
+      <p className="pt-sub">Payments go straight to this wallet. Use a separate shop wallet (recommended), your WondrPay wallet, or MetaMask.</p>
+      <div className="pt-actions">
+        <a className="btn btn-primary" href="/app?next=/portal">Create a shop wallet</a>
+        <a className="btn btn-ghost" href="/you">Connect MetaMask</a>
+      </div>
+    </>
+  )
+
+  const profileBody = merchant === undefined ? <div className="skel" style={{ height: 64 }} /> : merchant ? (
+    <>
+      <div className="pt-row">
+        <Identicon seed={merchant.address} name={merchant.ensName} size={44} />
+        <div className="pt-grow">
+          <b>{merchant.displayName}</b>
+          <span className="pt-muted">{merchant.ensName}</span>
+        </div>
+        {merchant.verified ? <span className="pt-pill ok">{Icon.check(13)} Verified human</span> : <a className="pt-pill" href="/merchant">Get verified</a>}
+      </div>
+      <a className="pt-link" href="/merchant">Edit in Shop →</a>
+    </>
+  ) : (
+    <>
+      <p className="pt-sub">Pick a shop name (it becomes <code>name.wondrpay.eth</code>) and the name customers see at checkout.</p>
+      <a className="btn btn-primary" href="/merchant">Set up your shop</a>
+    </>
+  )
+
+  const keysBody = (
+    <>
+      {secret && (
+        <div className="pt-secret" role="region" aria-label="Your new secret key">
+          <b>Copy your secret key now. You won't see it again.</b>
+          <span className="pt-sub">{goal === "plugin" ? "Paste it into the plugin's settings." : <>Put it in your server's environment as <code>WONDRPAY_SECRET_KEY</code>. Never put it in browser code.</>}</span>
+          <CopyField label="Secret key" value={secret.key} mono autoSelect />
+          <button className="btn btn-ghost" onClick={() => setSecret(null)}>I've saved it</button>
+        </div>
+      )}
+
+      {sites === null ? <div className="skel" style={{ height: 80 }} /> : sites.length > 0 && (
+        <ul className="pt-sites">
+          {sites.map((s) => (
+            <li key={s.siteId} className={s.status}>
+              <div className="pt-site-h">
+                <div><b>{s.name}</b><span className="pt-muted">{s.domains.join(", ")}</span></div>
+                <span className={`pt-pill ${s.status === "active" ? "ok" : ""}`}>{s.status === "active" ? "Live in test mode" : "Switched off"}</span>
+              </div>
+              {goal !== "links" && <CopyField label="Publishable key" value={s.publishableKey} mono />}
+              {goal !== "links" && <div className="pt-kv-inline"><span>Secret key</span><code>wp_sk_test_…{s.secretHint}</code></div>}
+              {s.webhook && <div className="pt-kv-inline"><span>Webhook</span><code>{s.webhook}</code></div>}
+              <div className="pt-kv-inline"><span>Added</span><span>{when(s.createdAt)}</span></div>
+              {s.status === "active" && (
+                <div className="pt-actions">
+                  {goal !== "links" && (
+                    <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => setPending({ kind: "rotate", site: s })}>
+                      {busy === s.siteId ? <span className="spinner" /> : null} New secret key
+                    </button>
+                  )}
+                  {role !== "owner" ? null : confirm === s.siteId ? (
+                    <>
+                      <button className="btn btn-danger btn-sm" disabled={!!busy} onClick={() => setPending({ kind: "revoke", site: s })}>Yes, switch off</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setConfirm("")}>Keep it</button>
+                    </>
+                  ) : <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => setConfirm(s.siteId)}>Switch off</button>}
+                </div>
+              )}
+              {s.status === "active" && shop && goal !== "links" && <SiteHealth merchant={shop} siteId={s.siteId} hasWebhook={!!s.webhook} />}
+              {confirm === s.siteId && <p className="pt-fine">Its keys stop working at once, and checkouts that are still open can't be paid any more.</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {role === "owner" ? <form className="pt-form" onSubmit={startCreate} noValidate>
+        <h3>{sites?.length ? "Add another website" : goal === "links" ? "Where you sell" : "Add your website"}</h3>
+        <Field id="site-name" label={goal === "links" ? "Name" : "Website name"} hint="Only you see this" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder={goal === "links" ? "Instagram shop" : "Kesar store"} maxLength={60} />
+        <Field id="site-domains" label="Domains" hint={goal === "links" ? "Your website or social page. After paying, customers can be sent back here." : "Where your checkout runs. Customers are only sent back to these. Separate with commas."} value={form.domains} onChange={(v) => setForm({ ...form, domains: v })} placeholder={goal === "links" ? "instagram.com" : "shop.example.com, localhost"} />
+        {goal !== "links" && <Field id="site-webhook" label="Webhook URL (optional)" hint="We POST a signed event here when a checkout is paid" value={form.webhook} onChange={(v) => setForm({ ...form, webhook: v })} placeholder="https://shop.example.com/webhooks/wondrpay" maxLength={128} type="url" />}
+        {err && <div className="pt-err" role="alert">{err}</div>}
+        <button className="btn btn-primary" type="submit" disabled={!!busy || active.length >= 5}>
+          {busy === "create" ? <><span className="spinner" /> Creating…</> : goal === "links" ? "Add" : "Create API keys"}
+        </button>
+        <p className="pt-fine">You approve this with your wallet. Money only ever goes to your payout wallet.</p>
+      </form> : <p className="pt-fine">Only the shop owner can add websites.</p>}
+    </>
+  )
+
+  const pluginBody = (
+    <div className="pt-int">
+      <ol className="pt-howto">
+        <li><b>WooCommerce:</b> <a className="pt-link" href="/downloads/wondrpay-for-woocommerce.zip">download the plugin</a>, then in WordPress go to Plugins → Add New → Upload Plugin and activate it.</li>
+        <li><b>Paste your secret key</b> in WooCommerce → Settings → Payments → WondrPay (USDT), and turn it on.</li>
+        <li><b>Shopify:</b> follow the <a className="pt-link" href="/developers#shopify">Shopify guide</a> (a payment link on the thank-you page, or a manual payment method).</li>
+      </ol>
+      <p className="pt-fine">Place one test order on your store: it should show as paid in WordPress and in your <a href="/merchant">Shop dashboard</a>.</p>
+    </div>
+  )
+
+  const linksBody = merchant && shop ? <PaymentLinks merchant={shop} sites={sites ?? []} /> : <p className="pt-sub">Set up your shop first.</p>
+
+  // ---------------------------------------------------------------- the timeline for this goal
+  const st = (done: boolean, ready: boolean): StepState => (done ? "done" : ready ? "current" : "todo")
+  const walletStep: TStep = { id: "wallet", title: "Payout wallet", state: st(!!wallet, true), summary: wallet ? <span className="mono">{wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}</span> : undefined, body: walletBody }
+  const profileStep: TStep = { id: "profile", title: "Shop profile", state: st(!!merchant, !!wallet), summary: merchant ? <>{merchant.displayName} · {merchant.ensName}{merchant.verified ? " · verified" : ""}</> : undefined, body: profileBody }
+  const keysStep: TStep = { id: "keys", title: goal === "links" ? "Where you sell" : "Website & API keys", state: st(active.length > 0, !!merchant),
+    summary: active.length ? <>{active.length} live: {active.map((s) => s.name).join(", ")}</> : undefined, body: keysBody }
+  const intStep: TStep = { id: "integrate", title: "Add checkout to your site", state: active.length ? "current" : "todo", body: <Quickstart secret={secret?.key} hasSite={active.length > 0} /> }
+  const plugStep: TStep = { id: "plugin", title: "Install the plugin", state: active.length ? "current" : "todo", body: pluginBody }
+  const linkStep: TStep = { id: "links", title: "Create a payment link", state: active.length ? "current" : "todo", body: linksBody }
+
+  const steps: TStep[] = role === "developer"
+    ? [{ ...keysStep, state: active.length ? "done" : "current" }, intStep, { ...linkStep, state: active.length ? "current" : "todo" }]
+    : goal === "plugin" ? [walletStep, profileStep, keysStep, plugStep]
+    : goal === "links" ? [walletStep, profileStep, keysStep, linkStep]
+    : [walletStep, profileStep, keysStep, intStep]
+
+  // everything not on this goal's path, tucked away until asked for
+  const extras: { id: string; title: string; sub: string; body: React.ReactNode }[] = []
+  if (merchant && shop) {
+    if (goal === "plugin" || goal === "links") extras.push({ id: "x-int", title: "Code integration", sub: "API, webhooks and a test checkout", body: <Quickstart secret={secret?.key} hasSite={active.length > 0} /> })
+    if (goal !== "links" && role === "owner") extras.push({ id: "x-links", title: "Payment links", sub: "A fixed price you can share as a link or QR", body: linksBody })
+    if (role === "owner") extras.push({ id: "x-refunds", title: "Refunds by API", sub: "Let your server refund without opening the app", body: <RefundAllowance merchant={shop} usdtAddress={USDT_ADDRESS} chainId={WHITECHAIN_CHAIN_ID} /> })
+    if (role === "owner") extras.push({ id: "x-team", title: "Team", sub: "Give a developer access to keys and links", body: <Team merchant={shop} /> })
+  }
+  const doneCount = steps.filter((x) => x.state === "done").length
+  const isOpen = (x: TStep) => opened[x.id] ?? x.state === "current"
+
   return (
     <main className="pt" id="main">
       <header className="pt-bar">
@@ -126,20 +280,16 @@ export default function Portal() {
           <span className="pt-name">WondrPay<small>Business</small></span>
         </a>
         <div className="pt-bar-r">
-          <span className="pt-chip lime" title="Test mode uses Whitechain Sepolia and test USDT">Test mode · Whitechain Sepolia</span>
+          <span className="pt-chip lime" title="Test mode uses Whitechain Sepolia and test USDT">Test mode</span>
           {wallet && <span className="pt-chip mono" title={wallet.address}>{wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}</span>}
         </div>
       </header>
 
-      <section className="pt-hero">
+      <section className="pt-hero pt-hero-tight">
         <div>
-          <h1>Accept USDT on your website</h1>
-          <p>Get API keys for your site, add a checkout, and get paid straight into your own wallet on Whitechain. Your customers pay no gas.</p>
+          <h1>Accept USDT {goal === "links" ? "with a link" : goal === "plugin" ? "in your store" : "on your website"}</h1>
+          <p>Paid straight into your own wallet on Whitechain. Your customers pay no gas.</p>
         </div>
-        <Steps items={[
-          { title: "Merchant wallet", state: step[0] }, { title: "Shop profile", state: step[1] },
-          { title: "Website & keys", state: step[2] }, { title: "Integrate", state: step[3] },
-        ]} />
       </section>
 
       {loadErr && <div className="pt-alert" role="alert">{loadErr} <button className="pt-link" onClick={() => shop && load(shop)}>Retry</button></div>}
@@ -148,7 +298,7 @@ export default function Portal() {
         <div className="pt-role" role="status">
           {role === "developer" && merchant
             ? <><b>You're a developer at {merchant.displayName}</b>
-                <span>You can make new secret keys, payment links and test webhooks. Only the owner can add or switch off websites, and payouts always go to the owner's wallet.</span></>
+                <span>You can make new secret keys, payment links and test webhooks. Payouts always go to the owner's wallet.</span></>
             : <b>You also help run {memberships.length} other shop{memberships.length > 1 ? "s" : ""}</b>}
           {(memberships.length > 1 || (memberships.length > 0 && ownShop) || role === "owner") && (
             <label className="pt-field">
@@ -162,147 +312,50 @@ export default function Portal() {
         </div>
       )}
 
-      <div className="pt-grid">
-        {/* 1. wallet */}
-        <section className="pt-card" aria-labelledby="h-wallet">
-          <h2 id="h-wallet"><span className="pt-n" aria-hidden>1</span> Merchant wallet</h2>
-          {wallet === undefined ? <div className="skel" style={{ height: 64 }} /> : wallet ? (
-            <div className="pt-row">
-              <Identicon seed={wallet.address} size={44} />
-              <div className="pt-grow">
-                <b>{wallet.label}</b>
-                <CopyField label={role === "owner" ? "Payout address" : "Your wallet (teammate)"} value={wallet.address} mono />
-              </div>
-            </div>
-          ) : (
-            <>
-              <p className="pt-sub">Payments go straight to this wallet. Use your WondrPay wallet, a separate shop wallet (recommended), or MetaMask. You can look around first and add one before going live.</p>
-              <div className="pt-actions">
-                <a className="btn btn-primary" href="/app?next=/portal">Create a shop wallet</a>
-                <a className="btn btn-ghost" href="/you">Connect MetaMask</a>
-              </div>
-            </>
-          )}
-          {wallet && <p className="pt-fine">Want shop money separate? <a href="/you">Add another wallet</a> and switch to it, then reopen this page.</p>}
-        </section>
-
-        {/* 2. profile */}
-        <section className="pt-card" aria-labelledby="h-profile">
-          <h2 id="h-profile"><span className="pt-n" aria-hidden>2</span> Shop profile</h2>
-          {!wallet ? <p className="pt-sub">Add a merchant wallet first.</p>
-            : merchant === undefined ? <div className="skel" style={{ height: 64 }} />
-            : merchant ? (
-              <>
-                <div className="pt-row">
-                  <Identicon seed={merchant.address} name={merchant.ensName} size={44} />
-                  <div className="pt-grow">
-                    <b>{merchant.displayName}</b>
-                    <span className="pt-muted">{merchant.ensName}</span>
-                  </div>
-                  {merchant.verified ? <span className="pt-pill ok">{Icon.check(13)} Verified human</span> : <a className="pt-pill" href="/merchant">Get verified</a>}
-                </div>
-                <dl className="pt-kv">
-                  {merchant.category && <><dt>Category</dt><dd>{merchant.category}</dd></>}
-                  <dt>Status</dt><dd>{merchant.active ? "Active on Whitechain" : "Inactive"}</dd>
-                  <dt>Order signing</dt><dd>{active.length ? "WondrPay signs orders for your websites" : "Your wallet signs each order"}</dd>
-                </dl>
-                <a className="pt-link" href="/merchant">Edit in Shop →</a>
-              </>
-            ) : (
-              <>
-                <p className="pt-sub">Pick a shop name (it becomes <code>name.wondrpay.eth</code>) and a display name customers will see at checkout.</p>
-                <a className="btn btn-primary" href="/merchant">Set up your shop</a>
-              </>
-            )}
-        </section>
-      </div>
-
-      {/* 3. websites & keys */}
-      <section className="pt-card" aria-labelledby="h-sites">
-        <h2 id="h-sites"><span className="pt-n" aria-hidden>3</span> Websites & API keys</h2>
-        {!merchant ? <p className="pt-sub">Set up your shop first.</p> : (
-          <>
-            {secret && (
-              <div className="pt-secret" role="region" aria-label="Your new secret key">
-                <b>Copy your secret key now. You won't see it again.</b>
-                <span className="pt-sub">Put it in your server's environment as <code>WONDRPAY_SECRET_KEY</code>. Never put it in browser code.</span>
-                <CopyField label="Secret key" value={secret.key} mono autoSelect />
-                <button className="btn btn-ghost" onClick={() => setSecret(null)}>I've saved it</button>
-              </div>
-            )}
-
-            {sites === null ? <div className="skel" style={{ height: 80 }} /> : sites.length > 0 && (
-              <ul className="pt-sites">
-                {sites.map((s) => (
-                  <li key={s.siteId} className={s.status}>
-                    <div className="pt-site-h">
-                      <div><b>{s.name}</b><span className="pt-muted">{s.domains.join(", ")}</span></div>
-                      <span className={`pt-pill ${s.status === "active" ? "ok" : ""}`}>{s.status === "active" ? "Live in test mode" : "Switched off"}</span>
-                    </div>
-                    <CopyField label="Publishable key" value={s.publishableKey} mono />
-                    <div className="pt-kv-inline"><span>Secret key</span><code>wp_sk_test_…{s.secretHint}</code></div>
-                    {s.webhook && <div className="pt-kv-inline"><span>Webhook</span><code>{s.webhook}</code></div>}
-                    <div className="pt-kv-inline"><span>Added</span><span>{when(s.createdAt)}</span></div>
-                    {s.status === "active" && (
-                      <div className="pt-actions">
-                        <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => setPending({ kind: "rotate", site: s })}>
-                          {busy === s.siteId ? <span className="spinner" /> : null} New secret key
-                        </button>
-                        {role !== "owner" ? null : confirm === s.siteId ? (
-                          <>
-                            <button className="btn btn-danger btn-sm" disabled={!!busy} onClick={() => setPending({ kind: "revoke", site: s })}>Yes, switch off</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => setConfirm("")}>Keep it</button>
-                          </>
-                        ) : <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => setConfirm(s.siteId)}>Switch off</button>}
-                      </div>
-                    )}
-                    {s.status === "active" && shop && <SiteHealth merchant={shop} siteId={s.siteId} hasWebhook={!!s.webhook} />}
-                    {confirm === s.siteId && <p className="pt-fine">Its keys stop working at once, and checkouts that are still open can't be paid any more.</p>}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {role === "owner" ? <form className="pt-form" onSubmit={startCreate} noValidate>
-              <h3>{sites?.length ? "Add another website" : "Add your website"}</h3>
-              <Field id="site-name" label="Website name" hint="Only you see this" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="Kesar store" maxLength={60} />
-              <Field id="site-domains" label="Domains" hint="Where your checkout runs. Customers are only sent back to these. Separate with commas." value={form.domains} onChange={(v) => setForm({ ...form, domains: v })} placeholder="shop.example.com, localhost" />
-              <Field id="site-webhook" label="Webhook URL (optional)" hint="We POST a signed event here when a checkout is paid" value={form.webhook} onChange={(v) => setForm({ ...form, webhook: v })} placeholder="https://shop.example.com/webhooks/wondrpay" maxLength={128} type="url" />
-              {err && <div className="pt-err" role="alert">{err}</div>}
-              <button className="btn btn-primary" type="submit" disabled={!!busy || active.length >= 5}>
-                {busy === "create" ? <><span className="spinner" /> Creating keys…</> : "Create API keys"}
+      {role === "owner" && !goal ? (
+        <section className="pt-card" aria-labelledby="h-goal">
+          <h2 id="h-goal">How will customers pay you?</h2>
+          <p className="pt-sub">We'll show only the steps you need. You can change this later.</p>
+          <div className="pt-goals">
+            {GOALS.map((g) => (
+              <button key={g.id} className="pt-goal" onClick={() => setGoal(g.id)}>
+                <b>{g.title}</b><span>{g.sub}</span><span className="pt-goal-go" aria-hidden>{Icon.chev(18)}</span>
               </button>
-              <p className="pt-fine">You'll approve this with your wallet. From then on WondrPay signs orders for your websites; money still only ever goes to your payout wallet.</p>
-            </form> : <p className="pt-fine">Only the shop owner can add websites.</p>}
-          </>
-        )}
-      </section>
-
-      {/* 4. integrate */}
-      <section className="pt-card" aria-labelledby="h-int">
-        <h2 id="h-int"><span className="pt-n" aria-hidden>4</span> Integrate</h2>
-        <Quickstart secret={secret?.key} hasSite={active.length > 0} />
-      </section>
-
-      {/* 5. payment links */}
-      <section className="pt-card" aria-labelledby="h-links">
-        <h2 id="h-links"><span className="pt-n" aria-hidden>5</span> Payment links</h2>
-        {merchant && shop ? <PaymentLinks merchant={shop} sites={sites ?? []} /> : <p className="pt-sub">Set up your shop and a website first.</p>}
-      </section>
-
-      {/* refunds by API (owner) */}
-      {merchant && shop && role === "owner" && (
-        <section className="pt-card" aria-labelledby="h-refunds">
-          <h2 id="h-refunds"><span className="pt-n" aria-hidden>6</span> Refunds by API</h2>
-          <RefundAllowance merchant={shop} usdtAddress={USDT_ADDRESS} chainId={WHITECHAIN_CHAIN_ID} />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section className="pt-card" aria-labelledby="h-setup">
+          <div className="pt-tl-head">
+            <h2 id="h-setup">{doneCount === steps.length ? "You're set up" : "Your setup"} <span className="pt-muted">{doneCount} of {steps.length} done</span></h2>
+            {role === "owner" && goal && <button className="pt-link" onClick={() => setGoal(null)}>{GOALS.find((g) => g.id === goal)?.title} · Change</button>}
+          </div>
+          <ol className="pt-tl">
+            {steps.map((x, i) => (
+              <li key={x.id} className={`pt-tl-i ${x.state}`} aria-current={x.state === "current" ? "step" : undefined}>
+                <span className="pt-tl-dot" aria-hidden>{x.state === "done" ? Icon.check(14) : i + 1}</span>
+                <div className="pt-tl-c">
+                  <button className="pt-tl-h" aria-expanded={isOpen(x)} onClick={() => setOpened((o) => ({ ...o, [x.id]: !isOpen(x) }))} disabled={x.state === "todo"}>
+                    <b>{x.title}</b>
+                    <span className="pt-tl-s">{x.state === "done" ? x.summary ?? "Done" : x.state === "todo" ? "After the step above" : "Next"}</span>
+                  </button>
+                  {isOpen(x) && x.state !== "todo" && <div className="pt-tl-b">{x.body}</div>}
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
       )}
 
-      {/* 7. team (owner) */}
-      {merchant && shop && role === "owner" && (
-        <section className="pt-card" aria-labelledby="h-team">
-          <h2 id="h-team"><span className="pt-n" aria-hidden>7</span> Team</h2>
-          <Team merchant={shop} />
+      {extras.length > 0 && (role === "developer" || goal) && (
+        <section className="pt-more" aria-label="More tools">
+          <h2 className="pt-more-h">More tools</h2>
+          {extras.map((x) => (
+            <details key={x.id} className="pt-card pt-x">
+              <summary><b>{x.title}</b><span className="pt-muted">{x.sub}</span></summary>
+              <div className="pt-x-b">{x.body}</div>
+            </details>
+          ))}
         </section>
       )}
 
@@ -312,7 +365,7 @@ export default function Portal() {
 
       {pending && (
         <UnlockSheet
-          title={pending.kind === "create" ? "Approve API keys" : pending.kind === "rotate" ? "Approve a new secret key" : "Approve switching off"}
+          title={pending.kind === "create" ? (goal === "links" ? "Approve" : "Approve API keys") : pending.kind === "rotate" ? "Approve a new secret key" : "Approve switching off"}
           subtitle={pending.kind === "create" ? `for ${pending.domains.join(", ")}` : pending.site.name}
           onUnlocked={signAndSend}
           onCancel={() => setPending(null)}

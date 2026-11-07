@@ -97,7 +97,6 @@ function WalletHome({ wallet, bal, rows, name, account, displayName, toast }: Re
         )}
       </div>
 
-      <div className="section-title">Offers &amp; rewards</div>
       <RewardsEntry address={wallet.address} />
 
       <div className="section-title">Manage your money</div>

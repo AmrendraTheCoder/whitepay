@@ -177,3 +177,15 @@
 .rw-steps li.on .rw-step-n { background: var(--brand); color: #fff; box-shadow: 0 0 0 4px color-mix(in oklab, var(--brand) 25%, transparent); }
 .rw-steps li.done .rw-step-n { background: color-mix(in oklab, var(--ok) 22%, transparent); color: var(--ok); }
 .rw-steps li.done b { color: var(--muted); }
+
+/* folded "How rewards work" and the quiet hide link */
+.rw-more { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); margin-top: 8px; }
+.rw-more > summary { list-style: none; cursor: pointer; padding: 14px 16px; font-weight: 800; display: flex; flex-direction: column; gap: 2px; }
+.rw-more > summary::-webkit-details-marker { display: none; }
+.rw-more > summary span { font-weight: 500; font-size: 13px; color: var(--muted); }
+.rw-more[open] > summary { border-bottom: 1px solid var(--line); }
+.rw-more > .rw-econ { border: 0; background: none; margin: 0; }
+.rw-quiet { align-self: center; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 10px; }
+.rw-guide .btn { margin-top: 4px; }
+.rw-guide { display: flex; flex-direction: column; gap: 10px; }
+.rw-claim-note { margin: 0; font-size: 13px; opacity: .85; }

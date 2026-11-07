@@ -10,6 +10,7 @@ import { playSound } from "@/lib/sound"
 import { Chest, Gift } from "./art"
 import { PrizeFace, usd } from "./prize"
 import { ScratchSheet, prettyShop } from "./scratch"
+import { rewardsHidden, setRewardsHidden } from "./entry"
 import "./rewards.css"
 
 type Data = { cards: RewardCard[]; offers: OfferView[]; ledger: RewardsLedger | null; totalCashback: string; pendingMicro: string }
@@ -24,6 +25,9 @@ export default function RewardsPage() {
   const [claimed, setClaimed] = useState<{ wbt: string; explorer: string } | null>(null)
   const [mode, setMode] = useState<"enroll" | "session" | null>(null)
   const [stage, setStage] = useState<"idle" | "world" | "paying">("idle")
+  const [hidden, setHidden] = useState(false)
+  useEffect(() => setHidden(rewardsHidden()), [])
+  const toggleHidden = () => { const h = !hidden; setRewardsHidden(h); setHidden(h); say(h ? "Rewards hidden from Home" : "Rewards back on Home", 2200) }
 
   const say = (t: string, ms = 3200) => { setToast(t); setTimeout(() => setToast(""), ms) }
   const cacheKey = (a: string) => `whitepay.rewards.${a.toLowerCase()}`
@@ -70,7 +74,9 @@ export default function RewardsPage() {
   // where this person is in the earn -> scratch -> claim -> receive flow
   const step = claimed ? 4 : toClaim.length ? 3 : fresh ? 2 : 1
   const STEPS = [
-    { t: "Pay a shop", d: `Pay any listed shop $${E.breakEven.toFixed(2)} or more and a scratch card lands here. Your first ${ECON.welcomeWins} cards come with any shop payment.` },
+    { t: "Pay a shop", d: cards.length < ECON.welcomeWins
+      ? `Pay any shop with WondrPay. Your first ${ECON.welcomeWins} shop payments each earn a card that always wins.`
+      : `Pay any listed shop $${E.breakEven.toFixed(2)} or more and a scratch card lands here.` },
     { t: "Scratch the card", d: `Tap a new card and scratch it. About 1 in ${E.oneIn} wins 1–5% cashback; your first ${ECON.welcomeWins} always win.` },
     { t: "Claim with World ID", d: mode === "session" ? "World App asks you to confirm it's you: a fresh check on every claim, a few seconds." : "The first time, World App sets up WondrPay rewards for you (once per person). After that it's a quick check on each claim." },
     { t: "Get WBT", d: "Your cashback arrives as WBT in this wallet on Whitechain, in one transfer." },
@@ -115,18 +121,7 @@ export default function RewardsPage() {
                   <>
                     <div className="rw-claim-amt">{usd(pending)}<small>{wbtOf(pending) ? `≈ ${wbtOf(pending)} WBT` : "in WBT"}</small></div>
                     <p>Cashback from {toClaim.length} card{toClaim.length > 1 ? "s" : ""}, ready to claim.</p>
-                    <ol className="rw-claim-steps">
-                      <li className={stage === "world" ? "on" : stage === "paying" ? "done" : ""}>
-                        <b>{mode === "session" ? "Confirm it's you in World App" : "Set up rewards in World App"}</b>
-                        <span>{mode === "session"
-                          ? "Scan the code with World App (or tap Open World App) and approve. It's a new check every claim, so no one else can claim for you."
-                          : "One time per person: scan the code with World App and approve \u201cSet up WondrPay rewards\u201d. Every later claim is a quick fresh check."}</span>
-                      </li>
-                      <li className={stage === "paying" ? "on" : ""}>
-                        <b>WBT is sent to this wallet</b>
-                        <span>WondrPay checks the per-person limits ({ECON.humanClaimsPerDay} claims a day, ${Number(ECON.humanMonthlyCapMicro) / 1e6} a month) and pays on Whitechain.</span>
-                      </li>
-                    </ol>
+                    <p className="rw-claim-note">{stage === "paying" ? "Sending WBT to this wallet…" : mode === "session" ? "A quick check in World App, then WBT lands in this wallet." : "One-time setup in World App, then WBT lands in this wallet."}</p>
                     <ClaimVerify
                       owner={owner}
                       signal={signal}
@@ -156,20 +151,24 @@ export default function RewardsPage() {
               </section>
             )}
 
-            <section className="rw-guide" aria-label="How to get rewards">
-              <h2 className="rw-h">How to get rewards</h2>
-              <ol className="rw-steps">
-                {STEPS.map((x, i) => (
-                  <li key={x.t} className={i + 1 < step ? "done" : i + 1 === step ? "on" : ""}>
-                    <span className="rw-step-n" aria-hidden>{i + 1 < step ? "✓" : i + 1}</span>
-                    <div><b>{x.t}</b><span>{x.d}</span></div>
-                  </li>
-                ))}
-              </ol>
-            </section>
+            {data && cards.length === 0 && (
+              <section className="rw-guide" aria-label="How to get rewards">
+                <h2 className="rw-h">Get cashback when you pay shops</h2>
+                <ol className="rw-steps">
+                  {STEPS.map((x, i) => (
+                    <li key={x.t} className={i + 1 < step ? "done" : i + 1 === step ? "on" : ""}>
+                      <span className="rw-step-n" aria-hidden>{i + 1 < step ? "✓" : i + 1}</span>
+                      <div><b>{x.t}</b>{i + 1 === step && <span>{x.d}</span>}</div>
+                    </li>
+                  ))}
+                </ol>
+                <a className="btn btn-primary" href="/scan">{Icon.scan(22)} Scan a shop QR</a>
+                <button className="rw-quiet" onClick={toggleHidden}>{hidden ? "Show rewards on Home again" : "Not interested? Hide rewards from Home"}</button>
+              </section>
+            )}
 
-            <h2 className="rw-h">Your rewards</h2>
             {err && !data && <div className="notice">{err} <button className="chip" onClick={() => void load(owner)}>Retry</button></div>}
+            {(!data || cards.length > 0) && <h2 className="rw-h">Your cards</h2>}
             <div className="rw-grid">
               {!data && Array.from({ length: 4 }, (_, i) => <div key={i} className="rw-tile skel" />)}
               {cards.map((c) => (
@@ -191,16 +190,7 @@ export default function RewardsPage() {
                 </button>
               ))}
             </div>
-            {data && cards.length === 0 && (
-              <div className="rw-empty">
-                <Gift size={52} />
-                <p><b>No scratch cards yet</b><br />Pay any listed shop 0.10 USDT or more with WondrPay and a card lands here.</p>
-                <a className="btn btn-primary" href="/scan">{Icon.scan(22)} Scan a shop QR</a>
-              </div>
-            )}
-
-            <h2 className="rw-h" id="offers">Offers from shops</h2>
-            {data && data.offers.length === 0 && <p className="sub">No shop offers right now. Shops add them from Shop › Offers.</p>}
+            {(data?.offers.length ?? 0) > 0 && <h2 className="rw-h" id="offers">Offers from shops</h2>}
             <div className="rw-offers">
               {data?.offers.map((o) => (
                 <div key={o.key} className="rw-offer-row">
@@ -217,8 +207,16 @@ export default function RewardsPage() {
               ))}
             </div>
 
-            <h2 className="rw-h" id="how">Where rewards come from</h2>
+            <details className="rw-more" id="how">
+              <summary>How rewards work<span>Odds, limits and where the money comes from</span></summary>
             <section className="rw-econ">
+              {cards.length > 0 && (
+                <ol className="rw-steps">
+                  {STEPS.map((x, i) => (
+                    <li key={x.t}><span className="rw-step-n" aria-hidden>{i + 1}</span><div><b>{x.t}</b><span>{x.d}</span></div></li>
+                  ))}
+                </ol>
+              )}
               <p>Shops pay WondrPay a {ECON.feeBps / 100}% fee (at least ${(Number(ECON.feeFloorMicro) / 1e6).toFixed(2)}). WondrPay first pays the
                 network gas for your payment out of it; half of what's left funds your rewards, the other half keeps WondrPay running.
                 Person-to-person transfers carry no fee, so they earn no cards.</p>
@@ -249,6 +247,8 @@ export default function RewardsPage() {
                 </dl>
               )}
             </section>
+            </details>
+            {cards.length > 0 && <button className="rw-quiet" onClick={toggleHidden}>{hidden ? "Show rewards on Home" : "Hide rewards from Home"}</button>}
           </>
         )}
       </div>
