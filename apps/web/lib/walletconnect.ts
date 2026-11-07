@@ -26,10 +26,7 @@ export async function wcProvider(): Promise<Provider> {
     showQrModal: true, // desktop: QR code; phone: list of wallet apps that deep-link and return
     optionalChains: [whitechainSepolia.id],
     rpcMap: { [whitechainSepolia.id]: whitechainSepolia.rpcUrls.default.http[0] },
-    optionalMethods: [
-      "eth_signTypedData_v4", "personal_sign", "eth_accounts", "eth_requestAccounts", "eth_chainId",
-      "wallet_switchEthereumChain", "wallet_addEthereumChain",
-    ],
+    optionalMethods: METHODS,
     metadata: {
       name: "WondrPay",
       description: "Scan, verify, pay in USDT on Whitechain. No gas.",
@@ -37,8 +34,41 @@ export async function wcProvider(): Promise<Provider> {
       icons: [`${location.origin}/icon.svg`],
     },
   })) as unknown as Provider
+  repairNamespace(provider)
+  provider.on("session_update", () => repairNamespace(provider!))
   return provider
 }
+
+const METHODS = [
+  "eth_signTypedData_v4", "personal_sign", "eth_accounts", "eth_requestAccounts", "eth_chainId",
+  "wallet_switchEthereumChain", "wallet_addEthereumChain",
+]
+
+/** A session restored after a reload is rebuilt from the namespaces WalletConnect saved when it connected. When those
+ *  aren't in storage any more, the chain's `methods` list is undefined and EVERY request dies with
+ *  "undefined is not an object (evaluating 'this.namespace.methods.includes')". Refill it from what the wallet approved
+ *  (or what we asked for), so the session keeps working. */
+function repairNamespace(p: Provider) {
+  const up = (p as any).signer
+  const rp = up?.rpcProviders?.eip155
+  if (!rp) return
+  const approved = up?.session?.namespaces?.eip155
+  rp.namespace = rp.namespace ?? {}
+  const ns = rp.namespace
+  if (!Array.isArray(ns.methods) || !ns.methods.length)
+    ns.methods = Array.isArray(approved?.methods) && approved.methods.length ? [...approved.methods] : [...METHODS]
+  if (!Array.isArray(ns.events)) ns.events = Array.isArray(approved?.events) ? [...approved.events] : ["chainChanged", "accountsChanged"]
+  if (!Array.isArray(ns.chains)) ns.chains = Array.isArray(approved?.chains) ? [...approved.chains] : []
+  if (!Array.isArray(ns.accounts)) ns.accounts = Array.isArray(approved?.accounts) ? [...approved.accounts] : []
+}
+
+/** The session object exists but can't carry Ethereum requests (no eip155 part at all): only a fresh connection helps. */
+const unusable = (p: Provider) => !!p.session && !(p as any).signer?.rpcProviders?.eip155
+
+/** Errors that mean "this WalletConnect session is broken", not "the user said no": reset and reconnect. */
+export const isBrokenSessionError = (e: unknown) =>
+  /namespace|is not an object|cannot read propert|session (topic )?doesn'?t exist|no matching key|missing or invalid\. record was recently deleted|session not initialized|please call connect/i
+    .test(String((e as any)?.details ?? "") + " " + String((e as any)?.message ?? e))
 
 /** WalletConnect's relay refuses sites that aren't on the project's allowed-domains list ("origin not allowed"):
  *  then no pairing link is ever made, the QR stays blank and MetaMask can't open. Detect that instead of hanging. */
@@ -67,7 +97,9 @@ async function connectWatched(p: Provider) {
 /** Open the WalletConnect modal and return the connected address. */
 export async function wcConnect(): Promise<string> {
   const p = await wcProvider()
+  if (unusable(p)) await p.disconnect().catch(() => {})
   if (!p.session) await connectWatched(p)
+  repairNamespace(p)
   const a = p.accounts?.[0]
   if (!a) throw new Error("No account was shared over WalletConnect")
   return a
@@ -86,7 +118,9 @@ export async function wcEnsureSession(): Promise<Provider> {
   const p = await wcProvider()
   const expiry = Number((p.session as any)?.expiry ?? 0) * 1000
   if (p.session && expiry && expiry < Date.now() + 60_000) await p.disconnect().catch(() => {}) // expired: start fresh
+  if (unusable(p)) await p.disconnect().catch(() => {}) // broken restore: start fresh
   if (!p.session) await connectWatched(p)
+  repairNamespace(p)
   if (!hasWhitechain(p.session)) {
     // Whitechain is only an OPTIONAL chain (MetaMask may refuse a connection that requires an unknown chain):
     // ask MetaMask to add it, which also adds it to this connection

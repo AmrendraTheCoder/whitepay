@@ -13,6 +13,7 @@ import { Countdown, Icon, Identicon, LogoLoader, SuccessCheck } from "../../ui"
 import { usdt } from "@/lib/format"
 import { LocalAmount } from "../../local-amount"
 import "./checkout.css"
+import { friendlyError } from "@/lib/errors"
 
 type Req = {
   merchant: string; merchantName?: string; amount: string; deadline: string; status: string; note?: string
@@ -154,7 +155,7 @@ function BrowserWalletPay({ id, order, digest, amount, shop }: { id: string; ord
       const m = (e as SettleError).message ?? String(e)
       setErr(/reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was charged."
         : /insufficient|exceeds balance|not enough/i.test(m) ? "Not enough USDT in this wallet on Whitechain Sepolia."
-        : m.slice(0, 200))
+        : friendlyError(e, { action: "paying" }))
       setPhase("failed")
     }
   }

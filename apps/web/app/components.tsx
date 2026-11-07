@@ -9,6 +9,7 @@ import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts"
 import { restoreSession } from "@/lib/session"
 import { getWallet, unlockWithPasskey, unlockWithPin, pinLockout, isExternal, externalSigner, verifyExternalPin, verifyExternalPasskey, setExternalPin, type WalletInfo } from "@/lib/wallet"
 import { hasSavedPin, adoptSavedPin } from "@/lib/pin-sync"
+import { friendlyError } from "@/lib/errors"
 
 // World ID widget only loads when a payment actually needs the scan
 const WorldVerify = dynamic(() => import("./world").then((m) => m.WorldVerify), { ssr: false })
@@ -209,7 +210,7 @@ export function UnlockSheet({
       finish((await externalSigner(w)) as unknown as PrivateKeyAccount)
     } catch (e) {
       const m = (e as Error).message
-      setErr(/reject|denied|4001|User rejected/i.test(m) ? "Request rejected in your wallet" : m.split("\n")[0])
+      setErr(/reject|denied|4001|User rejected/i.test(m) ? "Request rejected in your wallet" : friendlyError(e, { action: "asking your wallet" }))
     } finally {
       setBusy(false)
     }
@@ -227,7 +228,7 @@ export function UnlockSheet({
     } catch (e) {
       const notAllowed = /NotAllowed|not allowed|user gesture|activation/i.test(`${(e as Error).name} ${(e as Error).message}`)
       if (auto && notAllowed) { setMode("passkey"); return } // wait for the tap on "Confirm with fingerprint"
-      setErr(notAllowed ? "Fingerprint cancelled. Try again or use your PIN." : (e as Error).message)
+      setErr(notAllowed ? "Fingerprint cancelled. Try again or use your PIN." : friendlyError(e, { action: "checking your fingerprint" }))
       setMode("pin")
     } finally {
       setBusy(false)

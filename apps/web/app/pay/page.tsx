@@ -12,6 +12,7 @@ import { getWallet } from "@/lib/wallet"
 import { usdt, initials, mmss } from "@/lib/format"
 import { playSound } from "@/lib/sound"
 import { settle, SettleError } from "@/lib/settle"
+import { friendlyError } from "@/lib/errors"
 
 type Check = { label: string; detail: string }
 type ReqResp =
@@ -252,5 +253,5 @@ function friendlyPayError(msg: string) {
   if (/daily limit/.test(m)) return "You've reached today's WondrPay spending limit."
   if (/reject|denied|cancel/.test(m)) return "Cancelled. Nothing was charged."
   if (/fetch|network/.test(m)) return "Network problem: nothing was charged. Check your connection and try again."
-  return msg
+  return friendlyError(msg, { action: "paying" })
 }

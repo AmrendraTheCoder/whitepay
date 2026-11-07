@@ -15,6 +15,7 @@ import { getWallet } from "@/lib/wallet"
 import { enableReminderNotifications } from "@/lib/reminders"
 import { usdt, short, countdown, ago } from "@/lib/format"
 import { TimerRing, PERIOD_LABEL, type MandateRow } from "../autopay-ui"
+import { friendlyError } from "@/lib/errors"
 
 export default function Subscriptions() {
   const [wallet, setWallet] = useState<ReturnType<typeof getWallet> | undefined>(undefined)
@@ -318,5 +319,5 @@ function friendly(msg: string) {
   if (/reject|denied|cancel/.test(m)) return "Cancelled in your wallet. Nothing was charged."
   if (/timed out|timeout|abort/.test(m)) return "WondrPay took too long to answer. Nothing changed; please try again."
   if (/fetch|network|load failed/.test(m)) return "Couldn't reach WondrPay. Nothing changed; check your connection and try again."
-  return msg
+  return friendlyError(msg, { action: "paying this subscription" })
 }

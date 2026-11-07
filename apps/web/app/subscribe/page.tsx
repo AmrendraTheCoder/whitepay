@@ -14,6 +14,7 @@ import { enableReminderNotifications } from "@/lib/reminders"
 import { Processing } from "../processing"
 import { settle } from "@/lib/settle"
 import "./subscribe.css"
+import { friendlyError } from "@/lib/errors"
 
 type PlanResp = {
   state: "open" | "subscribed" | "expired"; planKey: string; title: string; merchant: string; merchantName?: string; amount: string
@@ -230,5 +231,5 @@ function friendly(msg: string, amount: bigint) {
   if (/daily limit/.test(m)) return "You've reached today's WondrPay spending limit."
   if (/reject|denied|cancel/.test(m)) return "Approval cancelled."
   if (/fetch|network|failed to fetch/.test(m)) return "Network problem: nothing was charged. Check your connection and try again."
-  return `Subscription failed: ${msg}`
+  return friendlyError(msg, { action: "subscribing" })
 }

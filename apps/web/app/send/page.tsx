@@ -13,6 +13,7 @@ import { PayeeSearch } from "./search"
 import { usdt, short, initials } from "@/lib/format"
 import { playSound } from "@/lib/sound"
 import { settle, SettleError } from "@/lib/settle"
+import { friendlyError } from "@/lib/errors"
 
 type Payee = { address: Address; name?: string; displayName?: string; kind?: string; source?: string }
 
@@ -222,5 +223,5 @@ function friendlyPayError(msg: string) {
   if (/daily limit/.test(m)) return "You've reached today's WondrPay spending limit."
   if (/reject|denied|cancel/.test(m)) return "Cancelled. Nothing was charged."
   if (/fetch|network/.test(m)) return "Network problem: nothing was charged. Check your connection and try again."
-  return msg
+  return friendlyError(msg, { action: "sending" })
 }

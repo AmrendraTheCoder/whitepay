@@ -13,6 +13,7 @@ import { RefundTimeline, REASON_LABEL, type RefundCase } from "../refund-timelin
 import { getWallet } from "@/lib/wallet"
 import { usdt, short } from "@/lib/format"
 import { EXPLORER_URL } from "@whitepay/shared"
+import { friendlyError } from "@/lib/errors"
 
 type Receipt = { merchant: string; merchantName?: string; payer: string; amount: string; refunded: string; status: string; paidAt: number; txHash: string; explorer: string; paymentId: string; item?: string | null; orderId?: string | null }
 
@@ -139,7 +140,7 @@ function RequestForm({ rc, payer, onDone }: { rc: Receipt; payer: `0x${string}`;
   }
   const send = async () => {
     setSending(true); setMsg("")
-    try { await post(); onDone() } catch (e) { setMsg(`Not sent: ${(e as Error).message}`) } finally { setSending(false) }
+    try { await post(); onDone() } catch (e) { setMsg(`Not sent: ${friendlyError(e, { action: "sending your request" })}`) } finally { setSending(false) }
   }
 
   const sign = async (acct: PrivateKeyAccount) => {

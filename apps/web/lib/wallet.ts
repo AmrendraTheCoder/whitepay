@@ -383,14 +383,40 @@ export async function connectWalletConnect() {
 /** Signer for an external wallet: asks the wallet (extension or WalletConnect app) to sign. */
 export async function externalSigner(w: WalletInfo): Promise<Signer> {
   if (w.kind === "injected") return injectedSigner(w.address)
-  const { wcEnsureSession } = await import("./walletconnect")
-  const p = await wcEnsureSession()
-  const accounts = ((await p.request({ method: "eth_accounts" }).catch(() => null)) as string[] | null) ?? p.accounts ?? []
-  if (!accounts.some((a) => same(a, w.address))) throw new Error(`Connected wallet is not ${w.address.slice(0, 6)}…${w.address.slice(-4)}; reconnect it under You`)
-  // a chain switch over WalletConnect opens MetaMask; bound it so a dead session can't hang the sheet
-  await guarded("walletconnect", () => ensureWhitechain(p as unknown as Eip1193))
-  const client = createWalletClient({ chain: whitechainSepolia, transport: custom(p as any), account: w.address })
-  return guardedSigner(w.address, client, "walletconnect", () => ensureWhitechain(p as unknown as Eip1193))
+  const { wcEnsureSession, wcReset, isBrokenSessionError } = await import("./walletconnect")
+  const setup = async () => {
+    const p = await wcEnsureSession()
+    const accounts = ((await p.request({ method: "eth_accounts" }).catch(() => null)) as string[] | null) ?? p.accounts ?? []
+    if (!accounts.some((a) => same(a, w.address))) throw new Error(`Connected wallet is not ${w.address.slice(0, 6)}…${w.address.slice(-4)}; reconnect it under You`)
+    // a chain switch over WalletConnect opens MetaMask; bound it so a dead session can't hang the sheet
+    await guarded("walletconnect", () => ensureWhitechain(p as unknown as Eip1193))
+    const client = createWalletClient({ chain: whitechainSepolia, transport: custom(p as any), account: w.address })
+    return guardedSigner(w.address, client, "walletconnect", () => ensureWhitechain(p as unknown as Eip1193))
+  }
+  // a broken WalletConnect session (restored without its namespaces, deleted on the wallet's side, ...) is not the
+  // user's problem: drop it, reconnect once, and carry on, instead of showing an RPC error
+  const heal = async <T,>(run: () => Promise<T>): Promise<T> => {
+    try { return await run() } catch (e) {
+      if (!isBrokenSessionError(e)) throw e
+      console.warn("[walletconnect] broken session, reconnecting", e)
+      await wcReset()
+      return run()
+    }
+  }
+  let signer = await heal(setup)
+  const again = async () => { await wcReset(); signer = await setup(); return signer }
+  const retry = async <T,>(f: (s: Signer) => Promise<T>): Promise<T> => {
+    try { return await f(signer) } catch (e) {
+      if (!isBrokenSessionError(e)) throw e
+      console.warn("[walletconnect] broken session while signing, reconnecting", e)
+      return f(await again())
+    }
+  }
+  return {
+    address: w.address,
+    signTypedData: ((td: any) => retry((s) => s.signTypedData(td))) as Signer["signTypedData"],
+    signMessage: ((m: any) => retry((s) => s.signMessage(m))) as Signer["signMessage"],
+  }
 }
 
 // ------------------------------------------ WondrPay PIN / fingerprint for external wallets
